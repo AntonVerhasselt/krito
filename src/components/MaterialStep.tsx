@@ -180,7 +180,9 @@ export function MaterialStep() {
                           ? "Voeg minstens één bestand toe om te starten."
                           : ready && !busy
                             ? `Krito legt ${selected.goalCount === 1 ? "het leerdoel" : `alle ${selected.goalCount} leerdoelen`} naast je materiaal.`
-                            : "Even wachten tot elk bestand gecontroleerd is."}
+                            : files.some((f) => f.status === "invalid")
+                              ? "Verwijder de bestanden die niet lukten om te starten."
+                              : "Even wachten tot elk bestand gecontroleerd is."}
                       </p>
                     </>
                   }

@@ -28,7 +28,8 @@ This replaces individual-goal checkbox selection in original step 3 and the sele
 
 ## Uploads and future accounts
 
-- Accept multiple PDFs, at most **20 files**, 10 MiB each and 40 MiB combined. Enforce all limits in the browser and backend.
+- Accept multiple files, at most **20 files**, 10 MiB each and 40 MiB combined. Enforce all limits in the browser and backend.
+- Accepted material (2026-10-09): PDF, Word (docx, doc, odt, rtf), PowerPoint (pptx, ppt, odp), spreadsheets (xlsx, xls, ods, csv) and plain text. Everything that is not a PDF is converted to PDF during upload validation by a self-hosted Gotenberg/LibreOffice service on Cloud Run in `europe-west1`, so citations, page links and slide images work the same for every file. Spreadsheets render one sheet per page; semicolon CSV and Windows-1252 text are normalised first. OpenAI could read docx/pptx directly, but only as text without images or page numbers, so it is not used for this.
 - Store submitted email addresses in an application `users` table, with analyses referencing `userId`. Preserve the exact trimmed address, including plus tags and dots. Migration removes existing stored emails from analyses.
 - These records remain `emailVerified: false` until verified authentication is implemented. An optional `authId` is reserved for the future Better Auth component identity. The current MVP still requires the private capability for every analysis/file operation; an email/profile link is not authorization.
 - Better Auth and OTP are a later feature. The recommended application-table reference is documented by [Convex + Better Auth](https://labs.convex.dev/better-auth/migrations/migrate-to-0-9/migrate-userid/userid-in-app-table); verification requires the real [OTP flow](https://better-auth.com/docs/plugins/email-otp). Future account claiming must verify identity and the existing analysis capability rather than granting access from an unverified submitted address.

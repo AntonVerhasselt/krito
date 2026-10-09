@@ -19,6 +19,7 @@ import type * as files from "../files.js";
 import type * as goals from "../goals.js";
 import type * as health from "../health.js";
 import type * as migrations from "../migrations.js";
+import type * as node_convert from "../node/convert.js";
 import type * as node_openai from "../node/openai.js";
 import type * as node_pdf from "../node/pdf.js";
 import type * as node_storage from "../node/storage.js";
@@ -45,6 +46,7 @@ declare const fullApi: ApiFromModules<{
   goals: typeof goals;
   health: typeof health;
   migrations: typeof migrations;
+  "node/convert": typeof node_convert;
   "node/openai": typeof node_openai;
   "node/pdf": typeof node_pdf;
   "node/storage": typeof node_storage;

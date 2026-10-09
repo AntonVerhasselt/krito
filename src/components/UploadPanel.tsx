@@ -16,6 +16,11 @@ import {
   MAX_TOTAL_BYTES,
   MAX_FILES,
 } from "../../shared/analysisSchema";
+import {
+  ACCEPTED_FILES,
+  ACCEPTED_LABEL,
+  fileTypeOf,
+} from "../../shared/fileTypes";
 import type { AnalysisSession } from "../lib/analysisSession";
 import { safeError } from "../lib/safeError";
 import { StatusIcon } from "./SiteHeader";
@@ -25,11 +30,16 @@ type FileRow = NonNullable<
   FunctionReturnType<typeof api.analyses.getStatus>
 >["files"][number];
 type Burst = { id: number; x: number; y: number };
-function putPdf(url: string, file: File, progress: (percent: number) => void) {
+function putFile(
+  url: string,
+  file: File,
+  contentType: string,
+  progress: (percent: number) => void,
+) {
   return new Promise<void>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open("PUT", url);
-    xhr.setRequestHeader("Content-Type", "application/pdf");
+    xhr.setRequestHeader("Content-Type", contentType);
     xhr.timeout = 120_000;
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) progress(Math.round((e.loaded / e.total) * 100));
@@ -49,7 +59,11 @@ const materialKinds = [
   "Toetsen en evaluaties",
   "Ander lesmateriaal",
 ];
-function pages(n: number | null) {
+function pages(name: string, n: number | null) {
+  const kind = fileTypeOf(name)?.kind;
+  if (kind === "presentation") return `${n} ${n === 1 ? "dia" : "dia’s"}`;
+  if (kind === "spreadsheet")
+    return `${n} ${n === 1 ? "werkblad" : "werkbladen"}`;
   return `${n} ${n === 1 ? "pagina" : "pagina’s"}`;
 }
 export function UploadPanel({
@@ -92,6 +106,10 @@ export function UploadPanel({
   async function upload(chosen: File[]) {
     if (!chosen.length || busy) return;
     setError("");
+    if (chosen.some((f) => !fileTypeOf(f.name))) {
+      setError(safeError("unsupported_type"));
+      return;
+    }
     if (chosen.some((f) => !f.size || f.size > MAX_FILE_BYTES)) {
       setError(safeError("file_too_large"));
       return;
@@ -118,7 +136,7 @@ export function UploadPanel({
         });
         setProgress((p) => ({ ...p, [upload.fileId]: 0 }));
         try {
-          await putPdf(upload.uploadUrl, file, (value) =>
+          await putFile(upload.uploadUrl, file, upload.contentType, (value) =>
             setProgress((p) => ({ ...p, [upload.fileId]: value })),
           );
           await complete({ ...credentials, fileId: upload.fileId });
@@ -163,7 +181,7 @@ export function UploadPanel({
         id={id}
         ref={input}
         type="file"
-        accept="application/pdf,.pdf"
+        accept={ACCEPTED_FILES}
         multiple
         className="file-input"
         disabled={disabled}
@@ -276,7 +294,8 @@ export function UploadPanel({
             </span>
           </div>
           <p id={`${id}-limits`} className="upload-limits">
-            Max. 20 bestanden, 10 MiB per bestand en 40 MiB samen.
+            {ACCEPTED_LABEL}. Max. 20 bestanden, 10 MiB per bestand en 40 MiB
+            samen.
             {!enabled && !busy && " Even geduld, je onderwerp wordt geladen."}
           </p>
           {error && (
@@ -317,9 +336,11 @@ export function UploadPanel({
                         {pct !== undefined
                           ? `Uploaden ${pct}%`
                           : f.status === "ready"
-                            ? `${pages(f.pageCount)} · Klaar`
+                            ? `${pages(f.name, f.pageCount)} · Klaar`
                             : f.status === "validating"
-                              ? "Bestand controleren…"
+                              ? fileTypeOf(f.name)?.kind === "pdf"
+                                ? "Bestand controleren…"
+                                : "Omzetten naar pdf…"
                               : f.status === "invalid"
                                 ? safeError(f.safeError)
                                 : "Upload niet afgerond; verwijder en upload opnieuw."}
@@ -366,6 +387,9 @@ export function UploadPanel({
                   <li key={kind}>{kind}</li>
                 ))}
               </ul>
+              <p className="material-formats">
+                Werkt met {ACCEPTED_LABEL.replace(/^PDF/, "pdf")}-bestanden.
+              </p>
               <button
                 type="button"
                 className="secondary-button"

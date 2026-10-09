@@ -94,6 +94,16 @@ and six build-isolation tests pass. The Vercel hosted builder uses CLI 62.1.0
 
 PRs #1, #2 and #3 are merged. The development catalog and private analysis workflow are now active. Production backend, bucket and launch domain remain deferred.
 
+## Document converter
+
+Word, PowerPoint, spreadsheet and text uploads are converted to PDF by Gotenberg (LibreOffice) on Cloud Run. One-time setup:
+
+1. Install the Google Cloud CLI, run `gcloud auth login`, and create or choose a project with billing enabled.
+2. Put its ID in `gcpProject` in `infra/development.json` (`gcpRegion` defaults to `europe-west1`).
+3. Run `npm run infra:converter`. It generates basic-auth credentials in `.secrets/development.env` if missing, deploys `gotenberg/gotenberg:8-libreoffice-cloudrun` as `krito-converter-dev` (scales to zero, 2 GiB), and sets `CONVERTER_URL`, `CONVERTER_USERNAME` and `CONVERTER_PASSWORD` on Convex development.
+
+Without these variables PDFs still work; other files are marked "Het omzetten naar pdf lukt even niet".
+
 ## Daily workflow
 
 Run npm run dev in one terminal. Publish backend changes deliberately with npx convex dev --once; no backend watcher is needed during normal frontend work. This project's
