@@ -60,18 +60,6 @@ export function TopicSearch({
   }, [active, open, id]);
   useEffect(() => {
     document.documentElement.classList.toggle("search-open", open);
-    // Give the dropdown room on desktop; on small screens it goes fullscreen.
-    const box = input.current?.parentElement?.getBoundingClientRect();
-    if (open && box && innerWidth > 860) {
-      const lack = box.bottom + 560 - innerHeight;
-      if (lack > 0)
-        scrollBy({
-          top: Math.min(lack, box.top - 24),
-          behavior: matchMedia("(prefers-reduced-motion: reduce)").matches
-            ? "auto"
-            : "smooth",
-        });
-    }
     return () => document.documentElement.classList.remove("search-open");
   }, [open]);
   useEffect(() => {

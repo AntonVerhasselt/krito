@@ -39,6 +39,7 @@ html {
   background: var(--paper);
   color: var(--ink);
   scrollbar-color: #c8b99e transparent;
+  scrollbar-gutter: stable;
   -webkit-font-smoothing: antialiased;
 }
 body {
@@ -293,25 +294,6 @@ a {
   position: relative;
   width: 100%;
   height: auto;
-  transition: transform 0.6s var(--ease-out);
-}
-.hero-art:hover .hero-illustration {
-  transform: rotate(-1.2deg) scale(1.015);
-}
-html.search-open .site-shell {
-  padding-bottom: 600px;
-}
-html.search-open .hero-art {
-  opacity: 0.55;
-  filter: saturate(0.6);
-  transition:
-    opacity 0.3s,
-    filter 0.3s;
-}
-.hero-art {
-  transition:
-    opacity 0.3s,
-    filter 0.3s;
 }
 .search-placeholder {
   height: 72px;
@@ -357,26 +339,18 @@ html.search-open .hero-art {
   border-radius: 20px;
   background: var(--note);
   box-shadow: 6px 6px 0 var(--ink);
-  transition:
-    box-shadow 0.25s var(--ease-out),
-    transform 0.25s var(--ease-out);
-}
-.search-box:hover {
-  transform: translate(-1px, -1px);
-  box-shadow: 7px 7px 0 var(--ink);
+  transition: box-shadow 0.2s var(--ease-out);
 }
 .topic-combobox.is-open .search-box {
-  transform: translate(-2px, -2px);
-  box-shadow: 8px 8px 0 var(--cobalt);
+  box-shadow: 6px 6px 0 var(--cobalt);
 }
 .search-glass {
   flex: none;
   margin: 0 4px 0 22px;
   color: var(--ink);
-  transition: transform 0.35s var(--spring);
+  transition: color 0.2s;
 }
 .topic-combobox.is-open .search-glass {
-  transform: rotate(-14deg) scale(1.1);
   color: var(--cobalt);
 }
 .search-box input {
