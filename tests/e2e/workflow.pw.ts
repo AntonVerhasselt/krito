@@ -71,10 +71,10 @@ for (const viewport of [
       await page.getByRole("button", { name: "Start de analyse" }).click();
       await expect(page).toHaveURL(new RegExp(`/results/${analysisId}$`));
       await page.reload();
-      await expect(page.locator(".results-summary")).toBeVisible({
+      await expect(page.locator(".results-summary")).toBeVisible();
+      await expect(page.locator(".result-card")).toHaveCount(11, {
         timeout: 240_000,
       });
-      await expect(page.locator(".result-card")).toHaveCount(11);
       await page
         .locator(".result-card")
         .first()
@@ -96,10 +96,9 @@ for (const viewport of [
             { exact: false },
           ),
       ).toBeVisible();
-      await page
-        .getByRole("button", { name: /^Nakijken nodig/ })
-        .click();
-      await expect(page.locator(".result-card")).toHaveCount(1);
+      await expect(page.getByText("Kijk zelf na", { exact: true })).toHaveCount(
+        1,
+      );
       const client = new ConvexHttpClient(development.convexUrl);
       expect(
         await client.query(api.analyses.getResults, {

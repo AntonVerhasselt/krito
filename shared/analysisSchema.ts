@@ -37,6 +37,8 @@ export type FileManifest = {
 };
 export const PRIMARY_MODEL = "gpt-6-luna";
 export const RECHECK_MODEL = "gpt-6.1-sol";
+/** Initial results below this confidence get an independent recheck. */
+export const RECHECK_BELOW_CONFIDENCE = 60;
 export const MAX_FILE_BYTES = 10 * 1024 * 1024;
 export const MAX_TOTAL_BYTES = 40 * 1024 * 1024;
 export const MAX_FILES = 20;

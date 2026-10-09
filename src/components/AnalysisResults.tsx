@@ -1,7 +1,6 @@
 "use client";
 import { useState } from "react";
 import { useParams } from "next/navigation";
-import Image from "next/image";
 import Link from "next/link";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
@@ -9,25 +8,26 @@ import type { Id } from "../../convex/_generated/dataModel";
 import { saveSession, useAccessToken } from "../lib/analysisSession";
 import { safeError } from "../lib/safeError";
 import { SiteHeader } from "./SiteHeader";
-import { GoalBoard, type BoardGoal, type Phase } from "./GoalBoard";
-import kritoPointer from "../../public/illustrations/krito-pointer.webp";
-import kritoSleepy from "../../public/illustrations/krito-sleepy.webp";
+import { GoalList, type ListGoal, type Phase } from "./GoalList";
 
 export function AnalysisResults() {
   const { analysisId } = useParams<{ analysisId: string }>();
   const accessToken = useAccessToken(analysisId);
   const credentials = accessToken ? { analysisId, accessToken } : null;
-  const status = useQuery(api.analyses.getStatus, credentials ?? "skip"),
-    results = useQuery(
-      api.analyses.getResults,
-      status?.status === "completed" && credentials ? credentials : "skip",
-    );
-  const working =
-    !!status && status.status !== "completed" && status.status !== "failed" && status.status !== "draft";
-  // While Krito works, pin up the topic's goals so the board fills before the verdicts land.
+  const status = useQuery(api.analyses.getStatus, credentials ?? "skip");
+  const results = useQuery(
+    api.analyses.getResults,
+    (status?.status === "completed" || status?.status === "rechecking") &&
+      credentials
+      ? credentials
+      : "skip",
+  );
+  const submitted =
+    !!status && status.status !== "draft" && status.status !== "failed";
+  // Until the first results are saved, list the topic's goals as pending.
   const pending = useQuery(
     api.goals.listGoals,
-    status && status.status !== "draft" && status.status !== "failed" && !results?.goals.length
+    status && submitted && !results?.goals.length
       ? {
           catalogVersion: status.topic.catalogVersion,
           goalSetKey: status.topic.key,
@@ -56,7 +56,7 @@ export function AnalysisResults() {
       setError(safeError(e));
     }
   }
-  const goals: BoardGoal[] | undefined = results?.goals.length
+  const goals: ListGoal[] | undefined = results?.goals.length
     ? results.goals.map((g) => ({
         goalId: g.snapshot.goalId,
         wording: g.snapshot.wording,
@@ -68,6 +68,16 @@ export function AnalysisResults() {
         reviewReason: g.reviewReason,
       }))
     : pending?.goals.map((g) => ({ goalId: g.goalId, wording: g.wording }));
+  const phase: Phase | undefined = !status
+    ? undefined
+    : status.status === "completed"
+      ? results?.goals.length
+        ? "completed"
+        : "rechecking"
+      : status.status === "draft" || status.status === "failed"
+        ? undefined
+        : status.status;
+  const fileCount = results?.files.length || status?.files.length || 0;
 
   return (
     <div className="site-shell results-shell">
@@ -79,7 +89,6 @@ export function AnalysisResults() {
       <main className="results">
         {unavailable ? (
           <div className="result-state">
-            <Image src={kritoSleepy} alt="" className="state-illustration" sizes="420px" loading="eager" />
             <h1>Analyse niet beschikbaar</h1>
             <p>Open de analyse in het tabblad waarin je ze gestart hebt.</p>
             <Link className="primary-button" href="/">
@@ -92,35 +101,35 @@ export function AnalysisResults() {
           </p>
         ) : (
           <>
-            <div className="results-heading">
-              <Image
-                src={kritoPointer}
-                alt=""
-                className={`results-krito${working ? " is-working" : ""}`}
-                sizes="180px"
-                priority
-              />
-              <div>
+            <header className="results-heading">
+              <p className="results-context">
+                {status.topic.path
+                  .slice(0, -1)
+                  .map((p) => p.title)
+                  .join(" / ")}
+              </p>
+              <h1>{status.topic.title}</h1>
+              <div className="results-meta">
                 <span className="group-tag">
                   {status.topic.group.title}
                   <b title={status.topic.group.routeTitle}>
                     {status.topic.group.routeCode}
                   </b>
                 </span>
-                <h1>{status.topic.title}</h1>
-                <p>
+                <span>
                   {status.topic.goalCount}{" "}
-                  {status.topic.goalCount === 1 ? "leerdoel" : "leerdoelen"} uit
-                  Op.stap v{status.topic.catalogVersion}
-                  {results?.files.length
-                    ? `, nagekeken in ${results.files.length} ${results.files.length === 1 ? "pdf" : "pdf’s"}`
-                    : ""}
-                </p>
+                  {status.topic.goalCount === 1 ? "leerdoel" : "leerdoelen"}
+                </span>
+                {fileCount > 0 && (
+                  <span>
+                    {fileCount} {fileCount === 1 ? "pdf" : "pdf’s"}
+                  </span>
+                )}
+                <span>Op.stap v{status.topic.catalogVersion}</span>
               </div>
-            </div>
+            </header>
             {status.status === "failed" ? (
               <div className="result-state">
-                <Image src={kritoSleepy} alt="" className="state-illustration" sizes="420px" loading="eager" />
                 <h2>De analyse is onderbroken</h2>
                 <p>{safeError(status.safeError)}</p>
                 <button
@@ -145,29 +154,21 @@ export function AnalysisResults() {
             ) : status.status === "draft" ? (
               <div className="result-state">
                 <h2>Je analyse is nog niet gestart</h2>
-                <p>Leg je pdf’s op het bord en vul je e-mailadres in.</p>
+                <p>Voeg je pdf’s toe en vul je e-mailadres in.</p>
                 <Link className="primary-button" href="/materiaal">
                   Ga naar mijn materiaal
                 </Link>
               </div>
-            ) : !goals ? (
+            ) : !goals || !phase ? (
               <p className="page-loading" role="status">
-                Het bord klaarzetten…
+                Leerdoelen laden…
               </p>
             ) : (
               <>
-                <GoalBoard
+                <GoalList
                   goals={goals}
-                  extra={pending ? Math.max(0, pending.total - pending.goals.length) : 0}
-                  phase={
-                    status.status === "completed" && results?.goals.length
-                      ? "completed"
-                      : status.status === "completed"
-                        ? status.recheckTotal
-                          ? "rechecking"
-                          : "checking"
-                        : (status.status as Phase)
-                  }
+                  total={status.topic.goalCount}
+                  phase={phase}
                   recheck={{
                     done: status.recheckCompleted,
                     total: status.recheckTotal,
@@ -175,10 +176,16 @@ export function AnalysisResults() {
                   files={results?.files ?? []}
                   onOpenPdf={(fileId, page) => void openPdf(fileId, page)}
                 />
+                {pending?.more && (
+                  <p className="results-more">
+                    En nog {pending.total - pending.goals.length} leerdoelen.
+                  </p>
+                )}
                 <p className="results-note">
-                  {working
-                    ? "Je kunt deze pagina vernieuwen of later terugkomen in dit tabblad. Krito werkt gewoon verder."
-                    : "Dit beoordeelt ondersteuning in het lesmateriaal, geen beheersing door leerlingen. Zekerheid beschrijft het vertrouwen van het model in de beoordeling; ze is geen dekkingspercentage of gekalibreerde kans."}
+                  Krito beoordeelt of je lesmateriaal een leerdoel
+                  ondersteunt, niet of leerlingen het beheersen. Zekerheid
+                  beschrijft het vertrouwen van het model in de beoordeling;
+                  ze is geen dekkingspercentage of gekalibreerde kans.
                 </p>
               </>
             )}

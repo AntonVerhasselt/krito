@@ -2,7 +2,11 @@ import { ConvexError, v } from "convex/values";
 import { mutation, query, type MutationCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { authorized, requireAccess } from "./access";
-import { MAX_TOTAL_BYTES } from "../shared/analysisSchema";
+import {
+  MAX_TOTAL_BYTES,
+  RECHECK_BELOW_CONFIDENCE,
+  RECHECK_MODEL,
+} from "../shared/analysisSchema";
 import { getOrCreateUser } from "./users";
 import { PROMPT_VERSION } from "../shared/prompts";
 
@@ -215,7 +219,9 @@ export const getResults = query({
   handler: async (ctx, args) => {
     const a = await authorized(ctx, args.analysisId, args.accessToken);
     if (!a) return null;
-    if (a.status !== "completed")
+    // While rechecking, the initial results of this attempt are saved; only
+    // low-confidence goals still wait for their independent second check.
+    if (a.status !== "completed" && a.status !== "rechecking")
       return { status: a.status, topic: a.topic, files: [], goals: [] };
     const rows = await ctx.db
       .query("analysisGoals")
@@ -225,13 +231,21 @@ export const getResults = query({
       status: a.status,
       topic: a.topic,
       files: a.manifest ?? [],
-      goals: rows.map((g) => ({
-        snapshot: g.snapshot,
-        result: g.finalResult!,
-        modelUsed: g.modelUsed!,
-        needsReview: g.needsReview,
-        reviewReason: g.reviewReason ?? null,
-      })),
+      goals: rows.map((g) => {
+        const settled =
+          a.status === "completed" ||
+          (!!g.finalResult &&
+            (g.modelUsed === RECHECK_MODEL ||
+              g.reviewReason === "recheck_failed" ||
+              g.finalResult.confidence >= RECHECK_BELOW_CONFIDENCE));
+        return {
+          snapshot: g.snapshot,
+          result: settled ? g.finalResult! : null,
+          modelUsed: settled ? g.modelUsed! : null,
+          needsReview: settled && g.needsReview,
+          reviewReason: settled ? (g.reviewReason ?? null) : null,
+        };
+      }),
     };
   },
 });

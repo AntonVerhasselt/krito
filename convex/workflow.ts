@@ -8,7 +8,11 @@ import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { result } from "./analysisValidators";
 import { validateAnalysis, isCurrentRun } from "../shared/validateAnalysis";
-import { PRIMARY_MODEL, RECHECK_MODEL } from "../shared/analysisSchema";
+import {
+  PRIMARY_MODEL,
+  RECHECK_BELOW_CONFIDENCE,
+  RECHECK_MODEL,
+} from "../shared/analysisSchema";
 
 const analysisArgs = { analysisId: v.id("analyses"), attempt: v.number() };
 export const runArgs = { runId: v.id("aiRuns"), generation: v.number() };
@@ -431,12 +435,15 @@ export const accepted = internalMutation({
         await ctx.db.patch(goal._id, {
           finalResult: r,
           modelUsed: RECHECK_MODEL,
-          needsReview: r.confidence < 60,
-          reviewReason: r.confidence < 60 ? "low_confidence" : undefined,
+          needsReview: r.confidence < RECHECK_BELOW_CONFIDENCE,
+          reviewReason:
+            r.confidence < RECHECK_BELOW_CONFIDENCE ? "low_confidence" : undefined,
         });
     }
     if (run.stage === "initial") {
-      const rechecks = validated.results.filter((r) => r.confidence < 60);
+      const rechecks = validated.results.filter(
+        (r) => r.confidence < RECHECK_BELOW_CONFIDENCE,
+      );
       for (const [order, r] of rechecks.entries())
         await insertRun(ctx, a, "recheck", order + 1, r.goalId);
       await ctx.db.patch(a._id, {

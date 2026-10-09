@@ -23,7 +23,7 @@ This replaces individual-goal checkbox selection in original step 3 and the sele
 
 - The start page has one hero: title, intro and topic search on the left, the thinking-Krito illustration on the right. On small screens the illustration sits on top and the open search becomes fullscreen.
 - Choosing a topic moves to `/materiaal`: one centred column with the green dotted chalkboard as the PDF drop zone and Krito standing in front of it. The email field and start button appear under the board once files are added.
-- Results are shown as a "checkboard": every goal is a pinned note on a chalkboard, first with the blue loading icon, then stamped with the green check, amber snapped check (partial), red cross or orange question mark. Chalk sticks on the tray filter the notes.
+- The results page is deliberately calmer than the rest of the site: a summary bar and one list row per goal, with the verdict icon on the left and the reasoning and evidence folded out per row. No filters. During rechecking, goals whose initial confidence was below 60 keep the loading icon until their independent Sol result is saved; all other results are shown as soon as the initial analysis finishes.
 - Brand assets live in `public/brand` and `public/illustrations`; the favicon is `src/app/icon.svg`.
 
 ## Uploads and future accounts
