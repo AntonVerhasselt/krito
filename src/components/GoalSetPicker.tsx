@@ -4,6 +4,7 @@ import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useTopicSelection } from "../lib/useTopicSelection";
 import { TopicSearch } from "./TopicSearch";
+import { Modal } from "./Modal";
 import { GoalPreview } from "./GoalPreview";
 export function GoalSetPicker() {
   const catalog = useQuery(api.goals.catalogInfo);
@@ -102,55 +103,46 @@ export function GoalSetPicker() {
         )}
       </div>
       {selected && showGoals && (
-        <div
-          className="modal-backdrop"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) setShowGoals(false);
-          }}
+        <Modal
+          label="Leerdoelen in je analyse"
+          onClose={() => setShowGoals(false)}
         >
-          <div
-            className="goal-preview-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Leerdoelen in je analyse"
-          >
-            <div className="modal-heading">
-              <div>
-                <h3>{selected.title}</h3>
-                <p>
-                  {selected.group.title} · {selected.goalCount} leerdoelen
-                </p>
-              </div>
-              <button
-                className="icon-button"
-                aria-label="Sluit leerdoelen"
-                onClick={() => setShowGoals(false)}
-              >
-                ×
-              </button>
+          <div className="modal-heading">
+            <div>
+              <h3>{selected.title}</h3>
+              <p>
+                {selected.group.title} · {selected.goalCount} leerdoelen
+              </p>
             </div>
-            <p className="field-hint">
-              Dit is de volledige doelenlijst voor je analyse.
-            </p>
-            <div className="goal-list">
-              {goals?.goals.map((goal) => (
-                <GoalPreview key={goal.goalId} goal={goal} />
-              ))}
-            </div>
-            <div className="page-controls">
-              {offset > 0 && (
-                <button onClick={() => setOffset(Math.max(0, offset - 50))}>
-                  ← Vorige doelen
-                </button>
-              )}
-              {goals?.more && (
-                <button onClick={() => setOffset(offset + 50)}>
-                  Volgende doelen →
-                </button>
-              )}
-            </div>
+            <button
+              className="icon-button"
+              aria-label="Sluit leerdoelen"
+              onClick={() => setShowGoals(false)}
+            >
+              ×
+            </button>
           </div>
-        </div>
+          <p className="field-hint">
+            Dit is de volledige doelenlijst voor je analyse.
+          </p>
+          <div className="goal-list">
+            {goals?.goals.map((goal) => (
+              <GoalPreview key={goal.goalId} goal={goal} />
+            ))}
+          </div>
+          <div className="page-controls">
+            {offset > 0 && (
+              <button onClick={() => setOffset(Math.max(0, offset - 50))}>
+                ← Vorige doelen
+              </button>
+            )}
+            {goals?.more && (
+              <button onClick={() => setOffset(offset + 50)}>
+                Volgende doelen →
+              </button>
+            )}
+          </div>
+        </Modal>
       )}
     </section>
   );

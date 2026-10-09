@@ -1003,3 +1003,27 @@ math {
     padding: 15px;
   }
 }
+.app-dialog {
+  width: min(700px, calc(100% - 30px));
+  max-height: 85vh;
+  border: 0;
+  border-radius: 15px;
+  padding: 0;
+  background: var(--paper);
+  color: var(--ink);
+}
+.app-dialog::backdrop {
+  background: #193c3470;
+  backdrop-filter: blur(3px);
+}
+.dialog-body {
+  padding: 25px;
+}
+.app-dialog .goal-list {
+  margin-top: 20px;
+}
+@media (max-width: 640px) {
+  .dialog-body {
+    padding: 18px;
+  }
+}
