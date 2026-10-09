@@ -1,6 +1,6 @@
 # Setup record
 
-Setup is in progress. Steps 2–10 cannot begin until step 1 passes verification.
+Step 1 acceptance checks passed on 2026-10-09. Production backend launch remains deferred.
 
 ## Verified identities
 
@@ -65,9 +65,35 @@ This does not claim deletion of all provider-side retention.
 
 ## Remaining step 1 verification
 
-Git main/feature/PR/repeat-push/two-branch Ready deployments, hosted health, preview
-origin synchronization, preview PDF upload/download, and frontend build logs are
-still pending. Do not proceed to step 2 until these pass.
+All specified setup checks passed. Clean install, lint, TypeScript, frontend build,
+and six build-isolation tests pass. The Vercel hosted builder uses CLI 62.1.0
+(provider-controlled), while the checked-in local CLI is 63.1.0; both use Node 24.21.0.
+
+- Main 5a5e4c5: https://krito-bsvl5v517-anton-personal-projects.vercel.app (Ready).
+- Main alias: https://krito-theta.vercel.app.
+- PR #1: https://github.com/AntonVerhasselt/krito/pull/1; deployment link present,
+  GitHub Actions and Vercel checks pass.
+- First feature push ce224b8: https://krito-2omppkvca-anton-personal-projects.vercel.app (Ready).
+- Second same-branch push f15be6f: https://krito-942pfun51-anton-personal-projects.vercel.app (Ready).
+- Stable branch: https://krito-git-feat-setup-preview-check-anton-personal-projects.vercel.app;
+  browser confirmed Preview 2, proving it serves the newer revision.
+- Second feature branch 2d53d31: https://krito-ak8k1kvqw-anton-personal-projects.vercel.app (Ready).
+- Stable second branch: https://krito-git-feat-setup-second-preview-anton-personal-projects.vercel.app;
+  browser confirmed Preview B with generic inherited frontend variables.
+- Local, main, and both feature browsers confirm development / setup-v1 from
+  https://majestic-sturgeon-687.eu-west-1.convex.cloud.
+- Browser private PDF roundtrip verified on localhost, immutable first preview,
+  and stable second branch; signed PUT/GET HTTP 200 and exact fixture bytes.
+  A direct unsigned request was rejected with HTTP 400 (missing authentication).
+- CORS reconciled exact localhost/main/branch/immutable project origins.
+- Preview logs run npm ci then scripts/buildVercel.ts and next build only;
+  no Convex backend publication, deploy key, watcher, or seed step.
+- Current backend source commit: 5a5e4c5 (single explicit dev publication).
+- Setup-only probe and automation capabilities are revoked after testing;
+  scheduled fixture cleanup remains available, and all-deployment protection stays on.
+
+PR #1 is left open for normal review. No production key, bucket, goal data, teacher
+files, or domain is configured.
 
 ## Daily workflow
 
@@ -82,3 +108,23 @@ actual immutable or stable branch origin. Fresh immutable URLs need another sync
 A temporary development-only storage fixture capability is used for setup probes;
 it expires after two hours and must be removed from the backend after verification.
 Fixture objects are scheduled for deletion after ten minutes.
+
+## Repeating the storage setup checks
+
+Run `npx tsx scripts/prepareStorageSmoke.ts` for a temporary fixture capability and
+`npx tsx scripts/setupAutomation.ts` for protected browser automation. Run
+`npx tsx scripts/storageSmoke.ts` for signed roundtrip and unsigned denial checks.
+The collaborative browser runs the same PUT/GET byte verification at the actual
+local/preview origin, after `npm run infra:cors`. Capability input is read from
+ignored owner-only files, and signed URLs are never intentionally printed.
+Finish with `npx tsx scripts/setupAutomation.ts --disable`. Fixture objects are
+scheduled for deletion after ten minutes. Provider responses are filtered before
+logging; browser network diagnostics can contain signed URLs and should be omitted.
+
+## Accepted catalog/search update
+
+The user authorized scraping https://opstap.katholiekonderwijs.vlaanderen/ for this
+MVP and requested all groups/ages. Preserve the full source hierarchy and its age
+and route semantics. Replace the earlier multiple-filter selector with flexible
+search that exposes matching results and age tags. Commercial reuse will be
+revisited with the source owner later; no commercial launch is part of this setup.

@@ -16,7 +16,7 @@ export default function Home() {
         </div>
         <div className="setup-note"><h2>We maken Krito klaar voor gebruik</h2><p>De ontwikkelomgeving wordt gecontroleerd. Je kunt binnenkort hier je eerste analyse starten.</p><BackendHealth /></div>
       </main>
-      <footer><span>Meer overzicht. Ruimte voor jouw oordeel.</span><span>Krito · Ontwikkelversie</span></footer>
+      <footer><span>Meer overzicht. Ruimte voor jouw oordeel.</span><span>Krito · Ontwikkelversie · Preview 2</span></footer>
     </div>
   );
 }
