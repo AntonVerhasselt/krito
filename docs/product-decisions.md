@@ -26,6 +26,12 @@ This replaces individual-goal checkbox selection in original step 3 and the sele
 - The results page is deliberately calmer than the rest of the site: a summary bar and one list row per goal, with the verdict icon on the left and the reasoning and evidence folded out per row. No filters. During rechecking, goals whose initial confidence was below 60 keep the loading icon until their independent Sol result is saved; all other results are shown as soon as the initial analysis finishes.
 - Brand assets live in `public/brand` and `public/illustrations`; the favicon is `src/app/icon.svg`.
 
+## Homepage messaging (2026-10-09)
+
+- Below the hero: why (minimumdoelen context with sourced quotes from Klasse and GO!), how it works, a live example of the results list with real Op.stap goals, what Krito does and does not do, FAQ and a closing call to action.
+- Claims to avoid: anything about pupils reaching goals; "inspectieklaar" or proof for the inspectie (it asks for no extra documents); any affiliation with or endorsement by Katholiek Onderwijs Vlaanderen; calling per-year leerplandoelen "minimumdoelen" (those exist only at the end of the 3de kleuterklas, 4de and 6de leerjaar); "always up to date" or "approved" claims; unsourced time-saving numbers.
+- Only school email addresses may start an analysis; consumer mailboxes are refused (`shared/emailPolicy.ts`).
+
 ## Uploads and future accounts
 
 - Accept multiple files, at most **20 files**, 10 MiB each and 40 MiB combined. Enforce all limits in the browser and backend.

@@ -28,7 +28,8 @@ export type ListGoal = {
   needsReview?: boolean;
   reviewReason?: string | null;
 };
-export type Phase = "queued" | "preparing" | "checking" | "rechecking" | "completed";
+export type Phase =
+  "queued" | "preparing" | "checking" | "rechecking" | "completed";
 
 export const verdicts: Record<Verdict, string> = {
   covered: "Gedekt",
@@ -40,7 +41,13 @@ const order = Object.keys(verdicts) as Verdict[];
 
 function ExternalIcon() {
   return (
-    <svg aria-hidden="true" width="13" height="13" viewBox="0 0 16 16" fill="none">
+    <svg
+      aria-hidden="true"
+      width="13"
+      height="13"
+      viewBox="0 0 16 16"
+      fill="none"
+    >
       <path
         d="M9 2.5h4.5V7M13.5 2.5 7.5 8.5M6 3.5H3.5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V10"
         stroke="currentColor"
@@ -92,7 +99,9 @@ function Summary({
       <div
         className="summary-bar"
         role="img"
-        aria-label={order.map((k) => `${counts[k]} ${verdicts[k].toLowerCase()}`).join(", ")}
+        aria-label={order
+          .map((k) => `${counts[k]} ${verdicts[k].toLowerCase()}`)
+          .join(", ")}
       >
         {order.map((k) =>
           counts[k] ? (
@@ -186,7 +195,9 @@ export function GoalList({
                   </>
                 ) : (
                   <span className="pending-label">
-                    {phase === "rechecking" ? "Tweede controle" : "Wordt nagekeken"}
+                    {phase === "rechecking"
+                      ? "Tweede controle"
+                      : "Wordt nagekeken"}
                   </span>
                 )}
               </span>
@@ -257,18 +268,35 @@ export function GoalList({
                         </p>
                         {r.evidence.map((e, i) => (
                           <div className="evidence" key={i}>
-                            <button
-                              type="button"
-                              className="page-link"
-                              onClick={() => onOpenPdf?.(e.fileId, e.page)}
-                            >
-                              <span className="page-link-name">
-                                {files.find((f) => f.fileId === e.fileId)?.name}
+                            {onOpenPdf ? (
+                              <button
+                                type="button"
+                                className="page-link"
+                                onClick={() => onOpenPdf(e.fileId, e.page)}
+                              >
+                                <span className="page-link-name">
+                                  {
+                                    files.find((f) => f.fileId === e.fileId)
+                                      ?.name
+                                  }
+                                </span>
+                                <span className="page-link-page">
+                                  pagina {e.page} <ExternalIcon />
+                                </span>
+                              </button>
+                            ) : (
+                              <span className="page-link is-static">
+                                <span className="page-link-name">
+                                  {
+                                    files.find((f) => f.fileId === e.fileId)
+                                      ?.name
+                                  }
+                                </span>
+                                <span className="page-link-page">
+                                  pagina {e.page} <ExternalIcon />
+                                </span>
                               </span>
-                              <span className="page-link-page">
-                                pagina {e.page} <ExternalIcon />
-                              </span>
-                            </button>
+                            )}
                             {e.kind === "text" && e.quote && (
                               <blockquote>{e.quote}</blockquote>
                             )}
