@@ -7,5 +7,7 @@
   "cloudflareAccountId": "546e2c266bb5a2e5d81edac39a4982ef",
   "r2Bucket": "krito-pdfs-dev",
   "vercelScope": "anton-personal-projects",
-  "vercelProject": "krito"
+  "vercelProject": "krito",
+  "gcpProject": "",
+  "gcpRegion": "europe-west1"
 }

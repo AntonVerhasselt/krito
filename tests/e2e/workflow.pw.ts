@@ -41,6 +41,7 @@ for (const viewport of [
         .getByRole("option")
         .filter({ hasText: "Positieve rationale getallen" })
         .click();
+      await expect(page).toHaveURL(/\/materiaal$/);
       await expect(
         page.getByText("Alle 11 bijbehorende leerdoelen worden gecontroleerd."),
       ).toBeVisible();
@@ -64,19 +65,18 @@ for (const viewport of [
       ).toHaveLength(0);
       await page.reload();
       await expect(page.getByText("3 pagina’s · Klaar")).toBeVisible();
-      await page
-        .getByRole("button", { name: "Analyseer mijn materiaal" })
-        .click();
-      await page
+      await page.getByRole("button", { name: "Start de analyse" }).click();
+      const dialog = page.getByRole("dialog", { name: "Start de analyse" });
+      await dialog
         .getByLabel("Je e-mailadres")
         .fill("playwright.fixture+private@example.com");
-      await page.getByRole("button", { name: "Start de analyse" }).click();
+      await dialog.getByRole("button", { name: "Start de analyse" }).click();
       await expect(page).toHaveURL(new RegExp(`/results/${analysisId}$`));
       await page.reload();
-      await expect(page.locator(".results-summary")).toBeVisible({
+      await expect(page.locator(".results-summary")).toBeVisible();
+      await expect(page.locator(".result-card")).toHaveCount(11, {
         timeout: 240_000,
       });
-      await expect(page.locator(".result-card")).toHaveCount(11);
       await page
         .locator(".result-card")
         .first()
@@ -98,10 +98,9 @@ for (const viewport of [
             { exact: false },
           ),
       ).toBeVisible();
-      await page
-        .getByRole("button", { name: "Nakijken nodig", exact: true })
-        .click();
-      await expect(page.locator(".result-card")).toHaveCount(1);
+      await expect(page.getByText("Kijk zelf na", { exact: true })).toHaveCount(
+        1,
+      );
       const client = new ConvexHttpClient(development.convexUrl);
       expect(
         await client.query(api.analyses.getResults, {

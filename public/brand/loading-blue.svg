@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1254 1254" role="img" aria-labelledby="title">
+<title id="title">Krito blue loading spinner</title>
+<style>
+ .spinner { transform-box: view-box; transform-origin: 50% 50%; animation: kritoSpin 1.4s linear infinite; }
+ @keyframes kritoSpin { to { transform: rotate(360deg); } }
+ @media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
+</style>
+<defs>
+ <linearGradient id="blue" x1="-70" y1="-440" x2="70" y2="-235" gradientUnits="userSpaceOnUse"><stop stop-color="#0750FF"/><stop offset="1" stop-color="#0043FA"/></linearGradient>
+ <linearGradient id="blueFacet" x1="-70" y1="-440" x2="40" y2="-320" gradientUnits="userSpaceOnUse"><stop stop-color="#3984FF"/><stop offset="1" stop-color="#2F73F5"/></linearGradient>
+ <linearGradient id="chalk" x1="-60" y1="-440" x2="65" y2="-355" gradientUnits="userSpaceOnUse"><stop stop-color="#FFF6E5"/><stop offset="1" stop-color="#FAF0DC"/></linearGradient>
+ <g id="chalk-segment">
+  <path fill="url(#blue)" d="M-20 -440 H20 Q70 -440 70 -390 V-285 Q70 -235 20 -235 H-20 Q-70 -235 -70 -285 V-390 Q-70 -440 -20 -440 Z"/>
+  <path fill="url(#blueFacet)" d="M-20 -440 H20 Q47 -440 60 -425 L25 -376 L-10 -359 L-70 -371 V-390 Q-70 -440 -20 -440 Z"/>
+ </g>
+</defs>
+<g class="spinner" id="loading-wheel">
+ <g transform="translate(627 627)">
+  <g transform="rotate(45)" opacity=".18"><use xlink:href="#chalk-segment"/></g>
+  <g transform="rotate(90)" opacity=".26"><use xlink:href="#chalk-segment"/></g>
+  <g transform="rotate(135)" opacity=".36"><use xlink:href="#chalk-segment"/></g>
+  <g transform="rotate(180)" opacity=".47"><use xlink:href="#chalk-segment"/></g>
+  <g transform="rotate(225)" opacity=".60"><use xlink:href="#chalk-segment"/></g>
+  <g transform="rotate(270)" opacity=".74"><use xlink:href="#chalk-segment"/></g>
+  <g transform="rotate(315)" opacity=".87"><use xlink:href="#chalk-segment"/></g>
+  <use xlink:href="#chalk-segment"/>
+  <path id="chipped-leading-tip" fill="url(#chalk)" d="M-20 -440 H20 Q70 -440 70 -390 V-371 L44 -376 L20 -360 L-4 -378 L-23 -363 L-47 -381 L-70 -374 V-390 Q-70 -440 -20 -440 Z"/>
+ </g>
+</g>
+</svg>

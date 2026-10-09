@@ -5,12 +5,14 @@ import { useRouter } from "next/navigation";
 import { api } from "../../convex/_generated/api";
 import type { AnalysisSession } from "../lib/analysisSession";
 import { safeError } from "../lib/safeError";
+import { isPersonalEmail } from "../../shared/emailPolicy";
+import { StatusIcon } from "./SiteHeader";
 export function EmailGate({
   session,
-  onBack,
+  onCancel,
 }: {
   session: AnalysisSession;
-  onBack: () => void;
+  onCancel: () => void;
 }) {
   const [email, setEmail] = useState(""),
     [busy, setBusy] = useState(false),
@@ -23,6 +25,10 @@ export function EmailGate({
       onSubmit={async (e) => {
         e.preventDefault();
         if (busy) return;
+        if (isPersonalEmail(email)) {
+          setError(safeError("personal_email"));
+          return;
+        }
         setBusy(true);
         setError("");
         try {
@@ -34,40 +40,67 @@ export function EmailGate({
         }
       }}
     >
+      <div className="modal-heading">
+        <h2>Nog één ding</h2>
+        <button
+          type="button"
+          className="icon-button"
+          aria-label="Sluit"
+          disabled={busy}
+          onClick={onCancel}
+        >
+          ×
+        </button>
+      </div>
+      <p className="email-gate-lead">
+        Vul je e-mailadres in en Krito begint met nakijken. Je resultaat
+        verschijnt meteen hier op de website.
+      </p>
       <label className="field-label" htmlFor="analysis-email">
-        Je e-mailadres
+        Je e-mailadres van school
       </label>
       <input
         id="analysis-email"
+        className="text-input"
         type="email"
         autoComplete="email"
+        data-autofocus
         required
         maxLength={254}
         value={email}
         disabled={busy}
-        placeholder="jij@school.be"
-        onChange={(e) => setEmail(e.target.value)}
+        placeholder="naam@jouwschool.be"
+        aria-invalid={!!error || undefined}
+        aria-describedby={error ? "analysis-email-error" : undefined}
+        onChange={(e) => {
+          setEmail(e.target.value);
+          if (error) setError("");
+        }}
       />
-      <p className="field-hint">
-        Je resultaat verschijnt hier op de website. Bewaar dit tabblad; we
-        sturen geen resultaat per e-mail.
-      </p>
       {error && (
-        <p className="form-error" role="alert">
+        <p className="form-error" role="alert" id="analysis-email-error">
           {error}
         </p>
       )}
-      <button className="primary-button" type="submit" disabled={busy}>
-        {busy ? "Analyse starten…" : "Start de analyse →"}
-      </button>
-      <button
-        className="text-button"
-        type="button"
-        disabled={busy}
-        onClick={onBack}
-      >
-        ← Terug naar materiaal
-      </button>
+      <div className="email-actions">
+        <button
+          className="text-button"
+          type="button"
+          disabled={busy}
+          onClick={onCancel}
+        >
+          Annuleer
+        </button>
+        <button className="primary-button" type="submit" disabled={busy}>
+          {busy ? (
+            <>
+              <StatusIcon status="loading" size={22} /> Analyse starten…
+            </>
+          ) : (
+            "Start de analyse"
+          )}
+        </button>
+      </div>
     </form>
   );
 }

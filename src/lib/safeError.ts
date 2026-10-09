@@ -6,18 +6,28 @@ const messages: Record<string, string> = {
   already_submitted:
     "Deze analyse is al gestart. Start een nieuwe analyse om materiaal te wijzigen.",
   invalid_email: "Vul een geldig e-mailadres in.",
+  personal_email:
+    "Gebruik je e-mailadres van school. Persoonlijke adressen zoals Gmail, Outlook of Telenet worden niet aanvaard.",
   files_not_ready:
-    "Wacht tot alle pdf’s gecontroleerd zijn en verwijder afgekeurde bestanden.",
-  file_too_large: "Een pdf mag maximaal 10 MiB groot zijn.",
+    "Wacht tot alle bestanden gecontroleerd zijn en verwijder afgekeurde bestanden.",
+  file_too_large: "Een bestand mag maximaal 10 MiB groot zijn.",
   total_too_large:
-    "Upload maximaal 20 pdf’s, samen maximaal 40 MiB.",
-  invalid_pdf: "Dit bestand is geen leesbare pdf of is beschadigd.",
+    "Upload maximaal 20 bestanden, samen maximaal 40 MiB.",
+  invalid_pdf: "Dit bestand is onleesbaar of beschadigd.",
+  unsupported_type:
+    "Dit bestandstype wordt niet ondersteund. Gebruik pdf, Word, PowerPoint, Excel, CSV, tekst of een afbeelding (jpg of png).",
+  conversion_failed:
+    "Dit bestand kon niet worden geopend. Controleer of het niet beveiligd of beschadigd is en upload het opnieuw.",
+  conversion_unavailable:
+    "Het omzetten naar pdf lukt even niet. Verwijder het bestand en probeer het zo opnieuw.",
+  converted_too_large:
+    "Dit bestand wordt na het omzetten te groot. Verdeel het over meerdere bestanden.",
   encrypted_pdf:
-    "Deze pdf is beveiligd met een wachtwoord. Upload een onbeveiligde versie.",
+    "Dit bestand is beveiligd met een wachtwoord. Upload een onbeveiligde versie.",
   file_size_mismatch:
     "Het bestand is niet volledig ontvangen. Verwijder het en upload opnieuw.",
   upload_validation_failed:
-    "De pdf kon niet gecontroleerd worden. Verwijder het bestand en probeer opnieuw.",
+    "Het bestand kon niet gecontroleerd worden. Verwijder het en probeer opnieuw.",
   preparation_failed:
     "De documenten konden niet veilig worden voorbereid. Probeer opnieuw; upload opnieuw als dit blijft gebeuren.",
   creation_interrupted:
@@ -30,7 +40,7 @@ const messages: Record<string, string> = {
   request_too_large:
     "Dit documentpakket of deze doelenlijst is te groot voor één analyse. Start een nieuwe analyse met minder materiaal of een ander onderwerp.",
   provider_request_rejected:
-    "De analysedienst kon dit documentpakket niet verwerken. Controleer je pdf’s en probeer opnieuw.",
+    "De analysedienst kon dit documentpakket niet verwerken. Controleer je bestanden en probeer opnieuw.",
   provider_refusal:
     "De analysedienst kon geen beoordeling geven voor dit materiaal.",
   invalid_output:

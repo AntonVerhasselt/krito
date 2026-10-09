@@ -311,6 +311,7 @@ async function run() {
   const results = await client.query(api.analyses.getResults, credentials);
   assert(results);
   assert.equal(results.goals.length, topic.goalCount);
+  assert(results.goals.every((g) => g.result));
   const publicJson = JSON.stringify(results);
   for (const secretField of [
     "email",
@@ -422,7 +423,7 @@ async function run() {
     `${real ? "Real provider" : "Deterministic"} workflow passed: ${results.goals.length} complete goal snapshots, two sealed PDFs, private access, duplicate prevention, ${audit.recheckTotal} independent rechecks.`,
   );
   if (real) {
-    const evidence = results.goals.flatMap((g) => g.result.evidence);
+    const evidence = results.goals.flatMap((g) => g.result?.evidence ?? []);
     for (const e of evidence.filter((e) => e.kind === "text").slice(0, 4))
       assert(
         e.page === 1 &&

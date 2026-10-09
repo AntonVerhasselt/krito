@@ -16,12 +16,26 @@ This replaces individual-goal checkbox selection in original step 3 and the sele
 ## Hero and integration workflow
 
 - The topic search is an autocomplete dropdown that expands with matching subdomains and closes after a choice.
-- Topic choice, PDF upload and the start/email steps belong in a compact panel in the hero.
+- ~~Topic choice, PDF upload and the start/email steps belong in a compact panel in the hero.~~ Superseded by the chalkboard flow below.
 - Merge completed PRs into main once checks pass; avoid leaving a growing stack of open feature branches. The setup and catalog PRs were merged on 2026-10-09.
+
+## Chalkboard flow and visual identity (2026-10-09)
+
+- The start page has one hero: title, intro and topic search on the left, the thinking-Krito illustration on the right. On small screens the illustration sits on top and the open search becomes fullscreen.
+- Choosing a topic moves to `/materiaal`: one centred column with the green dotted chalkboard as the PDF drop zone and Krito standing in front of it. The email field and start button appear under the board once files are added.
+- The results page is deliberately calmer than the rest of the site: a summary bar and one list row per goal, with the verdict icon on the left and the reasoning and evidence folded out per row. No filters. During rechecking, goals whose initial confidence was below 60 keep the loading icon until their independent Sol result is saved; all other results are shown as soon as the initial analysis finishes.
+- Brand assets live in `public/brand` and `public/illustrations`; the favicon is `src/app/icon.svg`.
+
+## Homepage messaging (2026-10-09)
+
+- Below the hero: why (minimumdoelen context with sourced quotes from Klasse and GO!), how it works, a live example of the results list with real Op.stap goals, what Krito does and does not do, FAQ and a closing call to action.
+- Claims to avoid: anything about pupils reaching goals; "inspectieklaar" or proof for the inspectie (it asks for no extra documents); any affiliation with or endorsement by Katholiek Onderwijs Vlaanderen; calling per-year leerplandoelen "minimumdoelen" (those exist only at the end of the 3de kleuterklas, 4de and 6de leerjaar); "always up to date" or "approved" claims; unsourced time-saving numbers.
+- Only school email addresses may start an analysis; consumer mailboxes are refused (`shared/emailPolicy.ts`).
 
 ## Uploads and future accounts
 
-- Accept multiple PDFs, at most **20 files**, 10 MiB each and 40 MiB combined. Enforce all limits in the browser and backend.
+- Accept multiple files, at most **20 files**, 10 MiB each and 40 MiB combined. Enforce all limits in the browser and backend.
+- Accepted material (2026-10-09): PDF, Word (docx, doc, odt, rtf), PowerPoint (pptx, ppt, odp), spreadsheets (xlsx, xls, ods, csv) and plain text. Everything that is not a PDF is converted to PDF during upload validation by a self-hosted Gotenberg/LibreOffice service on Cloud Run in `europe-west1`, so citations, page links and slide images work the same for every file. Spreadsheets render one sheet per page; semicolon CSV and Windows-1252 text are normalised first. OpenAI could read docx/pptx directly, but only as text without images or page numbers, so it is not used for this.
 - Store submitted email addresses in an application `users` table, with analyses referencing `userId`. Preserve the exact trimmed address, including plus tags and dots. Migration removes existing stored emails from analyses.
 - These records remain `emailVerified: false` until verified authentication is implemented. An optional `authId` is reserved for the future Better Auth component identity. The current MVP still requires the private capability for every analysis/file operation; an email/profile link is not authorization.
 - Better Auth and OTP are a later feature. The recommended application-table reference is documented by [Convex + Better Auth](https://labs.convex.dev/better-auth/migrations/migrate-to-0-9/migrate-userid/userid-in-app-table); verification requires the real [OTP flow](https://better-auth.com/docs/plugins/email-otp). Future account claiming must verify identity and the existing analysis capability rather than granting access from an unverified submitted address.

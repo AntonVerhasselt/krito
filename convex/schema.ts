@@ -124,6 +124,8 @@ export default defineSchema({
     sha256: v.optional(v.string()),
     etag: v.optional(v.string()),
     stagingKey: v.string(),
+    /** The PDF used for analysis; absent means stagingKey already is that PDF. */
+    pdfKey: v.optional(v.string()),
     sealedKey: v.optional(v.string()),
     status: v.union(
       v.literal("uploading"),

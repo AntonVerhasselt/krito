@@ -14,7 +14,18 @@ import {
   MAX_TOTAL_BYTES,
   MAX_FILES,
 } from "../shared/analysisSchema";
+import { fileTypeOf } from "../shared/fileTypes";
 
+/** Every stored object of a file: the upload and, if converted, its PDF. */
+export function fileKeys(f: {
+  stagingKey: string;
+  pdfKey?: string;
+  sealedKey?: string;
+}) {
+  return [...new Set([f.stagingKey, f.pdfKey, f.sealedKey])].filter(
+    (key): key is string => !!key,
+  );
+}
 export const requestUpload = action({
   args: {
     ...accessArgs,
@@ -25,7 +36,7 @@ export const requestUpload = action({
   handler: async (
     ctx,
     args,
-  ): Promise<{ fileId: Id<"files">; uploadUrl: string }> =>
+  ): Promise<{ fileId: Id<"files">; uploadUrl: string; contentType: string }> =>
     ctx.runAction(internal.node.pdf.signUpload, args),
 });
 export const getViewUrl = action({
@@ -44,6 +55,8 @@ export const register = internalMutation({
   handler: async (ctx, args) => {
     const a = await requireAccess(ctx, args.analysisId, args.accessToken);
     if (a.status !== "draft") throw new ConvexError("already_submitted");
+    const type = fileTypeOf(args.name);
+    if (!type) throw new ConvexError("unsupported_type");
     if (
       !/^[a-f0-9-]{36}$/.test(args.clientFileId) ||
       !args.name.trim() ||
@@ -66,7 +79,11 @@ export const register = internalMutation({
         existing.name !== args.name
       )
         throw new ConvexError("file_unavailable");
-      return { fileId: existing._id, key: existing.stagingKey };
+      return {
+        fileId: existing._id,
+        key: existing.stagingKey,
+        contentType: type.contentType,
+      };
     }
     const files = await ctx.db
       .query("files")
@@ -93,10 +110,10 @@ export const register = internalMutation({
       createdAt: now,
       updatedAt: now,
     });
-    const key = `staging/${a._id}/${fileId}.pdf`;
+    const key = `staging/${a._id}/${fileId}.${type.extension}`;
     await ctx.db.patch(fileId, { stagingKey: key });
     await ctx.db.patch(a._id, { updatedAt: now });
-    return { fileId, key };
+    return { fileId, key, contentType: type.contentType };
   },
 });
 export const completeUpload = mutation({
@@ -120,7 +137,7 @@ export const completeUpload = mutation({
       updatedAt: Date.now(),
     });
     await ctx.db.patch(a._id, { updatedAt: Date.now() });
-    await ctx.scheduler.runAfter(0, internal.node.pdf.validatePdf, {
+    await ctx.scheduler.runAfter(0, internal.node.pdf.validateFile, {
       fileId: f._id,
       generation,
     });
@@ -136,7 +153,7 @@ export const remove = mutation({
     await ctx.db.patch(f._id, { status: "removed", updatedAt: Date.now() });
     await ctx.db.patch(a._id, { updatedAt: Date.now() });
     await ctx.scheduler.runAfter(0, internal.node.pdf.deleteObjects, {
-      keys: [f.stagingKey],
+      keys: fileKeys(f),
     });
   },
 });
@@ -163,6 +180,7 @@ export const validated = internalMutation({
         pageCount: v.number(),
         sha256: v.string(),
         etag: v.string(),
+        pdfKey: v.optional(v.string()),
       }),
     ),
     safeError: v.optional(v.string()),

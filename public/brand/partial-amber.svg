@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1254 1254" role="img" aria-labelledby="title"><title id="title">Krito amber snapped checkmark</title><defs>
+  <linearGradient id="short" x1="150" y1="530" x2="680" y2="1060" gradientUnits="userSpaceOnUse"><stop stop-color="#FFB627"/><stop offset="1" stop-color="#F5A30F"/></linearGradient>
+  <linearGradient id="shortFacet" x1="150" y1="525" x2="317" y2="730" gradientUnits="userSpaceOnUse"><stop stop-color="#FFD983"/><stop offset="1" stop-color="#FFCB5C"/></linearGradient>
+  <linearGradient id="long" x1="528" y1="690" x2="1160" y2="280" gradientUnits="userSpaceOnUse"><stop stop-color="#FFC444"/><stop offset="1" stop-color="#FFBA2C"/></linearGradient>
+  <linearGradient id="longFacet" x1="625" y1="800" x2="930" y2="665" gradientUnits="userSpaceOnUse"><stop stop-color="#F29A12"/><stop offset="1" stop-color="#E88C0C"/></linearGradient>
+  <path id="long-stroke" d="M528 692 Q531 680 543 669 L952 293 Q974 273 997 278 C1026 283 1067 302 1095 316 C1121 330 1142 353 1154 378 Q1162 393 1158 413 C1155 432 1148 443 1134 459 L705 890 Z"/>
+  <clipPath id="kept"><path d="M-400 -668 L700 432 L742 452 L768 446 L792 486 L818 480 L846 534 L872 528 L896 578 L930 590 L1700 1432 L-400 1432 Z"/></clipPath>
+  <clipPath id="lost"><path d="M-400 -668 L700 432 L742 452 L768 446 L792 486 L818 480 L846 534 L872 528 L896 578 L930 590 L1700 1432 L1700 -668 Z"/></clipPath>
+  <clipPath id="stroke-shape"><use href="#long-stroke"/></clipPath>
+</defs><g transform="translate(-29 -41)">
+  <path fill="url(#short)" d="M310 525 C334 524 351 538 368 557 L658 867 C682 892 682 920 658 943 L573 1026 C546 1053 519 1062 492 1058 C469 1055 451 1044 433 1026 L180 754 C161 735 151 714 152 684 C152 648 166 623 192 596 C209 578 234 561 257 549 C278 537 292 526 310 525 Z"/>
+  <path fill="url(#shortFacet)" d="M310 525 L317 588 L274 663 Q271 668 263 672 L161 730 C153 716 151 703 152 684 C152 648 166 623 192 596 C209 578 234 561 257 549 C278 537 292 526 310 525 Z"/>
+  <use href="#long-stroke" clip-path="url(#lost)" fill="none" stroke="#FFBC35" stroke-width="14" stroke-dasharray="2 34" stroke-linecap="round" opacity=".7"/>
+  <g clip-path="url(#kept)">
+    <use href="#long-stroke" fill="url(#long)"/>
+    <path fill="url(#longFacet)" d="M625 800 L852 612 L930 665 L705 890 Z"/>
+    <g clip-path="url(#stroke-shape)"><path fill="#FFF6E5" d="M600 400 L700 432 L742 452 L768 446 L792 486 L818 480 L846 534 L872 528 L896 578 L930 590 L1000 640 L880 640 L856 590 L832 596 L806 544 L782 550 L756 512 L730 518 L690 498 L560 420 Z"/></g>
+  </g>
+</g></svg>

@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="60 185 1670 545" role="img" aria-labelledby="title"><title id="title">Krito logo</title><defs>
+  <linearGradient id="blue" x1="150" y1="530" x2="680" y2="1060" gradientUnits="userSpaceOnUse"><stop stop-color="#0750FF"/><stop offset="1" stop-color="#0043FA"/></linearGradient>
+  <linearGradient id="blueFacet" x1="150" y1="525" x2="317" y2="730" gradientUnits="userSpaceOnUse"><stop stop-color="#3984FF"/><stop offset="1" stop-color="#2F73F5"/></linearGradient>
+  <linearGradient id="amber" x1="528" y1="690" x2="1160" y2="280" gradientUnits="userSpaceOnUse"><stop stop-color="#FFBC35"/><stop offset="1" stop-color="#FFB820"/></linearGradient>
+  <linearGradient id="coral" x1="625" y1="800" x2="930" y2="665" gradientUnits="userSpaceOnUse"><stop stop-color="#FF743C"/><stop offset="1" stop-color="#FF6536"/></linearGradient>
+  <linearGradient id="chalk" x1="980" y1="277" x2="1158" y2="425" gradientUnits="userSpaceOnUse"><stop stop-color="#FFF6E5"/><stop offset="1" stop-color="#FAF0DC"/></linearGradient>
+</defs><g transform="translate(-3 43) scale(.614)"><g id="krijtvink">
+  <path id="blue-chalk" fill="url(#blue)" d="M310 525 C334 524 351 538 368 557 L658 867 C682 892 682 920 658 943 L573 1026 C546 1053 519 1062 492 1058 C469 1055 451 1044 433 1026 L180 754 C161 735 151 714 152 684 C152 648 166 623 192 596 C209 578 234 561 257 549 C278 537 292 526 310 525 Z"/>
+  <path id="blue-facet" fill="url(#blueFacet)" d="M310 525 L317 588 L274 663 Q271 668 263 672 L161 730 C153 716 151 703 152 684 C152 648 166 623 192 596 C209 578 234 561 257 549 C278 537 292 526 310 525 Z"/>
+  <path id="amber-chalk" fill="url(#amber)" d="M528 692 Q531 680 543 669 L952 293 Q974 273 997 278 C1026 283 1067 302 1095 316 C1121 330 1142 353 1154 378 Q1162 393 1158 413 C1155 432 1148 443 1134 459 L705 890 Z"/>
+  <path id="coral-facet" fill="url(#coral)" d="M625 800 L852 612 L930 665 L705 890 Z"/>
+  <path id="chipped-tip" fill="url(#chalk)" d="M980 278 Q989 276 997 278 C1026 283 1067 302 1095 316 C1121 330 1142 353 1154 378 Q1158 386 1159 395 L1080 423 L1064 417 L1038 425 L1008 390 L1003 361 L979 354 Q975 353 975 348 Z"/>
+</g></g><g id="krito-wordmark" fill="#050505">
+<path id="letter-k" d="M730 380 H769 Q797 380 797 408 V475 L872 394 Q886 380 900 380 H960 C981 380 989 397 974 413 L868 525 L966 629 C983 648 974 670 951 670 H901 Q886 670 875 658 L796 580 V642 Q796 670 768 670 H729 Q701 670 701 642 V409 Q701 380 730 380 Z"/>
+<path id="letter-r" d="M1015 456 H1044 Q1072 456 1072 484 C1094 463 1116 452 1134 455 Q1154 458 1154 486 V515 Q1154 542 1128 541 H1115 C1084 541 1072 561 1072 590 V641 Q1072 670 1045 670 H1015 Q987 670 987 643 V483 Q987 456 1015 456 Z"/>
+<path id="letter-i" d="M1209 351 C1237 351 1256 371 1256 398 C1256 427 1237 447 1209 447 C1180 447 1160 427 1160 398 C1160 371 1180 351 1209 351 Z M1191 461 H1220 Q1249 461 1249 489 V642 Q1249 670 1220 670 H1191 Q1163 670 1163 642 V489 Q1163 461 1191 461 Z"/>
+<path id="letter-t" d="M1315 404 H1345 Q1373 404 1373 431 V461 H1406 Q1433 461 1433 488 V503 Q1433 530 1406 530 H1373 V574 C1373 597 1380 609 1402 603 C1424 596 1437 609 1437 631 V641 C1437 663 1415 675 1381 675 C1320 675 1287 644 1287 582 V530 H1281 Q1257 530 1257 506 V486 Q1257 461 1281 461 H1287 V431 Q1287 404 1315 404 Z"/>
+<path id="letter-o" fill-rule="evenodd" d="M1565 453 C1641 453 1693 500 1693 565 C1693 631 1641 677 1565 677 C1488 677 1436 631 1436 565 C1436 500 1488 453 1565 453 Z M1563 529 C1538 529 1521 545 1521 567 C1521 590 1538 606 1563 606 C1588 606 1605 590 1605 567 C1605 545 1588 529 1563 529 Z"/>
+</g></svg>

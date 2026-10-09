@@ -19,6 +19,7 @@
     "goals:seed": "tsx scripts/seedGoals.ts",
     "goals:update": "tsx scripts/updateGoals.ts",
     "infra:lifecycle": "tsx scripts/configureStorageLifecycle.ts",
+    "infra:converter": "tsx scripts/deployConverter.ts",
     "fixtures:magnetism": "tsx scripts/createMagnetismPdfs.ts",
     "workflow:smoke": "tsx scripts/workflowSmoke.ts",
     "test:e2e:dev": "KRITO_E2E_DEVELOPMENT=1 playwright test"
