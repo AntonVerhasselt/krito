@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
+import { PDFDocument } from "pdf-lib";
 import { fileTypeOf } from "../shared/fileTypes";
 import {
   converterConfig,
   convertToPdf,
+  convertsLocally,
   decodeText,
+  imageToPdf,
   MAX_CONVERTED_BYTES,
   normalizeCsv,
 } from "../convex/node/convert";
@@ -30,7 +33,7 @@ describe("fileTypeOf", () => {
     expect(fileTypeOf("les.pdf")?.contentType).toBe("application/pdf");
   });
   it("rejects unknown or missing extensions", () => {
-    expect(fileTypeOf("foto.jpg")).toBeNull();
+    expect(fileTypeOf("foto.webp")).toBeNull();
     expect(fileTypeOf("README")).toBeNull();
     expect(fileTypeOf("archief.zip")).toBeNull();
     expect(fileTypeOf("toString.constructor")).toBeNull();
@@ -141,5 +144,41 @@ describe("csv and text preparation", () => {
     expect(Buffer.from(await file.arrayBuffer()).toString("utf8")).toBe(
       "\uFEFFa,b\n1,2",
     );
+  });
+});
+
+// 4×2 red JPEG and 3×5 blue PNG.
+const jpg = Buffer.from(
+  "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgICAgMCAgIDAwMDBAYEBAQEBAgGBgUGCQgKCgkICQkKDA8MCgsOCwkJDRENDg8QEBEQCgwSExIQEw8QEBD/2wBDAQMDAwQDBAgEBAgQCwkLEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBD/wAARCAACAAQDAREAAhEBAxEB/8QAFAABAAAAAAAAAAAAAAAAAAAACP/EABQQAQAAAAAAAAAAAAAAAAAAAAD/xAAVAQEBAAAAAAAAAAAAAAAAAAAHCf/EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAMAwEAAhEDEQA/ADoDFU3/2Q==",
+  "base64",
+);
+const png = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAMAAAAFAQMAAAC6v8ThAAAAIGNIUk0AAHomAACAhAAA+gAAAIDoAAB1MAAA6mAAADqYAAAXcJy6UTwAAAADUExURQAA/4p40lcAAAAHdElNRQfqCgkRKTAzyKNvAAAAJXRFWHRkYXRlOmNyZWF0ZQAyMDI2LTEwLTA5VDE3OjQxOjQ4KzAwOjAwzrO25QAAACV0RVh0ZGF0ZTptb2RpZnkAMjAyNi0xMC0wOVQxNzo0MTo0OCswMDowML/uDlkAAAAodEVYdGRhdGU6dGltZXN0YW1wADIwMjYtMTAtMDlUMTc6NDE6NDgrMDA6MDDo+y+GAAAAC0lEQVQI12NggAEAAAoAAef42voAAAAASUVORK5CYII=",
+  "base64",
+);
+
+describe("images", () => {
+  it("are accepted, with jpg and png converted without the converter", () => {
+    expect(fileTypeOf("foto werkblad.JPG")?.kind).toBe("image");
+    expect(convertsLocally(fileTypeOf("a.jpeg")!)).toBe(true);
+    expect(convertsLocally(fileTypeOf("a.png")!)).toBe(true);
+    expect(convertsLocally(fileTypeOf("a.gif")!)).toBe(false);
+    expect(fileTypeOf("a.heic")).toBeNull();
+  });
+  it("become a one-page A4 PDF in the image's orientation", async () => {
+    const wide = await PDFDocument.load(
+      await imageToPdf(jpg, fileTypeOf("a.jpg")!),
+    );
+    expect(wide.getPageCount()).toBe(1);
+    expect(wide.getPage(0).getSize()).toEqual({ width: 842, height: 595 });
+    const tall = await PDFDocument.load(
+      await imageToPdf(png, fileTypeOf("a.png")!),
+    );
+    expect(tall.getPage(0).getSize()).toEqual({ width: 595, height: 842 });
+  });
+  it("reports a damaged image as unreadable", async () => {
+    await expect(
+      imageToPdf(Buffer.from("not an image"), fileTypeOf("a.png")!),
+    ).rejects.toThrow("conversion_failed");
   });
 });

@@ -61,6 +61,7 @@ const materialKinds = [
 ];
 function pages(name: string, n: number | null) {
   const kind = fileTypeOf(name)?.kind;
+  if (kind === "image") return "Afbeelding";
   if (kind === "presentation") return `${n} ${n === 1 ? "dia" : "dia’s"}`;
   if (kind === "spreadsheet")
     return `${n} ${n === 1 ? "werkblad" : "werkbladen"}`;
@@ -388,7 +389,7 @@ export function UploadPanel({
                 ))}
               </ul>
               <p className="material-formats">
-                Werkt met {ACCEPTED_LABEL.replace(/^PDF/, "pdf")}-bestanden.
+                Werkt met {ACCEPTED_LABEL}.
               </p>
               <button
                 type="button"

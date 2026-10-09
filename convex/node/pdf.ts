@@ -17,7 +17,12 @@ import { accessArgs } from "../analyses";
 import { storage, object, signedGet } from "./storage";
 import { MAX_FILE_BYTES } from "../../shared/analysisSchema";
 import { fileTypeOf } from "../../shared/fileTypes";
-import { convertToPdf, MAX_CONVERTED_BYTES } from "./convert";
+import {
+  convertsLocally,
+  convertToPdf,
+  imageToPdf,
+  MAX_CONVERTED_BYTES,
+} from "./convert";
 
 /** Reads a stored object whose exact size is known, never more than `limit` bytes. */
 async function readObject(
@@ -112,15 +117,20 @@ async function prepareUpload(stagingKey: string, declaredBytes: number) {
   if (type.kind === "pdf") return inspectPdf(stagingKey, declaredBytes);
   const { bytes } = await readObject(stagingKey, declaredBytes);
   let pdf: Buffer;
-  try {
-    pdf = await convertToPdf(bytes, type);
-  } catch (error) {
-    // Cloud Run may still be starting; one more try covers a cold start.
-    if (!(error instanceof Error) || error.message !== "conversion_unavailable")
-      throw error;
-    await new Promise((resolve) => setTimeout(resolve, 5_000));
-    pdf = await convertToPdf(bytes, type);
-  }
+  if (convertsLocally(type)) pdf = await imageToPdf(bytes, type);
+  else
+    try {
+      pdf = await convertToPdf(bytes, type);
+    } catch (error) {
+      // Cloud Run may still be starting; one more try covers a cold start.
+      if (
+        !(error instanceof Error) ||
+        error.message !== "conversion_unavailable"
+      )
+        throw error;
+      await new Promise((resolve) => setTimeout(resolve, 5_000));
+      pdf = await convertToPdf(bytes, type);
+    }
   const pdfKey = stagingKey.replace(/\.[a-z0-9]+$/, ".pdf");
   await storage().send(
     new PutObjectCommand({

@@ -1,4 +1,5 @@
 "use node";
+import { PDFDocument } from "pdf-lib";
 import type { FileType } from "../../shared/fileTypes";
 
 /** A converted PDF may be larger than its source (slides become images). */
@@ -123,4 +124,37 @@ export async function convertToPdf(
   const pdf = Buffer.from(await response.arrayBuffer());
   if (pdf.length > MAX_CONVERTED_BYTES) throw new Error("converted_too_large");
   return pdf;
+}
+
+/** JPG and PNG become a one-page PDF right here; no converter needed. */
+export function convertsLocally(type: FileType) {
+  return ["jpg", "jpeg", "png"].includes(type.extension);
+}
+
+export async function imageToPdf(bytes: Buffer, type: FileType) {
+  // A pooled Buffer can start mid-way its ArrayBuffer, which pdf-lib misreads.
+  const data = new Uint8Array(bytes);
+  const pdf = await PDFDocument.create();
+  let image;
+  try {
+    image =
+      type.extension === "png"
+        ? await pdf.embedPng(data)
+        : await pdf.embedJpg(data);
+  } catch {
+    throw new Error("conversion_failed");
+  }
+  // Fit on an A4 page in the photo's own orientation.
+  const [width, height] = image.width > image.height ? [842, 595] : [595, 842];
+  const scale = Math.min(width / image.width, height / image.height);
+  const page = pdf.addPage([width, height]);
+  page.drawImage(image, {
+    x: (width - image.width * scale) / 2,
+    y: (height - image.height * scale) / 2,
+    width: image.width * scale,
+    height: image.height * scale,
+  });
+  const out = Buffer.from(await pdf.save());
+  if (out.length > MAX_CONVERTED_BYTES) throw new Error("converted_too_large");
+  return out;
 }

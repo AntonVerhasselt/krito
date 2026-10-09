@@ -4,7 +4,7 @@
  * work the same for every file.
  */
 export type FileKind =
-  "pdf" | "document" | "presentation" | "spreadsheet" | "text";
+  "pdf" | "document" | "presentation" | "spreadsheet" | "text" | "image";
 
 const types: Record<string, { kind: FileKind; contentType: string }> = {
   pdf: { kind: "pdf", contentType: "application/pdf" },
@@ -19,6 +19,7 @@ const types: Record<string, { kind: FileKind; contentType: string }> = {
     contentType: "application/vnd.oasis.opendocument.text",
   },
   rtf: { kind: "document", contentType: "application/rtf" },
+  pages: { kind: "document", contentType: "application/vnd.apple.pages" },
   pptx: {
     kind: "presentation",
     contentType:
@@ -29,6 +30,7 @@ const types: Record<string, { kind: FileKind; contentType: string }> = {
     kind: "presentation",
     contentType: "application/vnd.oasis.opendocument.presentation",
   },
+  key: { kind: "presentation", contentType: "application/vnd.apple.keynote" },
   xlsx: {
     kind: "spreadsheet",
     contentType:
@@ -39,8 +41,20 @@ const types: Record<string, { kind: FileKind; contentType: string }> = {
     kind: "spreadsheet",
     contentType: "application/vnd.oasis.opendocument.spreadsheet",
   },
+  numbers: {
+    kind: "spreadsheet",
+    contentType: "application/vnd.apple.numbers",
+  },
   csv: { kind: "spreadsheet", contentType: "text/csv" },
   txt: { kind: "text", contentType: "text/plain" },
+  // Photos of worksheets, scans and screenshots.
+  jpg: { kind: "image", contentType: "image/jpeg" },
+  jpeg: { kind: "image", contentType: "image/jpeg" },
+  png: { kind: "image", contentType: "image/png" },
+  gif: { kind: "image", contentType: "image/gif" },
+  bmp: { kind: "image", contentType: "image/bmp" },
+  tif: { kind: "image", contentType: "image/tiff" },
+  tiff: { kind: "image", contentType: "image/tiff" },
 };
 
 export type FileType = {
@@ -50,7 +64,7 @@ export type FileType = {
 };
 
 export function fileTypeOf(name: string): FileType | null {
-  const match = /\.([a-z0-9]{2,5})$/i.exec(name.trim());
+  const match = /\.([a-z0-9]{2,7})$/i.exec(name.trim());
   const extension = match?.[1].toLowerCase();
   if (!extension || !Object.prototype.hasOwnProperty.call(types, extension))
     return null;
@@ -63,4 +77,5 @@ export const ACCEPTED_FILES = Object.entries(types)
   .join(",");
 
 /** Short list for teachers, in the order they are most likely to have them. */
-export const ACCEPTED_LABEL = "PDF, Word, PowerPoint, Excel, CSV en tekst";
+export const ACCEPTED_LABEL =
+  "PDF, Word, PowerPoint, Excel, CSV, tekst en afbeeldingen";

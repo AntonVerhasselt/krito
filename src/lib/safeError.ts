@@ -13,7 +13,7 @@ const messages: Record<string, string> = {
     "Upload maximaal 20 bestanden, samen maximaal 40 MiB.",
   invalid_pdf: "Dit bestand is onleesbaar of beschadigd.",
   unsupported_type:
-    "Dit bestandstype wordt niet ondersteund. Gebruik pdf, Word, PowerPoint, Excel, CSV of tekst.",
+    "Dit bestandstype wordt niet ondersteund. Gebruik pdf, Word, PowerPoint, Excel, CSV, tekst of een afbeelding (jpg of png).",
   conversion_failed:
     "Dit bestand kon niet worden geopend. Controleer of het niet beveiligd of beschadigd is en upload het opnieuw.",
   conversion_unavailable:
