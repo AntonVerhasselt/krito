@@ -93,14 +93,10 @@ a {
 .logo-link {
   display: inline-flex;
   border-radius: 10px;
-  transition: transform 0.35s var(--spring);
 }
 .logo-link img {
   width: 124px;
   height: auto;
-}
-.logo-link:hover {
-  transform: rotate(-3deg) scale(1.04);
 }
 .back-link {
   font-family: var(--font-ui);
@@ -111,17 +107,14 @@ a {
   border-radius: 999px;
   background: var(--note);
   box-shadow: 3px 3px 0 var(--ink);
-  transition:
-    transform 0.2s var(--ease-out),
-    box-shadow 0.2s var(--ease-out);
+  transition: background 0.15s;
 }
 .back-link span {
   margin-right: 4px;
   font-weight: 700;
 }
 .back-link:hover {
-  transform: translate(-2px, -2px);
-  box-shadow: 5px 5px 0 var(--ink);
+  background: #fff0cf;
 }
 
 /* ---------- Shared bits ---------- */
@@ -142,18 +135,10 @@ a {
   text-decoration: none;
   cursor: pointer;
   box-shadow: var(--pop);
-  transition:
-    transform 0.18s var(--ease-out),
-    box-shadow 0.18s var(--ease-out),
-    background 0.2s;
+  transition: background 0.15s;
 }
 .primary-button:hover:not(:disabled) {
-  transform: translate(-2px, -2px);
-  box-shadow: 6px 6px 0 var(--ink);
-}
-.primary-button:active:not(:disabled) {
-  transform: translate(3px, 3px);
-  box-shadow: 1px 1px 0 var(--ink);
+  background: #0040d6;
 }
 .primary-button:disabled {
   cursor: not-allowed;
@@ -174,7 +159,7 @@ a {
   cursor: pointer;
 }
 .text-button:hover {
-  text-decoration-style: wavy;
+  color: #0040d6;
 }
 .icon-button {
   width: 44px;
@@ -186,10 +171,10 @@ a {
   line-height: 1;
   cursor: pointer;
   box-shadow: 3px 3px 0 var(--ink);
-  transition: transform 0.25s var(--spring);
+  transition: background 0.15s;
 }
 .icon-button:hover {
-  transform: rotate(90deg);
+  background: #fff0cf;
 }
 .group-tag {
   display: inline-flex;
@@ -427,13 +412,10 @@ a {
   font-family: var(--font-ui);
   font-size: 14px;
   cursor: pointer;
-  transition:
-    transform 0.2s var(--spring),
-    background 0.2s;
+  transition: background 0.15s;
 }
 .search-suggestions button:hover {
   background: var(--amber);
-  transform: rotate(-3deg) translateY(-2px);
 }
 .search-options {
   padding: 8px;
@@ -470,7 +452,7 @@ a {
   position: relative;
   width: 100%;
   display: grid;
-  grid-template-columns: 0 1fr auto;
+  grid-template-columns: 30px 1fr auto;
   align-items: center;
   gap: 14px;
   padding: 12px 14px;
@@ -482,13 +464,11 @@ a {
   animation: option-in 0.36s var(--ease-out) both;
   animation-delay: calc(var(--i) * 28ms);
   transition:
-    grid-template-columns 0.3s var(--spring),
     background 0.15s,
     border-color 0.15s;
 }
 .search-option.keyboard-active,
 .search-option:hover {
-  grid-template-columns: 30px 1fr auto;
   background: #fff0cf;
   border-color: var(--ink);
 }
@@ -496,18 +476,13 @@ a {
   width: 30px;
   overflow: hidden;
   opacity: 0;
-  transform: scale(0.4) rotate(-20deg);
-  transition:
-    opacity 0.2s,
-    transform 0.35s var(--spring);
+  transition: opacity 0.15s;
 }
 .search-option.keyboard-active .option-tick,
 .search-option:hover .option-tick {
   opacity: 1;
-  transform: none;
 }
 .search-option.is-chosen {
-  grid-template-columns: 30px 1fr auto;
   background: var(--amber);
   border-color: var(--ink);
 }
@@ -689,7 +664,6 @@ a {
   margin-bottom: 1.2cqw;
   overflow: visible;
   filter: url(#chalk-rough);
-  transition: transform 0.4s var(--spring);
 }
 .chalk-doodle path {
   fill: none;
@@ -707,12 +681,6 @@ a {
 }
 .chalk-doodle path:nth-child(3) {
   animation-delay: 1.35s;
-}
-.board:hover .chalk-doodle {
-  transform: translateY(-4%) rotate(-4deg);
-}
-.board:hover .chalk-doodle path:nth-child(3) {
-  animation: draw 0.9s 0.7s var(--ease-out) forwards, nudge 0.9s 1.6s ease-in-out infinite;
 }
 .chalk-text {
   display: grid;
@@ -1046,7 +1014,7 @@ a {
   transition: box-shadow 0.2s;
 }
 .text-input:focus {
-  box-shadow: 4px 4px 0 var(--cobalt);
+  border-color: var(--cobalt);
 }
 .email-gate .field-hint {
   margin: 10px 0 0;
@@ -1085,10 +1053,9 @@ a {
   width: min(520px, calc(100vw - 32px));
 }
 .app-dialog {
-  scrollbar-width: thin;
-  scrollbar-color: #c8b99e transparent;
   width: min(760px, calc(100vw - 32px));
   max-height: min(84vh, 900px);
+  overflow: hidden;
   margin: auto;
   padding: 0;
   border: var(--line);
@@ -1097,6 +1064,27 @@ a {
   color: var(--ink);
   box-shadow: 10px 10px 0 var(--ink);
 }
+.dialog-body::-webkit-scrollbar {
+  width: 16px;
+}
+.dialog-body::-webkit-scrollbar-track {
+  margin: 22px 0;
+  background: transparent;
+}
+.dialog-body::-webkit-scrollbar-thumb {
+  border: 5px solid var(--note);
+  border-radius: 99px;
+  background: #ddcdae;
+}
+.dialog-body::-webkit-scrollbar-thumb:hover {
+  background: #c4ae86;
+}
+@supports not selector(::-webkit-scrollbar) {
+  .dialog-body {
+    scrollbar-width: thin;
+    scrollbar-color: #ddcdae transparent;
+  }
+}
 .app-dialog[open] {
   animation: drop-open 0.36s var(--spring) both;
 }
@@ -1104,7 +1092,17 @@ a {
   background: rgb(7 67 46 / 0.55);
   backdrop-filter: blur(3px);
 }
+.app-dialog[open] {
+  display: flex;
+  flex-direction: column;
+}
+/* The body scrolls, so the bar sits inside the dialog's rounded corners. */
 .dialog-body {
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  /* Inherited scrollbar-color would make Chromium ignore the custom bar. */
+  scrollbar-color: auto;
   padding: 26px 28px 28px;
 }
 .modal-heading {
@@ -1117,6 +1115,7 @@ a {
 .modal-heading h2 {
   margin: 0;
   font-family: var(--font-ui);
+  font-weight: 700;
   font-size: 28px;
   line-height: 1.15;
 }
@@ -1517,13 +1516,10 @@ details[open] .chevron {
   font-size: 14px;
   cursor: pointer;
   overflow: hidden;
-  transition:
-    transform 0.2s var(--ease-out),
-    box-shadow 0.2s;
+  transition: background 0.15s;
 }
 .page-link:hover {
-  transform: translate(-1px, -1px);
-  box-shadow: 2px 2px 0 var(--ink);
+  background: #fff6e2;
 }
 .page-link-name {
   padding: 4px 10px;
@@ -1652,11 +1648,6 @@ details[open] .chevron {
 @keyframes draw {
   to {
     stroke-dashoffset: 0;
-  }
-}
-@keyframes nudge {
-  50% {
-    transform: translateY(5px);
   }
 }
 @keyframes pulse {
