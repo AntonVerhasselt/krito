@@ -67,9 +67,6 @@ export function EmailGate({
         placeholder="jij@school.be"
         onChange={(e) => setEmail(e.target.value)}
       />
-      <p className="field-hint">
-        Bewaar dit tabblad; we sturen geen resultaat per e-mail.
-      </p>
       {error && (
         <p className="form-error" role="alert">
           {error}
