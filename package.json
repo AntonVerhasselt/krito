@@ -7,7 +7,13 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "typecheck": "next typegen && tsc --noEmit"
+    "typecheck": "next typegen && tsc --noEmit",
+    "test": "vitest run",
+    "env:check": "tsx scripts/checkEnvironment.ts",
+    "env:backend": "tsx scripts/setBackendEnvironment.ts",
+    "ai:smoke": "tsx scripts/aiSmoke.ts",
+    "infra:vercel": "tsx scripts/configureVercel.ts",
+    "infra:cors": "tsx scripts/syncPreviewOrigins.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1148.0",
@@ -38,5 +44,6 @@
   "engines": {
     "node": "24.x"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "type": "module"
 }

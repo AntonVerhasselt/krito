@@ -7,6 +7,8 @@ on the same page. No login, dashboard, PDF reports, or email delivery in this MV
 Licensed under the **MIT License**; see [LICENSE](LICENSE).
 Copyright holder: Anton Verhasselt, verified against Git and GitHub identities.
 
+Repository: https://github.com/AntonVerhasselt/krito (public, default branch `main`).
+
 ## Setup order
 
 1. Scaffold and push the public GitHub repository.
@@ -30,6 +32,7 @@ npm ci
 npm run dev
 npm run lint
 npm run typecheck
+npm test
 npm run build
 ```
 
@@ -40,3 +43,17 @@ in Convex development, never Vercel or Git.
 
 Production backend configuration remains deferred until the MVP is ready and the
 user explicitly declares readiness.
+
+## Infrastructure commands
+
+```bash
+npm run env:backend    # Read protected .secrets/development.env; never print values
+npm run ai:smoke       # Verify the exact requested models before configuring them
+npm run env:check      # Report presence only, never raw provider environment output
+npm run infra:vercel   # Reconcile and read back settings after vercel link
+npm run infra:cors     # Run after each Ready preview, before browser PDF checks
+```
+
+CLI preview: `npx vercel`. Reproduce a branch build with
+`npx vercel pull --environment=preview --git-branch=feat/setup-preview-check`,
+then `npx vercel build`. Downloaded environment files remain ignored.

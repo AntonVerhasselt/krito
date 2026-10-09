@@ -1,0 +1,11 @@
+{
+  "githubRepository": "AntonVerhasselt/krito",
+  "convexTeam": "anton-verhasselt",
+  "convexProject": "krito",
+  "convexDeployment": "dev:majestic-sturgeon-687",
+  "convexUrl": "https://majestic-sturgeon-687.eu-west-1.convex.cloud",
+  "cloudflareAccountId": "546e2c266bb5a2e5d81edac39a4982ef",
+  "r2Bucket": "krito-pdfs-dev",
+  "vercelScope": "anton-personal-projects",
+  "vercelProject": "krito"
+}
