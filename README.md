@@ -1,10 +1,11 @@
 # Krito
 
-Dutch-language goal coverage analysis for teachers. Select published Op.stap goals,
+Dutch-language goal coverage analysis for teachers. Select an Op.stap subdomain and group, automatically include all of its goals,
 upload private PDFs, and enter an email after clicking Analyze. Results will appear
 on the same page. No login, dashboard, PDF reports, or email delivery in this MVP.
 
-Licensed under the **MIT License**; see [LICENSE](LICENSE).
+Application code is licensed under the **MIT License**; see [LICENSE](LICENSE).
+Op.stap content is third-party source data; see [source attribution and MVP permission](data/opstap/README.md).
 Copyright holder: Anton Verhasselt, verified against Git and GitHub identities.
 
 Repository: https://github.com/AntonVerhasselt/krito (public, default branch `main`).
@@ -57,3 +58,14 @@ npm run infra:cors     # Run after each Ready preview, before browser PDF checks
 CLI preview: `npx vercel`. Reproduce a branch build with
 `npx vercel pull --environment=preview --git-branch=feat/setup-preview-check`,
 then `npx vercel build`. Downloaded environment files remain ignored.
+
+## Op.stap catalog
+
+All source records are imported into Convex. The versioned local archives support traceability; the UI reads published goals and search results from the database.
+
+```bash
+npm run goals:update      # Fetch latest official snapshot, validate, import and publish in dev
+npm run goals:validate    # Compare normalized data with its archived source
+```
+
+See [catalog refresh and database structure](data/opstap/README.md) and the [1.3 source review](data/opstap/1.3/REVIEW.md). Search supports all 13 subjects, seven routes and 32 source groups, and presents subdomains with explicit group/route tags and goal counts. Selecting a subdomain includes all of its goals; there are no individual-goal checkboxes. See [accepted product decisions](docs/product-decisions.md).
