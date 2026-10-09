@@ -92,12 +92,11 @@ and six build-isolation tests pass. The Vercel hosted builder uses CLI 62.1.0
 - Setup-only probe and automation capabilities are revoked after testing;
   scheduled fixture cleanup remains available, and all-deployment protection stays on.
 
-PR #1 is left open for normal review. No production key, bucket, goal data, teacher
-files, or domain is configured.
+PRs #1, #2 and #3 are merged. The development catalog and private analysis workflow are now active. Production backend, bucket and launch domain remain deferred.
 
 ## Daily workflow
 
-Run npm run dev in one terminal and npx convex dev in another. This project's
+Run npm run dev in one terminal. Publish backend changes deliberately with npx convex dev --once; no backend watcher is needed during normal frontend work. This project's
 explicit selector is dev:majestic-sturgeon-687. Keep one backend writer active;
 frontend builds and branches must be compatible with that shared backend. One-off
 publication: npx convex dev --once. Frontend Git integration is the only automatic

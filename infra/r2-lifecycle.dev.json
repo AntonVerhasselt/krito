@@ -1,0 +1,6 @@
+{
+  "bucket": "krito-pdfs-dev",
+  "id": "krito-abandoned-staging",
+  "prefix": "staging/",
+  "expireDays": 1
+}
