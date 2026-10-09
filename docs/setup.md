@@ -98,7 +98,7 @@ PRs #1, #2 and #3 are merged. The development catalog and private analysis workf
 
 Word, PowerPoint, spreadsheet and text uploads are converted to PDF by Gotenberg (LibreOffice) on Cloud Run. One-time setup:
 
-1. Install the Google Cloud CLI, run `gcloud auth login`, and create or choose a project with billing enabled.
+1. Install the Google Cloud CLI without root into `~/.local/google-cloud-sdk` (the script finds it there), run `gcloud auth login`, and create or choose a project linked to a billing account. Cloud Run's free tier (2 million requests, 180,000 vCPU-seconds and 360,000 GiB-seconds per month) covers thousands of conversions, but Google requires a billing account, and outbound data from Europe is billed per GB; add a small budget alert.
 2. Put its ID in `gcpProject` in `infra/development.json` (`gcpRegion` defaults to `europe-west1`).
 3. Run `npm run infra:converter`. It generates basic-auth credentials in `.secrets/development.env` if missing, deploys `gotenberg/gotenberg:8-libreoffice-cloudrun` as `krito-converter-dev` (scales to zero, 2 GiB), and sets `CONVERTER_URL`, `CONVERTER_USERNAME` and `CONVERTER_PASSWORD` on Convex development.
 

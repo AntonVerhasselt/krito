@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
-import { appendFileSync, mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { appendFileSync, existsSync, mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { assertDevelopment, cli, development, readEnv } from "./lib";
 
@@ -11,6 +11,9 @@ assertDevelopment();
 const { gcpProject: project, gcpRegion: region } = development;
 if (!project) throw new Error("Set gcpProject in infra/development.json first.");
 const service = "krito-converter-dev";
+// gcloud on PATH, or the user-level install in ~/.local/google-cloud-sdk.
+const local = join(homedir(), ".local/google-cloud-sdk/bin/gcloud");
+const gcloud = process.env.GCLOUD ?? (existsSync(local) ? local : "gcloud");
 const secrets = ".secrets/development.env";
 if ((statSync(secrets).mode & 0o077) !== 0)
   throw new Error("Credential file must have owner-only permissions (chmod 600).");
@@ -38,8 +41,8 @@ try {
     ].join("\n"),
     { mode: 0o600 },
   );
-  cli("gcloud", ["services", "enable", "run.googleapis.com", "--project", project]);
-  cli("gcloud", [
+  cli(gcloud, ["services", "enable", "run.googleapis.com", "--project", project]);
+  cli(gcloud, [
     "run", "deploy", service,
     "--image", "docker.io/gotenberg/gotenberg:8-libreoffice-cloudrun",
     "--project", project,
@@ -59,7 +62,7 @@ try {
   rmSync(dir, { recursive: true, force: true });
 }
 
-const url = cli("gcloud", [
+const url = cli(gcloud, [
   "run", "services", "describe", service,
   "--project", project,
   "--region", region,
