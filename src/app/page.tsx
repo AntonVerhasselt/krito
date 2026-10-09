@@ -1,43 +1,35 @@
-import { GoalSetPicker } from "@/components/GoalSetPicker";
-import Link from "next/link";
+import Image from "next/image";
+import { SiteHeader } from "@/components/SiteHeader";
+import { TopicPicker } from "@/components/TopicPicker";
+import thinking from "../../public/illustrations/krito-thinking.webp";
+
 export default function Home() {
   return (
     <div className="site-shell">
-      <header>
-        <Link href="/" className="wordmark" aria-label="Krito startpagina">
-          krito<span>.</span>
-        </Link>
-        <span className="environment-pill">In ontwikkeling</span>
-      </header>
+      <SiteHeader />
       <main className="hero">
         <div className="hero-copy">
-          <div className="eyebrow">
-            <span /> MEER ZICHT OP JE LESMATERIAAL
-          </div>
-          <h1>
-            Je lesmateriaal.
-            <br />
-            <em>Helder bekeken.</em>
+          <h1 className="hero-title">
+            <span>Staat elk leerdoel</span> <span>echt in je les?</span>
           </h1>
-          <p className="intro">
-            Ontdek welke Op.stap-leerdoelen aan bod komen in je materiaal. Met
-            een beoordeling per doel en verwijzingen naar je documenten.
+          <p className="hero-intro">
+            Kies een onderwerp uit Op.stap en leg je pdf’s op het bord. Krito
+            houdt elk leerdoel naast je lesmateriaal en toont wat er al in zit,
+            met paginaverwijzingen om zelf na te kijken.
           </p>
-          <div className="hero-assurance">
-            <span className="assurance-icon">✓</span>
-            <p>
-              De volledige doelenlijst van je onderwerp.
-              <br />
-              <span>Meer overzicht. Ruimte voor jouw oordeel.</span>
-            </p>
-          </div>
+          <TopicPicker />
         </div>
-        <GoalSetPicker />
+        <div className="hero-art" aria-hidden="true">
+          <div className="hero-art-glow" />
+          <Image
+            src={thinking}
+            alt=""
+            priority
+            sizes="(max-width: 860px) 92vw, 52vw"
+            className="hero-illustration"
+          />
+        </div>
       </main>
-      <footer>
-        <span>Gemaakt voor leerkrachten, met oog voor je lespraktijk.</span>
-        <span>Krito · Ontwikkelversie</span>
-      </footer>
     </div>
   );
 }

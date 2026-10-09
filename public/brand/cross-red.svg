@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1254 1254" role="img" aria-labelledby="title">
+<title id="title">Krito red cross</title>
+<defs>
+ <linearGradient id="redBack" x1="-110" y1="-420" x2="110" y2="420" gradientUnits="userSpaceOnUse"><stop stop-color="#E74946"/><stop offset="1" stop-color="#D93839"/></linearGradient>
+ <linearGradient id="redFront" x1="-110" y1="-420" x2="110" y2="420" gradientUnits="userSpaceOnUse"><stop stop-color="#F26051"/><stop offset="1" stop-color="#E74442"/></linearGradient>
+ <linearGradient id="redFacet" x1="-110" y1="-420" x2="40" y2="-280" gradientUnits="userSpaceOnUse"><stop stop-color="#FF8A74"/><stop offset="1" stop-color="#F67461"/></linearGradient>
+ <linearGradient id="chalk" x1="-100" y1="-420" x2="100" y2="-290" gradientUnits="userSpaceOnUse"><stop stop-color="#FFF6E5"/><stop offset="1" stop-color="#FAF0DC"/></linearGradient>
+</defs>
+<g id="back-chalk" transform="translate(627 627) rotate(-45)">
+ <path fill="url(#redBack)" d="M-42 -425 H42 C83 -425 110 -397 110 -356 V356 C110 397 83 425 42 425 H-42 C-83 425 -110 397 -110 356 V-356 C-110 -397 -83 -425 -42 -425 Z"/>
+ <path fill="url(#redFacet)" d="M-42 -425 H42 C64 -425 82 -417 95 -401 L46 -344 L-6 -322 L-110 -344 V-356 C-110 -397 -83 -425 -42 -425 Z"/>
+ <path fill="#C93135" d="M50 215 L110 183 V356 C110 397 83 425 42 425 H-42 L-31 365 L50 320 Z"/>
+</g>
+<g id="front-chalk" transform="translate(627 627) rotate(45)">
+ <path fill="url(#redFront)" d="M-42 -425 H42 C83 -425 110 -397 110 -356 V356 C110 397 83 425 42 425 H-42 C-83 425 -110 397 -110 356 V-356 C-110 -397 -83 -425 -42 -425 Z"/>
+ <path id="chipped-tip" fill="url(#chalk)" d="M-42 -425 H42 C83 -425 110 -397 110 -356 V-333 L75 -341 L48 -322 L8 -340 L-12 -319 L-39 -339 L-69 -327 L-110 -346 V-356 C-110 -397 -83 -425 -42 -425 Z"/>
+ <path id="lower-facet" fill="#D73739" d="M30 223 L110 199 V356 C110 397 83 425 42 425 H-42 L-26 376 L30 324 Z"/>
+</g>
+</svg>

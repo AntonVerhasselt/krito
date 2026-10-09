@@ -41,6 +41,7 @@ for (const viewport of [
         .getByRole("option")
         .filter({ hasText: "Positieve rationale getallen" })
         .click();
+      await expect(page).toHaveURL(/\/materiaal$/);
       await expect(
         page.getByText("Alle 11 bijbehorende leerdoelen worden gecontroleerd."),
       ).toBeVisible();
@@ -64,9 +65,6 @@ for (const viewport of [
       ).toHaveLength(0);
       await page.reload();
       await expect(page.getByText("3 pagina’s · Klaar")).toBeVisible();
-      await page
-        .getByRole("button", { name: "Analyseer mijn materiaal" })
-        .click();
       await page
         .getByLabel("Je e-mailadres")
         .fill("playwright.fixture+private@example.com");
@@ -99,7 +97,7 @@ for (const viewport of [
           ),
       ).toBeVisible();
       await page
-        .getByRole("button", { name: "Nakijken nodig", exact: true })
+        .getByRole("button", { name: /^Nakijken nodig/ })
         .click();
       await expect(page.locator(".result-card")).toHaveCount(1);
       const client = new ConvexHttpClient(development.convexUrl);

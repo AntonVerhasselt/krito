@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1254 1254" role="img" aria-labelledby="title"><title id="title">Krito green checkmark</title><defs>
+  <linearGradient id="blue" x1="150" y1="530" x2="680" y2="1060" gradientUnits="userSpaceOnUse"><stop stop-color="#2CAD70"/><stop offset="1" stop-color="#239B60"/></linearGradient>
+  <linearGradient id="blueFacet" x1="150" y1="525" x2="317" y2="730" gradientUnits="userSpaceOnUse"><stop stop-color="#65D598"/><stop offset="1" stop-color="#47C485"/></linearGradient>
+  <linearGradient id="amber" x1="528" y1="690" x2="1160" y2="280" gradientUnits="userSpaceOnUse"><stop stop-color="#35B878"/><stop offset="1" stop-color="#2DAD6D"/></linearGradient>
+  <linearGradient id="coral" x1="625" y1="800" x2="930" y2="665" gradientUnits="userSpaceOnUse"><stop stop-color="#259960"/><stop offset="1" stop-color="#1E8B54"/></linearGradient>
+  <linearGradient id="chalk" x1="980" y1="277" x2="1158" y2="425" gradientUnits="userSpaceOnUse"><stop stop-color="#FFF6E5"/><stop offset="1" stop-color="#FAF0DC"/></linearGradient>
+</defs><g id="krijtvink" transform="translate(-29 -41)">
+  <path id="blue-chalk" fill="url(#blue)" d="M310 525 C334 524 351 538 368 557 L658 867 C682 892 682 920 658 943 L573 1026 C546 1053 519 1062 492 1058 C469 1055 451 1044 433 1026 L180 754 C161 735 151 714 152 684 C152 648 166 623 192 596 C209 578 234 561 257 549 C278 537 292 526 310 525 Z"/>
+  <path id="blue-facet" fill="url(#blueFacet)" d="M310 525 L317 588 L274 663 Q271 668 263 672 L161 730 C153 716 151 703 152 684 C152 648 166 623 192 596 C209 578 234 561 257 549 C278 537 292 526 310 525 Z"/>
+  <path id="amber-chalk" fill="url(#amber)" d="M528 692 Q531 680 543 669 L952 293 Q974 273 997 278 C1026 283 1067 302 1095 316 C1121 330 1142 353 1154 378 Q1162 393 1158 413 C1155 432 1148 443 1134 459 L705 890 Z"/>
+  <path id="coral-facet" fill="url(#coral)" d="M625 800 L852 612 L930 665 L705 890 Z"/>
+  <path id="chipped-tip" fill="url(#chalk)" d="M980 278 Q989 276 997 278 C1026 283 1067 302 1095 316 C1121 330 1142 353 1154 378 Q1158 386 1159 395 L1080 423 L1064 417 L1038 425 L1008 390 L1003 361 L979 354 Q975 353 975 348 Z"/>
+</g></svg>

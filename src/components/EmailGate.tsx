@@ -5,12 +5,13 @@ import { useRouter } from "next/navigation";
 import { api } from "../../convex/_generated/api";
 import type { AnalysisSession } from "../lib/analysisSession";
 import { safeError } from "../lib/safeError";
+import { StatusIcon } from "./SiteHeader";
 export function EmailGate({
   session,
-  onBack,
+  ready,
 }: {
   session: AnalysisSession;
-  onBack: () => void;
+  ready: boolean;
 }) {
   const [email, setEmail] = useState(""),
     [busy, setBusy] = useState(false),
@@ -19,10 +20,10 @@ export function EmailGate({
   const router = useRouter();
   return (
     <form
-      className="email-gate"
+      className={`email-gate${ready ? " is-ready" : ""}`}
       onSubmit={async (e) => {
         e.preventDefault();
-        if (busy) return;
+        if (busy || !ready) return;
         setBusy(true);
         setError("");
         try {
@@ -34,20 +35,41 @@ export function EmailGate({
         }
       }}
     >
-      <label className="field-label" htmlFor="analysis-email">
-        Je e-mailadres
-      </label>
-      <input
-        id="analysis-email"
-        type="email"
-        autoComplete="email"
-        required
-        maxLength={254}
-        value={email}
-        disabled={busy}
-        placeholder="jij@school.be"
-        onChange={(e) => setEmail(e.target.value)}
-      />
+      <h2>{ready ? "Alles staat op het bord" : "Even geduld"}</h2>
+      <p className="email-gate-lead">
+        {ready
+          ? "Laat je e-mailadres achter en Krito begint met nakijken."
+          : "Krito controleert eerst of elke pdf leesbaar is."}
+      </p>
+      <div className="email-row">
+        <label className="visually-hidden" htmlFor="analysis-email">
+          Je e-mailadres
+        </label>
+        <input
+          id="analysis-email"
+          type="email"
+          autoComplete="email"
+          required
+          maxLength={254}
+          value={email}
+          disabled={busy}
+          placeholder="jij@school.be"
+          onChange={(e) => setEmail(e.target.value)}
+        />
+        <button
+          className="primary-button"
+          type="submit"
+          disabled={busy || !ready}
+        >
+          {busy ? (
+            <>
+              <StatusIcon status="loading" size={22} /> Analyse starten…
+            </>
+          ) : (
+            "Start de analyse"
+          )}
+        </button>
+      </div>
       <p className="field-hint">
         Je resultaat verschijnt hier op de website. Bewaar dit tabblad; we
         sturen geen resultaat per e-mail.
@@ -57,17 +79,6 @@ export function EmailGate({
           {error}
         </p>
       )}
-      <button className="primary-button" type="submit" disabled={busy}>
-        {busy ? "Analyse starten…" : "Start de analyse →"}
-      </button>
-      <button
-        className="text-button"
-        type="button"
-        disabled={busy}
-        onClick={onBack}
-      >
-        ← Terug naar materiaal
-      </button>
     </form>
   );
 }

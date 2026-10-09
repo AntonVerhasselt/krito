@@ -4,7 +4,7 @@ The development MVP implements specification steps 1–10 with the accepted chan
 
 ## Teacher flow
 
-The hero contains one autocomplete for source subdomains, a private PDF uploader and an email gate. Choosing a subdomain/group selects every goal in that published set. There are no individual-goal checkboxes. The backend derives membership and snapshots the exact source wording, clarification and version at submission.
+The start page hero contains one autocomplete for source subdomains. Choosing one opens `/materiaal` with a private PDF uploader and an email gate. Choosing a subdomain/group selects every goal in that published set. There are no individual-goal checkboxes. The backend derives membership and snapshots the exact source wording, clarification and version at submission.
 
 Upload at most 20 PDFs, 10 MiB each and 40 MiB combined. Files go directly from the browser to private development R2 through five-minute PUT URLs bound to `application/pdf`. Server validation checks actual size, PDF signature, strict parseability, encryption and page count. Upload state lives independently of rerenders; ready files and the topic reconnect after a same-tab refresh.
 

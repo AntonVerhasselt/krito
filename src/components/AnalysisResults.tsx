@@ -1,26 +1,18 @@
 "use client";
 import { useState } from "react";
 import { useParams } from "next/navigation";
+import Image from "next/image";
 import Link from "next/link";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { saveSession, useAccessToken } from "../lib/analysisSession";
 import { safeError } from "../lib/safeError";
-import { SourceMarkup } from "./SourceMarkup";
-const verdicts = {
-  covered: "Gedekt",
-  partial: "Gedeeltelijk gedekt",
-  not_found: "Niet gevonden",
-  uncertain: "Onzeker",
-};
-const progressLabels: Record<string, string> = {
-  draft: "Je analyse is nog niet gestart",
-  queued: "Analyse staat klaar",
-  preparing: "Bestanden voorbereiden",
-  checking: "Leerdoelen analyseren",
-  rechecking: "Onzekere doelen opnieuw controleren",
-};
+import { SiteHeader } from "./SiteHeader";
+import { GoalBoard, type BoardGoal, type Phase } from "./GoalBoard";
+import kritoPointer from "../../public/illustrations/krito-pointer.webp";
+import kritoSleepy from "../../public/illustrations/krito-sleepy.webp";
+
 export function AnalysisResults() {
   const { analysisId } = useParams<{ analysisId: string }>();
   const accessToken = useAccessToken(analysisId);
@@ -30,24 +22,23 @@ export function AnalysisResults() {
       api.analyses.getResults,
       status?.status === "completed" && credentials ? credentials : "skip",
     );
+  const working =
+    !!status && status.status !== "completed" && status.status !== "failed" && status.status !== "draft";
+  // While Krito works, pin up the topic's goals so the board fills before the verdicts land.
+  const pending = useQuery(
+    api.goals.listGoals,
+    status && status.status !== "draft" && status.status !== "failed" && !results?.goals.length
+      ? {
+          catalogVersion: status.topic.catalogVersion,
+          goalSetKey: status.topic.key,
+        }
+      : "skip",
+  );
   const retry = useMutation(api.analyses.retry),
     view = useAction(api.files.getViewUrl);
-  const [filter, setFilter] = useState("all"),
-    [error, setError] = useState(""),
+  const [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
   const unavailable = !accessToken || status === null;
-  const counts = Object.fromEntries(
-    Object.keys(verdicts).map((key) => [
-      key,
-      results?.goals.filter((g) => g.result.status === key).length ?? 0,
-    ]),
-  );
-  const rows =
-    results?.goals.filter(
-      (g) =>
-        filter === "all" ||
-        (filter === "review" ? g.needsReview : g.result.status === filter),
-    ) ?? [];
   async function openPdf(fileId: string, page: number) {
     if (!credentials) return;
     const tab = window.open("about:blank", "_blank");
@@ -65,48 +56,71 @@ export function AnalysisResults() {
       setError(safeError(e));
     }
   }
+  const goals: BoardGoal[] | undefined = results?.goals.length
+    ? results.goals.map((g) => ({
+        goalId: g.snapshot.goalId,
+        wording: g.snapshot.wording,
+        clarification: g.snapshot.clarification,
+        sourceUrl: g.snapshot.sourceUrl,
+        result: g.result,
+        modelUsed: g.modelUsed,
+        needsReview: g.needsReview,
+        reviewReason: g.reviewReason,
+      }))
+    : pending?.goals.map((g) => ({ goalId: g.goalId, wording: g.wording }));
+
   return (
     <div className="site-shell results-shell">
-      <header>
-        <Link href="/" className="wordmark">
-          krito<span>.</span>
+      <SiteHeader>
+        <Link href="/" className="back-link" onClick={() => saveSession(null)}>
+          Nieuwe analyse
         </Link>
-        <Link
-          href="/"
-          className="text-button"
-          onClick={() => saveSession(null)}
-        >
-          Nieuwe analyse →
-        </Link>
-      </header>
-      <main>
+      </SiteHeader>
+      <main className="results">
         {unavailable ? (
           <div className="result-state">
+            <Image src={kritoSleepy} alt="" className="state-illustration" sizes="420px" loading="eager" />
             <h1>Analyse niet beschikbaar</h1>
             <p>Open de analyse in het tabblad waarin je ze gestart hebt.</p>
-            <Link href="/">Start een nieuwe analyse</Link>
+            <Link className="primary-button" href="/">
+              Start een nieuwe analyse
+            </Link>
           </div>
         ) : status === undefined ? (
-          <p role="status">Analyse laden…</p>
+          <p className="page-loading" role="status">
+            Analyse laden…
+          </p>
         ) : (
           <>
             <div className="results-heading">
-              <span className="eyebrow">JOUW LESMATERIAAL IN BEELD</span>
-              <h1>{status.topic.title}</h1>
-              <span className="group-tag">
-                {status.topic.group.title}
-                <b title={status.topic.group.routeTitle}>
-                  {status.topic.group.routeCode}
-                </b>
-              </span>
-              <p>
-                {status.topic.goalCount}{" "}
-                {status.topic.goalCount === 1 ? "leerdoel" : "leerdoelen"} ·
-                Op.stap v{status.topic.catalogVersion}
-              </p>
+              <Image
+                src={kritoPointer}
+                alt=""
+                className={`results-krito${working ? " is-working" : ""}`}
+                sizes="180px"
+                priority
+              />
+              <div>
+                <span className="group-tag">
+                  {status.topic.group.title}
+                  <b title={status.topic.group.routeTitle}>
+                    {status.topic.group.routeCode}
+                  </b>
+                </span>
+                <h1>{status.topic.title}</h1>
+                <p>
+                  {status.topic.goalCount}{" "}
+                  {status.topic.goalCount === 1 ? "leerdoel" : "leerdoelen"} uit
+                  Op.stap v{status.topic.catalogVersion}
+                  {results?.files.length
+                    ? `, nagekeken in ${results.files.length} ${results.files.length === 1 ? "pdf" : "pdf’s"}`
+                    : ""}
+                </p>
+              </div>
             </div>
             {status.status === "failed" ? (
               <div className="result-state">
+                <Image src={kritoSleepy} alt="" className="state-illustration" sizes="420px" loading="eager" />
                 <h2>De analyse is onderbroken</h2>
                 <p>{safeError(status.safeError)}</p>
                 <button
@@ -128,163 +142,44 @@ export function AnalysisResults() {
                   {busy ? "Opnieuw starten…" : "Probeer opnieuw"}
                 </button>
               </div>
-            ) : status.status !== "completed" ? (
-              <div className="result-state" role="status">
-                <span className="progress-indicator" aria-hidden="true" />
-                <h2>{progressLabels[status.status]}</h2>
-                {status.status === "rechecking" && (
-                  <p>
-                    {status.recheckCompleted} van {status.recheckTotal} opnieuw
-                    gecontroleerd
-                  </p>
-                )}
-                <p>
-                  {status.status === "draft"
-                    ? "Voeg materiaal toe en vul je e-mailadres in op de startpagina."
-                    : "Je kunt deze pagina vernieuwen. De analyse gaat verder."}
-                </p>
-                {status.status === "draft" && (
-                  <Link href="/">Ga naar mijn materiaal →</Link>
-                )}
+            ) : status.status === "draft" ? (
+              <div className="result-state">
+                <h2>Je analyse is nog niet gestart</h2>
+                <p>Leg je pdf’s op het bord en vul je e-mailadres in.</p>
+                <Link className="primary-button" href="/materiaal">
+                  Ga naar mijn materiaal
+                </Link>
               </div>
-            ) : !results ? (
-              <p role="status">Beoordelingen laden…</p>
+            ) : !goals ? (
+              <p className="page-loading" role="status">
+                Het bord klaarzetten…
+              </p>
             ) : (
               <>
-                <div className="results-summary">
-                  {Object.entries(verdicts).map(([key, label]) => (
-                    <div key={key}>
-                      <strong>{counts[key]}</strong>
-                      <span>{label}</span>
-                    </div>
-                  ))}
-                </div>
+                <GoalBoard
+                  goals={goals}
+                  extra={pending ? Math.max(0, pending.total - pending.goals.length) : 0}
+                  phase={
+                    status.status === "completed" && results?.goals.length
+                      ? "completed"
+                      : status.status === "completed"
+                        ? status.recheckTotal
+                          ? "rechecking"
+                          : "checking"
+                        : (status.status as Phase)
+                  }
+                  recheck={{
+                    done: status.recheckCompleted,
+                    total: status.recheckTotal,
+                  }}
+                  files={results?.files ?? []}
+                  onOpenPdf={(fileId, page) => void openPdf(fileId, page)}
+                />
                 <p className="results-note">
-                  Dit beoordeelt ondersteuning in het lesmateriaal, geen
-                  beheersing door leerlingen. Zekerheid beschrijft het
-                  vertrouwen van het model in de beoordeling; ze is geen
-                  dekkingspercentage of gekalibreerde kans.
+                  {working
+                    ? "Je kunt deze pagina vernieuwen of later terugkomen in dit tabblad. Krito werkt gewoon verder."
+                    : "Dit beoordeelt ondersteuning in het lesmateriaal, geen beheersing door leerlingen. Zekerheid beschrijft het vertrouwen van het model in de beoordeling; ze is geen dekkingspercentage of gekalibreerde kans."}
                 </p>
-                <div
-                  className="result-filters"
-                  aria-label="Filter beoordelingen"
-                >
-                  {[
-                    ["all", "Alle doelen"],
-                    ...Object.entries(verdicts),
-                    ["review", "Nakijken nodig"],
-                  ].map(([key, label]) => (
-                    <button
-                      key={key}
-                      aria-pressed={filter === key}
-                      onClick={() => setFilter(key)}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-                <div className="result-goals">
-                  {rows.map((g) => (
-                    <details className="result-card" key={g.snapshot.goalId}>
-                      <summary>
-                        <div className="result-card-heading">
-                          <span className="goal-code">{g.snapshot.goalId}</span>
-                          <span
-                            className={`verdict verdict-${g.result.status}`}
-                          >
-                            {verdicts[g.result.status]}
-                          </span>
-                        </div>
-                        <div className="goal-wording">
-                          <SourceMarkup html={g.snapshot.wording} />
-                        </div>
-                        <div className="result-card-meta">
-                          <span>
-                            Zekerheid van beoordeling: {g.result.confidence}/100
-                          </span>
-                          {g.needsReview && <strong>Nakijken nodig</strong>}
-                          <span className="expand-label">Details ↴</span>
-                        </div>
-                      </summary>
-                      <div className="result-detail">
-                        <p>{g.result.explanation}</p>
-                        <p className="confidence-reason">
-                          {g.result.confidenceReason}
-                        </p>
-                        {g.needsReview && (
-                          <p className="review-note">
-                            {g.reviewReason === "recheck_failed"
-                              ? "De tweede controle is mislukt. De oorspronkelijke beoordeling blijft bewaard; kijk dit doel zelf na."
-                              : "Ook na de tweede controle blijft de beoordeling onzeker. Kijk dit doel zelf na."}
-                          </p>
-                        )}
-                        {g.result.evidence.length > 0 && (
-                          <div className="evidence-list">
-                            <h3>Bewijs uit je materiaal</h3>
-                            <p className="field-hint">
-                              Deze verwijzingen en citaten zijn door het model
-                              gemaakt. Controleer ze in de pdf.
-                            </p>
-                            {g.result.evidence.map((e, i) => (
-                              <div className="evidence" key={i}>
-                                <button
-                                  className="text-button"
-                                  onClick={() => void openPdf(e.fileId, e.page)}
-                                >
-                                  {
-                                    results.files.find(
-                                      (f) => f.fileId === e.fileId,
-                                    )?.name
-                                  }{" "}
-                                  · pagina {e.page} ↗
-                                </button>
-                                {e.kind === "text" && (
-                                  <blockquote>{e.quote}</blockquote>
-                                )}
-                                {e.description && <p>{e.description}</p>}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                        {g.result.missingRequirements.length > 0 && (
-                          <div>
-                            <h3>Wat ontbreekt</h3>
-                            <ul>
-                              {g.result.missingRequirements.map((item, i) => (
-                                <li key={i}>{item}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                        <div className="result-source">
-                          <span>
-                            {g.modelUsed === "gpt-6.1-sol"
-                              ? "Onafhankelijk opnieuw gecontroleerd met Sol"
-                              : "Beoordeling met Luna"}
-                          </span>
-                          <a
-                            href={g.snapshot.sourceUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            Officiële bron ↗
-                          </a>
-                        </div>
-                        {g.snapshot.clarification && (
-                          <details>
-                            <summary>Officiële toelichting</summary>
-                            <div className="source-clarification">
-                              <SourceMarkup html={g.snapshot.clarification} />
-                            </div>
-                          </details>
-                        )}
-                      </div>
-                    </details>
-                  ))}
-                </div>
-                {!rows.length && (
-                  <p className="empty-state">Geen doelen met deze filter.</p>
-                )}
               </>
             )}
           </>
@@ -295,10 +190,6 @@ export function AnalysisResults() {
           </p>
         )}
       </main>
-      <footer>
-        <span>Je documenten blijven privé.</span>
-        <span>Jouw professionele oordeel blijft centraal.</span>
-      </footer>
     </div>
   );
 }

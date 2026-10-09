@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1254 1254" role="img" aria-labelledby="title">
+<title id="title">Krito orange question mark</title>
+<defs>
+ <linearGradient id="orange" x1="380" y1="155" x2="860" y2="780" gradientUnits="userSpaceOnUse"><stop stop-color="#FF8A35"/><stop offset="1" stop-color="#FF7137"/></linearGradient>
+ <linearGradient id="orangeFacet" x1="600" y1="155" x2="910" y2="370" gradientUnits="userSpaceOnUse"><stop stop-color="#FFAE59"/><stop offset="1" stop-color="#FF9647"/></linearGradient>
+ <linearGradient id="chalk" x1="380" y1="345" x2="535" y2="420" gradientUnits="userSpaceOnUse"><stop stop-color="#FFF6E5"/><stop offset="1" stop-color="#FAF0DC"/></linearGradient>
+ <path id="question-outline" d="M380 390 C385 230 502 155 650 155 C823 155 944 253 944 414 C944 540 878 607 789 660 L742 696 Q719 715 719 752 Q719 783 686 783 H572 Q540 783 540 750 V709 C540 631 581 594 646 552 L695 518 C745 484 773 448 773 410 C773 348 725 305 660 305 C590 305 548 337 538 384 Q535 419 496 419 H420 Q380 419 380 390 Z"/>
+ <clipPath id="body-clip"><use xlink:href="#question-outline"/></clipPath>
+</defs>
+<g id="question-mark">
+ <use xlink:href="#question-outline" fill="url(#orange)"/>
+ <path id="upper-facet" clip-path="url(#body-clip)" fill="url(#orangeFacet)" d="M578 155 H692 C825 155 911 219 941 329 L850 332 L790 297 L719 263 L609 270 L549 213 Z"/>
+ <path id="lower-facet" clip-path="url(#body-clip)" fill="#EF622B" d="M642 624 L719 670 V783 H587 L589 724 Z"/>
+ <path id="chipped-tip" clip-path="url(#body-clip)" fill="url(#chalk)" d="M380 390 C383 369 387 356 392 342 L422 346 L442 364 L454 351 L475 363 L509 348 L542 358 C540 368 538 378 538 384 Q535 419 496 419 H420 Q380 419 380 390 Z"/>
+ <path id="chalk-dot" fill="url(#orange)" d="M584 870 H670 Q722 870 722 922 V988 Q722 1040 670 1040 H584 Q532 1040 532 988 V922 Q532 870 584 870 Z"/>
+ <path id="dot-facet" fill="url(#orangeFacet)" d="M584 870 H670 Q685 870 697 877 L661 932 L614 950 L532 935 V922 Q532 870 584 870 Z"/>
+</g>
+</svg>

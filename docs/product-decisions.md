@@ -16,8 +16,15 @@ This replaces individual-goal checkbox selection in original step 3 and the sele
 ## Hero and integration workflow
 
 - The topic search is an autocomplete dropdown that expands with matching subdomains and closes after a choice.
-- Topic choice, PDF upload and the start/email steps belong in a compact panel in the hero.
+- ~~Topic choice, PDF upload and the start/email steps belong in a compact panel in the hero.~~ Superseded by the chalkboard flow below.
 - Merge completed PRs into main once checks pass; avoid leaving a growing stack of open feature branches. The setup and catalog PRs were merged on 2026-10-09.
+
+## Chalkboard flow and visual identity (2026-10-09)
+
+- The start page has one hero: title, intro and topic search on the left, the thinking-Krito illustration on the right. On small screens the illustration sits on top and the open search becomes fullscreen.
+- Choosing a topic moves to `/materiaal`: one centred column with the green dotted chalkboard as the PDF drop zone and Krito standing in front of it. The email field and start button appear under the board once files are added.
+- Results are shown as a "checkboard": every goal is a pinned note on a chalkboard, first with the blue loading icon, then stamped with the green check, amber snapped check (partial), red cross or orange question mark. Chalk sticks on the tray filter the notes.
+- Brand assets live in `public/brand` and `public/illustrations`; the favicon is `src/app/icon.svg`.
 
 ## Uploads and future accounts
 
