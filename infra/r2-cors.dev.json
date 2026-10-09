@@ -5,14 +5,23 @@
         "origins": [
           "http://127.0.0.1:3000",
           "http://localhost:3000",
+          "https://krito-1w0ie17o1-anton-personal-projects.vercel.app",
+          "https://krito-258fyr07e-anton-personal-projects.vercel.app",
           "https://krito-2omppkvca-anton-personal-projects.vercel.app",
+          "https://krito-3zf05bzpn-anton-personal-projects.vercel.app",
           "https://krito-942pfun51-anton-personal-projects.vercel.app",
           "https://krito-ak8k1kvqw-anton-personal-projects.vercel.app",
           "https://krito-anton-personal-projects.vercel.app",
           "https://krito-bsvl5v517-anton-personal-projects.vercel.app",
+          "https://krito-f70k8e7l4-anton-personal-projects.vercel.app",
+          "https://krito-git-feat-opstap-catalog-search-anton-personal-projects.vercel.app",
+          "https://krito-git-feat-private-analysis-a47d9c-anton-personal-projects.vercel.app",
           "https://krito-git-feat-setup-preview-check-anton-personal-projects.vercel.app",
           "https://krito-git-feat-setup-second-preview-anton-personal-projects.vercel.app",
           "https://krito-git-main-anton-personal-projects.vercel.app",
+          "https://krito-jfzobd0zm-anton-personal-projects.vercel.app",
+          "https://krito-omwrsm25p-anton-personal-projects.vercel.app",
+          "https://krito-p55ei3o1g-anton-personal-projects.vercel.app",
           "https://krito-theta.vercel.app"
         ],
         "methods": [

@@ -1,16 +1,67 @@
 "use client";
-import { useState } from "react";
-import { useQuery } from "convex/react";
+import { useRef, useState } from "react";
+import { useMutation, useQuery } from "convex/react";
+import Link from "next/link";
 import { api } from "../../convex/_generated/api";
 import { useTopicSelection } from "../lib/useTopicSelection";
 import { TopicSearch } from "./TopicSearch";
 import { Modal } from "./Modal";
 import { GoalPreview } from "./GoalPreview";
+import { UploadPanel } from "./UploadPanel";
+import { EmailGate } from "./EmailGate";
+import {
+  newCapability,
+  saveSession,
+  useAnalysisSession,
+  type AnalysisSession,
+} from "../lib/analysisSession";
+import { safeError } from "../lib/safeError";
 export function GoalSetPicker() {
   const catalog = useQuery(api.goals.catalogInfo);
   const [selection, setSelection] = useTopicSelection();
   const [showGoals, setShowGoals] = useState(false);
   const [offset, setOffset] = useState(0);
+  const session = useAnalysisSession();
+  const status = useQuery(api.analyses.getStatus, session ?? "skip");
+  const createDraft = useMutation(api.analyses.createDraft),
+    updateTopic = useMutation(api.analyses.updateTopic);
+  const creating = useRef<Promise<AnalysisSession> | null>(null);
+  const [busy, setBusy] = useState(false),
+    [emailGate, setEmailGate] = useState(false),
+    [error, setError] = useState("");
+  const submitted = status && status.status !== "draft";
+  async function ensureDraft(): Promise<AnalysisSession> {
+    if (!selected) throw new Error("invalid_topic");
+    if (session && status?.status === "draft") {
+      if (
+        status.topic.key !== selected.key ||
+        status.topic.catalogVersion !== selected.catalogVersion
+      )
+        await updateTopic({
+          ...session,
+          catalogVersion: selected.catalogVersion,
+          goalSetKey: selected.key,
+        });
+      return session;
+    }
+    if (creating.current) return creating.current;
+    creating.current = (async () => {
+      const { capabilityHash, accessToken } = await newCapability();
+      const analysisId = await createDraft({
+        capabilityHash,
+        catalogVersion: selected.catalogVersion,
+        goalSetKey: selected.key,
+      });
+      const next = { analysisId, accessToken };
+      saveSession(next);
+      return next;
+    })();
+    try {
+      return await creating.current;
+    } finally {
+      creating.current = null;
+    }
+  }
   const selected = useQuery(
     api.goals.getGoalSet,
     selection.goalSetKey
@@ -38,10 +89,10 @@ export function GoalSetPicker() {
         <span className="active">
           <b>1</b> Onderwerp
         </span>
-        <span>
+        <span className={selected ? "active" : ""}>
           <b>2</b> Materiaal
         </span>
-        <span>
+        <span className={emailGate ? "active" : ""}>
           <b>3</b> Analyse
         </span>
       </div>
@@ -49,7 +100,29 @@ export function GoalSetPicker() {
         <TopicSearch
           selected={selected}
           catalogVersion={catalog.version}
-          onSelect={(topic) => {
+          disabled={
+            busy ||
+            emailGate ||
+            !!submitted ||
+            (!!session && status === undefined)
+          }
+          onSelect={async (topic) => {
+            setError("");
+            if (session && status?.status === "draft") {
+              setBusy(true);
+              try {
+                await updateTopic({
+                  ...session,
+                  catalogVersion: topic.catalogVersion,
+                  goalSetKey: topic.key,
+                });
+              } catch (e) {
+                setError(safeError(e));
+                return;
+              } finally {
+                setBusy(false);
+              }
+            }
             setSelection({
               catalogVersion: topic.catalogVersion,
               goalSetKey: topic.key,
@@ -86,11 +159,68 @@ export function GoalSetPicker() {
           worden meegenomen.
         </p>
       )}
-      <div className="hero-next-step">
-        <span className="field-label">Lesmateriaal</span>
-        <p className="field-hint">
-          Daarna voeg je je pdf’s toe om de gekozen doelen te controleren.
+      {error && (
+        <p className="form-error" role="alert">
+          {error}
         </p>
+      )}
+      <div className="hero-next-step">
+        {submitted && session ? (
+          <div>
+            <p className="field-hint">
+              Je analyse is gestart. Je kunt de voortgang en resultaten volgen.
+            </p>
+            <Link
+              className="primary-button"
+              href={`/results/${session.analysisId}`}
+            >
+              Bekijk mijn analyse →
+            </Link>
+            <button
+              className="text-button"
+              onClick={() => {
+                saveSession(null);
+                setEmailGate(false);
+              }}
+            >
+              Nieuwe analyse
+            </button>
+          </div>
+        ) : emailGate && session ? (
+          <EmailGate session={session} onBack={() => setEmailGate(false)} />
+        ) : (
+          <>
+            <UploadPanel
+              ensureDraft={ensureDraft}
+              session={session}
+              files={status?.files ?? []}
+              enabled={
+                !!selected && !busy && (!session || status !== undefined)
+              }
+              onBusy={setBusy}
+            />
+            <button
+              className="primary-button"
+              disabled={
+                !selected ||
+                busy ||
+                !status?.files.length ||
+                status.files.some((f) => f.status !== "ready")
+              }
+              onClick={async () => {
+                setError("");
+                try {
+                  await ensureDraft();
+                  setEmailGate(true);
+                } catch (e) {
+                  setError(safeError(e));
+                }
+              }}
+            >
+              Analyseer mijn materiaal →
+            </button>
+          </>
+        )}
       </div>
       <div className="panel-footer">
         <span className="privacy-mark">

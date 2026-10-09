@@ -18,3 +18,10 @@ This replaces individual-goal checkbox selection in original step 3 and the sele
 - The topic search is an autocomplete dropdown that expands with matching subdomains and closes after a choice.
 - Topic choice, PDF upload and the start/email steps belong in a compact panel in the hero.
 - Merge completed PRs into main once checks pass; avoid leaving a growing stack of open feature branches. The setup and catalog PRs were merged on 2026-10-09.
+
+## Uploads and future accounts
+
+- Accept multiple PDFs, at most **20 files**, 10 MiB each and 40 MiB combined. Enforce all limits in the browser and backend.
+- Store submitted email addresses in an application `users` table, with analyses referencing `userId`. Preserve the exact trimmed address, including plus tags and dots. Migration removes existing stored emails from analyses.
+- These records remain `emailVerified: false` until verified authentication is implemented. An optional `authId` is reserved for the future Better Auth component identity. The current MVP still requires the private capability for every analysis/file operation; an email/profile link is not authorization.
+- Better Auth and OTP are a later feature. The recommended application-table reference is documented by [Convex + Better Auth](https://labs.convex.dev/better-auth/migrations/migrate-to-0-9/migrate-userid/userid-in-app-table); verification requires the real [OTP flow](https://better-auth.com/docs/plugins/email-otp). Future account claiming must verify identity and the existing analysis capability rather than granting access from an unverified submitted address.
