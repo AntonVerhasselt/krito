@@ -12,3 +12,9 @@ The user's instructions take precedence over the original specification in `docs
 - Backend draft/submission code must derive the complete goal membership from the published `goalSets` record; it must not accept an arbitrary subset of goal IDs from the browser. Snapshot all of those goals on submission. Group labels retain their source meaning; a phase or swimming group is not inferred to be a school year.
 
 This replaces individual-goal checkbox selection in original step 3 and the selected-ID browser input in later steps. The full catalog hierarchy remains in Convex and is retained for provenance/future use.
+
+## Hero and integration workflow
+
+- The topic search is an autocomplete dropdown that expands with matching subdomains and closes after a choice.
+- Topic choice, PDF upload and the start/email steps belong in a compact panel in the hero.
+- Merge completed PRs into main once checks pass; avoid leaving a growing stack of open feature branches. The setup and catalog PRs were merged on 2026-10-09.
