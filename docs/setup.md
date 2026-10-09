@@ -128,3 +128,5 @@ MVP and requested all groups/ages. Preserve the full source hierarchy and its ag
 and route semantics. Replace the earlier multiple-filter selector with flexible
 search that exposes matching results and age tags. Commercial reuse will be
 revisited with the source owner later; no commercial launch is part of this setup.
+
+The complete Op.stap 1.3 catalog has now been imported and published in the selected Convex development deployment: 15,290 original records, 7,488 goals, 4,607 topic/group entries. The original records were audited by type against the archive, and the repeat refresh was an exact no-op. Use `npm run goals:update` to refresh development. See [catalog operations](../data/opstap/README.md) and [accepted teacher-flow changes](product-decisions.md): search results show subdomains only and choosing one includes all its goals automatically.

@@ -13,7 +13,11 @@
     "env:backend": "tsx scripts/setBackendEnvironment.ts",
     "ai:smoke": "tsx scripts/aiSmoke.ts",
     "infra:vercel": "tsx scripts/configureVercel.ts",
-    "infra:cors": "tsx scripts/syncPreviewOrigins.ts"
+    "infra:cors": "tsx scripts/syncPreviewOrigins.ts",
+    "goals:fetch": "tsx scripts/fetchGoals.ts",
+    "goals:validate": "tsx scripts/validateGoals.ts",
+    "goals:seed": "tsx scripts/seedGoals.ts",
+    "goals:update": "tsx scripts/updateGoals.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1148.0",
@@ -21,6 +25,7 @@
     "convex": "^1.46.0",
     "next": "16.4.0",
     "openai": "^7.31.0",
+    "parse5": "^8.0.1",
     "pdf-lib": "^1.17.1",
     "react": "19.3.0",
     "react-dom": "19.3.0",

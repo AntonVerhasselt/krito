@@ -1,0 +1,31 @@
+{
+  "version": "1.3",
+  "sourceUrl": "https://cached-api.katholiekonderwijs.vlaanderen/documents/bdc19260-bd4c-46a8-8009-b2a54f381120/snapshots/1.3/krcItems",
+  "sourceHash": "d05708ae-208d-1039-5b15-0eda5c4426f8",
+  "sourceSha256": "da3001d1fdfaaaad8ea35051e23f5c58e00ac93d3444016950f7debd503e0722",
+  "fetchedAt": "2026-10-09T12:32:25.186Z",
+  "sourceDate": "2026-10-02",
+  "snapshotKey": "3de366be-c52d-4ef1-9230-f2e7920825ff",
+  "timestamp": "2026-10-02T13:30:30.303882+00:00",
+  "counts": {
+    "items": 15290,
+    "goals": 7488,
+    "goalSets": 4607,
+    "routes": 7,
+    "groups": 32
+  },
+  "typeCounts": {
+    "KRC_CURRICULUM": 1,
+    "KRC_DISCIPLINE_CONTAINER": 1,
+    "KRC_CURRICULUM_DISCIPLINE": 13,
+    "KRC_CURRICULUM_DOMAIN": 65,
+    "KRC_CURRICULUM_SUBDOMAIN": 220,
+    "KRC_CURRICULUM_CLUSTER": 477,
+    "KRC_GOAL_SET_ITEM": 854,
+    "KRC_AGE_RANGE_ITEM": 6131,
+    "KRC_CURRICULUM_GOAL": 7488,
+    "KRC_REFERENCE_FRAME": 1,
+    "KRC_GOAL_SET": 7,
+    "KRC_AGE_RANGE": 32
+  }
+}

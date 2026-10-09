@@ -8,6 +8,9 @@
  * @module
  */
 
+import type * as catalogImport from "../catalogImport.js";
+import type * as catalogValidators from "../catalogValidators.js";
+import type * as goals from "../goals.js";
 import type * as health from "../health.js";
 import type * as node_storageSmoke from "../node/storageSmoke.js";
 
@@ -18,6 +21,9 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  catalogImport: typeof catalogImport;
+  catalogValidators: typeof catalogValidators;
+  goals: typeof goals;
   health: typeof health;
   "node/storageSmoke": typeof node_storageSmoke;
 }>;
