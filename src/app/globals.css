@@ -585,7 +585,7 @@ a {
 
 /* ---------- Material page ---------- */
 .material {
-  max-width: 1000px;
+  max-width: 1200px;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
@@ -613,6 +613,16 @@ a {
   width: 100%;
   margin-top: 30px;
 }
+/* Board with Krito on the left, the files and the start button beside it. */
+.upload-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  align-items: start;
+  gap: 36px;
+}
+.upload-main {
+  min-width: 0;
+}
 .file-input {
   display: none;
 }
@@ -620,7 +630,7 @@ a {
 /* The stage: the board on the right, Krito in front of its left leg. */
 .board-stage {
   position: relative;
-  width: min(100%, 860px, (100vh - 330px) * 1.56);
+  width: min(100%, (100vh - 330px) * 1.56);
   margin: 0 auto;
   aspect-ratio: 100 / 64;
 }
@@ -825,58 +835,120 @@ a {
   color: var(--ink-soft);
 }
 
-/* File slips: paper pinned under the board. */
-.file-slips {
+/* File panel beside the board. */
+.file-panel {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 22px 18px;
-  margin: 30px auto 0;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 2%;
+  padding: 20px;
+  border: var(--line);
+  border-radius: 22px;
+  background: var(--note);
+  box-shadow: var(--pop-lg);
+  text-align: left;
+}
+.file-panel-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.file-panel-head h2 {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 22px;
+}
+.file-count {
+  font-family: var(--font-ui);
+  font-size: 14px;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+.material-guide p {
+  margin: 0 0 12px;
+  font-size: 15.5px;
+  color: var(--ink-soft);
+}
+.material-guide ul {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 18px;
   padding: 0;
   list-style: none;
-  max-width: 920px;
+}
+.material-guide li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-ui);
+  font-weight: 500;
+}
+.material-guide li::before {
+  content: "";
+  flex: none;
+  width: 18px;
+  height: 14px;
+  background: url("/brand/mark.svg") center / contain no-repeat;
+}
+.secondary-button {
+  width: 100%;
+  min-height: 46px;
+  border: 2.5px solid var(--ink);
+  border-radius: 14px;
+  background: #fff;
+  font-family: var(--font-ui);
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.secondary-button:hover:not(:disabled) {
+  background: #fff0cf;
+}
+.secondary-button:disabled {
+  cursor: progress;
+  opacity: 0.6;
+}
+.file-empty {
+  margin: 0;
+  padding: 26px 18px;
+  border: 2px dashed rgb(5 5 5 / 0.25);
+  border-radius: 14px;
+  text-align: center;
+  font-size: 15px;
+  color: var(--ink-soft);
+}
+.file-slips {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 .file-slip {
-  position: relative;
-  width: 280px;
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 12px;
-  padding: 16px 12px 14px 14px;
-  border: 2.5px solid var(--ink);
-  border-radius: 6px 6px 14px 6px;
-  background: var(--note);
-  box-shadow: var(--pop);
-  text-align: left;
-  transform: rotate(var(--r));
-  animation: pin-in 0.6s var(--spring) both;
-  transition: transform 0.3s var(--spring);
+  padding: 10px 8px 10px 12px;
+  border: 2px solid var(--ink);
+  border-radius: 12px;
+  background: #fff;
+  animation: rise 0.35s var(--ease-out) both;
 }
-.file-slip:hover {
-  transform: rotate(0deg) translateY(-3px);
+.file-panel-foot {
+  display: grid;
+  gap: 10px;
+  padding-top: 4px;
 }
-.slip-pin,
-.note-pin {
-  position: absolute;
-  top: -11px;
-  left: 50%;
-  width: 20px;
-  height: 20px;
-  margin-left: -10px;
-  border: 2.5px solid var(--ink);
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 32%, rgb(255 255 255 / 0.75) 0 18%, transparent 22%), var(--pin);
-  z-index: 1;
+.file-panel-foot .field-hint {
+  margin: 0;
+  font-size: 14px;
+  text-align: center;
 }
-.pin-blue {
-  --pin: var(--cobalt);
-}
-.pin-coral {
-  --pin: var(--coral);
-}
-.pin-amber {
-  --pin: var(--amber);
+.start-button {
+  width: 100%;
 }
 .slip-body {
   min-width: 0;
@@ -931,31 +1003,15 @@ a {
   cursor: pointer;
   transition:
     background 0.15s,
-    border-color 0.15s,
-    transform 0.25s var(--spring);
+    border-color 0.15s;
 }
 .slip-remove:hover:not(:disabled) {
   background: #ffe1d8;
   border-color: var(--ink);
   color: var(--ink);
-  transform: rotate(90deg);
 }
 
-/* Email gate */
-.email-gate {
-  width: min(100%, 640px);
-  margin: 40px auto 0;
-  padding: 28px 30px 22px;
-  border: var(--line);
-  border-radius: 24px;
-  background: var(--note);
-  box-shadow: var(--pop-lg);
-  animation: rise 0.6s var(--ease-out) both;
-  transition: background 0.3s;
-}
-.email-gate.is-ready {
-  background: #fff0cf;
-}
+/* Email modal */
 .email-gate h2 {
   margin: 0;
   font-family: var(--font-ui);
@@ -963,17 +1019,22 @@ a {
   font-size: 28px;
   line-height: 1.15;
 }
+.email-gate .modal-heading {
+  align-items: center;
+  margin-bottom: 6px;
+}
 .email-gate-lead {
-  margin: 6px 0 20px;
+  margin: 0 0 22px;
   color: var(--ink-soft);
 }
-.email-row {
-  display: flex;
-  gap: 12px;
+.field-label {
+  display: block;
+  margin-bottom: 8px;
+  font-family: var(--font-ui);
+  font-weight: 600;
 }
-.email-row input {
-  flex: 1;
-  min-width: 0;
+.text-input {
+  width: 100%;
   height: 56px;
   padding: 0 18px;
   border: var(--line);
@@ -984,11 +1045,19 @@ a {
   outline: none;
   transition: box-shadow 0.2s;
 }
-.email-row input:focus {
+.text-input:focus {
   box-shadow: 4px 4px 0 var(--cobalt);
 }
 .email-gate .field-hint {
-  margin: 14px 0 0;
+  margin: 10px 0 0;
+  font-size: 14px;
+}
+.email-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 22px;
+  margin-top: 26px;
 }
 .started-note {
   margin-top: 36px;
@@ -1012,6 +1081,9 @@ a {
 }
 
 /* Goal preview dialog */
+.app-dialog.is-narrow {
+  width: min(520px, calc(100vw - 32px));
+}
 .app-dialog {
   scrollbar-width: thin;
   scrollbar-color: #c8b99e transparent;
@@ -1602,12 +1674,6 @@ details[open] .chevron {
     transform: rotate(var(--a)) translateX(70px) scale(0.3);
   }
 }
-@keyframes pin-in {
-  from {
-    opacity: 0;
-    transform: translateY(-26px) rotate(calc(var(--r) - 8deg)) scale(1.05);
-  }
-}
 @keyframes stamp-in {
   0% {
     opacity: 0;
@@ -1770,8 +1836,8 @@ details[open] .chevron {
     width: 46%;
     margin: -24% auto 0 0;
   }
-  .email-row {
-    flex-direction: column;
+  .upload-layout {
+    grid-template-columns: 1fr;
   }
   .goal-row-head {
     grid-template-columns: 32px minmax(0, 1fr) 18px;

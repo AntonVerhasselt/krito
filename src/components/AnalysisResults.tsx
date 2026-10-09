@@ -122,7 +122,7 @@ export function AnalysisResults() {
                 </span>
                 {fileCount > 0 && (
                   <span>
-                    {fileCount} {fileCount === 1 ? "pdf" : "pdf’s"}
+                    {fileCount} {fileCount === 1 ? "bestand" : "bestanden"}
                   </span>
                 )}
                 <span>Op.stap v{status.topic.catalogVersion}</span>
@@ -154,7 +154,7 @@ export function AnalysisResults() {
             ) : status.status === "draft" ? (
               <div className="result-state">
                 <h2>Je analyse is nog niet gestart</h2>
-                <p>Voeg je pdf’s toe en vul je e-mailadres in.</p>
+                <p>Voeg je lesmateriaal toe en vul je e-mailadres in.</p>
                 <Link className="primary-button" href="/materiaal">
                   Ga naar mijn materiaal
                 </Link>

@@ -13,8 +13,9 @@ export default function Home() {
             <span>Staat elk leerdoel</span> <span>echt in je les?</span>
           </h1>
           <p className="hero-intro">
-            Kies een onderwerp uit Op.stap en leg je pdf’s op het bord. Krito
-            houdt elk leerdoel naast je lesmateriaal en toont wat er al in zit,
+            Kies een onderwerp uit Op.stap en voeg je lesmateriaal toe:
+            lesvoorbereidingen, presentaties, oefenbladen en toetsen. Krito
+            houdt elk leerdoel naast je materiaal en toont wat er al in zit,
             met paginaverwijzingen om zelf na te kijken.
           </p>
           <TopicPicker />

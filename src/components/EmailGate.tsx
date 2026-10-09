@@ -8,10 +8,10 @@ import { safeError } from "../lib/safeError";
 import { StatusIcon } from "./SiteHeader";
 export function EmailGate({
   session,
-  ready,
+  onCancel,
 }: {
   session: AnalysisSession;
-  ready: boolean;
+  onCancel: () => void;
 }) {
   const [email, setEmail] = useState(""),
     [busy, setBusy] = useState(false),
@@ -20,10 +20,10 @@ export function EmailGate({
   const router = useRouter();
   return (
     <form
-      className={`email-gate${ready ? " is-ready" : ""}`}
+      className="email-gate"
       onSubmit={async (e) => {
         e.preventDefault();
-        if (busy || !ready) return;
+        if (busy) return;
         setBusy(true);
         setError("");
         try {
@@ -35,32 +35,56 @@ export function EmailGate({
         }
       }}
     >
-      <h2>{ready ? "Alles staat op het bord" : "Even geduld"}</h2>
-      <p className="email-gate-lead">
-        {ready
-          ? "Laat je e-mailadres achter en Krito begint met nakijken."
-          : "Krito controleert eerst of elke pdf leesbaar is."}
-      </p>
-      <div className="email-row">
-        <label className="visually-hidden" htmlFor="analysis-email">
-          Je e-mailadres
-        </label>
-        <input
-          id="analysis-email"
-          type="email"
-          autoComplete="email"
-          required
-          maxLength={254}
-          value={email}
-          disabled={busy}
-          placeholder="jij@school.be"
-          onChange={(e) => setEmail(e.target.value)}
-        />
+      <div className="modal-heading">
+        <h2>Nog één ding</h2>
         <button
-          className="primary-button"
-          type="submit"
-          disabled={busy || !ready}
+          type="button"
+          className="icon-button"
+          aria-label="Sluit"
+          disabled={busy}
+          onClick={onCancel}
         >
+          ×
+        </button>
+      </div>
+      <p className="email-gate-lead">
+        Vul je e-mailadres in en Krito begint met nakijken. Je resultaat
+        verschijnt meteen hier op de website.
+      </p>
+      <label className="field-label" htmlFor="analysis-email">
+        Je e-mailadres
+      </label>
+      <input
+        id="analysis-email"
+        className="text-input"
+        type="email"
+        autoComplete="email"
+        data-autofocus
+        required
+        maxLength={254}
+        value={email}
+        disabled={busy}
+        placeholder="jij@school.be"
+        onChange={(e) => setEmail(e.target.value)}
+      />
+      <p className="field-hint">
+        Bewaar dit tabblad; we sturen geen resultaat per e-mail.
+      </p>
+      {error && (
+        <p className="form-error" role="alert">
+          {error}
+        </p>
+      )}
+      <div className="email-actions">
+        <button
+          className="text-button"
+          type="button"
+          disabled={busy}
+          onClick={onCancel}
+        >
+          Annuleer
+        </button>
+        <button className="primary-button" type="submit" disabled={busy}>
           {busy ? (
             <>
               <StatusIcon status="loading" size={22} /> Analyse starten…
@@ -70,15 +94,6 @@ export function EmailGate({
           )}
         </button>
       </div>
-      <p className="field-hint">
-        Je resultaat verschijnt hier op de website. Bewaar dit tabblad; we
-        sturen geen resultaat per e-mail.
-      </p>
-      {error && (
-        <p className="form-error" role="alert">
-          {error}
-        </p>
-      )}
     </form>
   );
 }

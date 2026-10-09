@@ -65,10 +65,12 @@ for (const viewport of [
       ).toHaveLength(0);
       await page.reload();
       await expect(page.getByText("3 pagina’s · Klaar")).toBeVisible();
-      await page
+      await page.getByRole("button", { name: "Start de analyse" }).click();
+      const dialog = page.getByRole("dialog", { name: "Start de analyse" });
+      await dialog
         .getByLabel("Je e-mailadres")
         .fill("playwright.fixture+private@example.com");
-      await page.getByRole("button", { name: "Start de analyse" }).click();
+      await dialog.getByRole("button", { name: "Start de analyse" }).click();
       await expect(page).toHaveURL(new RegExp(`/results/${analysisId}$`));
       await page.reload();
       await expect(page.locator(".results-summary")).toBeVisible();

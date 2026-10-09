@@ -75,7 +75,7 @@ function Summary({
       ? `Twijfelgevallen worden opnieuw gecontroleerd (${recheck.done} van ${recheck.total})`
       : phase === "checking"
         ? `${total} leerdoelen worden naast je materiaal gelegd`
-        : "Je pdf’s worden voorbereid";
+        : "Je lesmateriaal wordt voorbereid";
   return (
     <section className="results-summary" aria-label="Samenvatting">
       <div className="summary-head">

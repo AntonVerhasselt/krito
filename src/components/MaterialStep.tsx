@@ -43,6 +43,7 @@ export function MaterialStep() {
   const creating = useRef<Promise<AnalysisSession> | null>(null);
   const [busy, setBusy] = useState(false);
   const [showGoals, setShowGoals] = useState(false);
+  const [askEmail, setAskEmail] = useState(false);
   const [offset, setOffset] = useState(0);
   const goals = useQuery(
     api.goals.listGoals,
@@ -137,7 +138,7 @@ export function MaterialStep() {
             {submitted && session ? (
               <div className="started-note">
                 <h2>Je analyse is gestart</h2>
-                <p>Je kunt de voortgang en de resultaten volgen op het bord.</p>
+                <p>Je kunt de voortgang en de resultaten volgen.</p>
                 <div className="started-actions">
                   <Link
                     className="primary-button"
@@ -164,15 +165,40 @@ export function MaterialStep() {
                   files={files}
                   enabled={!busy && (!session || status !== undefined)}
                   onBusy={setBusy}
+                  footer={
+                    <>
+                      <button
+                        type="button"
+                        className="primary-button start-button"
+                        disabled={!ready || busy || !session}
+                        onClick={() => setAskEmail(true)}
+                      >
+                        Start de analyse
+                      </button>
+                      <p className="field-hint">
+                        {!files.length
+                          ? "Voeg minstens één bestand toe om te starten."
+                          : ready && !busy
+                            ? `Krito legt ${selected.goalCount === 1 ? "het leerdoel" : `alle ${selected.goalCount} leerdoelen`} naast je materiaal.`
+                            : "Even wachten tot elk bestand gecontroleerd is."}
+                      </p>
+                    </>
+                  }
                 />
-                {files.length > 0 && session && (
-                  <EmailGate session={session} ready={ready && !busy} />
-                )}
               </>
             )}
           </>
         )}
       </main>
+      {askEmail && session && (
+        <Modal
+          label="Start de analyse"
+          narrow
+          onClose={() => setAskEmail(false)}
+        >
+          <EmailGate session={session} onCancel={() => setAskEmail(false)} />
+        </Modal>
+      )}
       {selected && showGoals && (
         <Modal
           label="Leerdoelen in je analyse"

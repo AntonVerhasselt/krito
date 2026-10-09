@@ -4,6 +4,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type ReactNode,
 } from "react";
 import Image from "next/image";
 import { useAction, useMutation } from "convex/react";
@@ -24,7 +25,6 @@ type FileRow = NonNullable<
   FunctionReturnType<typeof api.analyses.getStatus>
 >["files"][number];
 type Burst = { id: number; x: number; y: number };
-const pins = ["blue", "coral", "amber"];
 function putPdf(url: string, file: File, progress: (percent: number) => void) {
   return new Promise<void>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
@@ -42,6 +42,13 @@ function putPdf(url: string, file: File, progress: (percent: number) => void) {
     xhr.send(file);
   });
 }
+const materialKinds = [
+  "Lesvoorbereidingen",
+  "Presentaties",
+  "Oefenbladen en werkbladen",
+  "Toetsen en evaluaties",
+  "Ander lesmateriaal",
+];
 function pages(n: number | null) {
   return `${n} ${n === 1 ? "pagina" : "pagina’s"}`;
 }
@@ -51,12 +58,14 @@ export function UploadPanel({
   files,
   enabled,
   onBusy,
+  footer,
 }: {
   ensureDraft: () => Promise<AnalysisSession>;
   session: AnalysisSession | null;
   files: FileRow[];
   enabled: boolean;
   onBusy: (busy: boolean) => void;
+  footer?: ReactNode;
 }) {
   const id = useId();
   const input = useRef<HTMLInputElement>(null);
@@ -136,12 +145,12 @@ export function UploadPanel({
         ? "filled"
         : "empty";
   const lines = {
-    empty: ["Sleep je pdf’s op het bord", "of klik om ze te kiezen"],
-    dragging: ["Laat maar los!", "Krito vangt ze op"],
-    uploading: ["Op het bord zetten…", `${Math.round(overall)}%`],
+    empty: ["Sleep je lesmateriaal hierheen", "of klik om bestanden te kiezen"],
+    dragging: ["Laat maar los!", "Krito neemt het over"],
+    uploading: ["Bestanden uploaden…", `${Math.round(overall)}%`],
     filled: [
-      `${files.length} ${files.length === 1 ? "pdf" : "pdf’s"} op het bord`,
-      "Nog eentje? Sleep of klik.",
+      `${files.length} ${files.length === 1 ? "bestand" : "bestanden"} toegevoegd`,
+      "Nog meer? Sleep of klik.",
     ],
   }[state];
 
@@ -164,175 +173,212 @@ export function UploadPanel({
           void upload(chosen);
         }}
       />
-      <div className={`board-stage is-${state}`}>
-        <button
-          type="button"
-          className="board"
-          disabled={disabled}
-          aria-describedby={`${id}-limits`}
-          onClick={() => input.current?.click()}
-          onDragEnter={(e) => {
-            e.preventDefault();
-            dragDepth.current += 1;
-            if (!disabled) setDragging(true);
-          }}
-          onDragOver={(e) => e.preventDefault()}
-          onDragLeave={() => {
-            dragDepth.current = Math.max(0, dragDepth.current - 1);
-            if (!dragDepth.current) setDragging(false);
-          }}
-          onDrop={(e) => {
-            e.preventDefault();
-            dragDepth.current = 0;
-            setDragging(false);
-            if (disabled) return;
-            const r = e.currentTarget.getBoundingClientRect();
-            burst(
-              ((e.clientX - r.left) / r.width) * 100,
-              ((e.clientY - r.top) / r.height) * 100,
-            );
-            void upload(Array.from(e.dataTransfer.files));
-          }}
-        >
-          <Image
-            src={chalkboard}
-            alt=""
-            priority
-            sizes="(max-width: 900px) 92vw, 760px"
-            className="board-image"
-            draggable={false}
-          />
-          <span className="board-surface">
-            <span className="board-glow" aria-hidden="true" />
-            <svg
-              className="chalk-doodle"
-              viewBox="0 0 120 120"
-              aria-hidden="true"
+      <div className="upload-layout">
+        <div className="upload-main">
+          <div className={`board-stage is-${state}`}>
+            <button
+              type="button"
+              className="board"
+              disabled={disabled}
+              aria-describedby={`${id}-limits`}
+              onClick={() => input.current?.click()}
+              onDragEnter={(e) => {
+                e.preventDefault();
+                dragDepth.current += 1;
+                if (!disabled) setDragging(true);
+              }}
+              onDragOver={(e) => e.preventDefault()}
+              onDragLeave={() => {
+                dragDepth.current = Math.max(0, dragDepth.current - 1);
+                if (!dragDepth.current) setDragging(false);
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                dragDepth.current = 0;
+                setDragging(false);
+                if (disabled) return;
+                const r = e.currentTarget.getBoundingClientRect();
+                burst(
+                  ((e.clientX - r.left) / r.width) * 100,
+                  ((e.clientY - r.top) / r.height) * 100,
+                );
+                void upload(Array.from(e.dataTransfer.files));
+              }}
             >
-              <path
-                pathLength={1}
-                d="M30 14h42l20 20v70c0 2-1 3-3 3H31c-2 0-3-1-3-3V17c0-2 1-3 2-3Z"
+              <Image
+                src={chalkboard}
+                alt=""
+                priority
+                sizes="(max-width: 900px) 92vw, 760px"
+                className="board-image"
+                draggable={false}
               />
-              <path pathLength={1} d="M71 15v20h20" />
-              <path pathLength={1} d="M60 40v42m-16-15 16 16 16-16" />
-            </svg>
-            <span className="chalk-text" key={state}>
-              <span className="chalk-line chalk-line-big">{lines[0]}</span>
-              <svg
-                className="chalk-underline"
-                viewBox="0 0 300 16"
-                preserveAspectRatio="none"
-                aria-hidden="true"
-              >
-                <path
-                  pathLength={1}
-                  d="M4 10c40-6 90-7 140-4s100 4 152-3"
-                />
-              </svg>
-              <span className="chalk-line">{lines[1]}</span>
-            </span>
-            {state === "uploading" && (
-              <span className="chalk-progress" aria-hidden="true">
-                <span style={{ width: `${overall}%` }} />
-              </span>
-            )}
-            {bursts.map((b) => (
-              <span
-                key={b.id}
-                className="chalk-burst"
-                style={{ left: `${b.x}%`, top: `${b.y}%` } as CSSProperties}
-                aria-hidden="true"
-              >
-                {Array.from({ length: 10 }, (_, i) => (
-                  <i key={i} style={{ "--a": `${i * 36}deg` } as CSSProperties} />
+              <span className="board-surface">
+                <span className="board-glow" aria-hidden="true" />
+                <svg
+                  className="chalk-doodle"
+                  viewBox="0 0 120 120"
+                  aria-hidden="true"
+                >
+                  <path
+                    pathLength={1}
+                    d="M30 14h42l20 20v70c0 2-1 3-3 3H31c-2 0-3-1-3-3V17c0-2 1-3 2-3Z"
+                  />
+                  <path pathLength={1} d="M71 15v20h20" />
+                  <path pathLength={1} d="M60 40v42m-16-15 16 16 16-16" />
+                </svg>
+                <span className="chalk-text" key={state}>
+                  <span className="chalk-line chalk-line-big">{lines[0]}</span>
+                  <svg
+                    className="chalk-underline"
+                    viewBox="0 0 300 16"
+                    preserveAspectRatio="none"
+                    aria-hidden="true"
+                  >
+                    <path
+                      pathLength={1}
+                      d="M4 10c40-6 90-7 140-4s100 4 152-3"
+                    />
+                  </svg>
+                  <span className="chalk-line">{lines[1]}</span>
+                </span>
+                {state === "uploading" && (
+                  <span className="chalk-progress" aria-hidden="true">
+                    <span style={{ width: `${overall}%` }} />
+                  </span>
+                )}
+                {bursts.map((b) => (
+                  <span
+                    key={b.id}
+                    className="chalk-burst"
+                    style={{ left: `${b.x}%`, top: `${b.y}%` } as CSSProperties}
+                    aria-hidden="true"
+                  >
+                    {Array.from({ length: 10 }, (_, i) => (
+                      <i
+                        key={i}
+                        style={{ "--a": `${i * 36}deg` } as CSSProperties}
+                      />
+                    ))}
+                  </span>
                 ))}
               </span>
-            ))}
-          </span>
-        </button>
-        <span className="krito-wrap" aria-hidden="true">
-          <Image
-            src={krito}
-            alt=""
-            priority
-            sizes="300px"
-            className="board-krito"
-            draggable={false}
-          />
-        </span>
-      </div>
-      <p id={`${id}-limits`} className="upload-limits">
-        Max. 20 pdf’s, 10 MiB per pdf en 40 MiB samen.
-        {!enabled && !busy && " Even geduld, je onderwerp wordt geladen."}
-      </p>
-      {error && (
-        <p className="form-error" role="alert">
-          {error}
-        </p>
-      )}
-      {files.length > 0 && (
-        <ul className="file-slips" aria-label="Pdf’s op het bord">
-          {files.map((f, index) => {
-            const pct = progress[f.fileId];
-            const state =
-              pct !== undefined || f.status === "uploading" || f.status === "validating"
-                ? "loading"
-                : f.status === "ready"
-                  ? "covered"
-                  : "not_found";
-            return (
-              <li
-                key={f.fileId}
-                className={`file-slip pin-${pins[index % pins.length]} slip-${state}`}
-                style={{ "--r": `${[-1.6, 1.2, -0.6, 1.8, -1.1][index % 5]}deg` } as CSSProperties}
+            </button>
+            <span className="krito-wrap" aria-hidden="true">
+              <Image
+                src={krito}
+                alt=""
+                priority
+                sizes="300px"
+                className="board-krito"
+                draggable={false}
+              />
+            </span>
+          </div>
+          <p id={`${id}-limits`} className="upload-limits">
+            Max. 20 bestanden, 10 MiB per bestand en 40 MiB samen.
+            {!enabled && !busy && " Even geduld, je onderwerp wordt geladen."}
+          </p>
+          {error && (
+            <p className="form-error" role="alert">
+              {error}
+            </p>
+          )}
+        </div>
+        <aside className="file-panel" aria-labelledby={`${id}-files`}>
+          <div className="file-panel-head">
+            <h2 id={`${id}-files`}>
+              {files.length ? "Je materiaal" : "Wat kun je toevoegen?"}
+            </h2>
+            {files.length > 0 && (
+              <span className="file-count">
+                {files.length} / {MAX_FILES}
+              </span>
+            )}
+          </div>
+          {files.length > 0 ? (
+            <ul className="file-slips">
+              {files.map((f) => {
+                const pct = progress[f.fileId];
+                const state =
+                  pct !== undefined ||
+                  f.status === "uploading" ||
+                  f.status === "validating"
+                    ? "loading"
+                    : f.status === "ready"
+                      ? "covered"
+                      : "not_found";
+                return (
+                  <li key={f.fileId} className={`file-slip slip-${state}`}>
+                    <StatusIcon status={state} size={30} />
+                    <div className="slip-body">
+                      <strong title={f.name}>{f.name}</strong>
+                      <small>
+                        {pct !== undefined
+                          ? `Uploaden ${pct}%`
+                          : f.status === "ready"
+                            ? `${pages(f.pageCount)} · Klaar`
+                            : f.status === "validating"
+                              ? "Bestand controleren…"
+                              : f.status === "invalid"
+                                ? safeError(f.safeError)
+                                : "Upload niet afgerond; verwijder en upload opnieuw."}
+                      </small>
+                      {pct !== undefined && (
+                        <progress
+                          max={100}
+                          value={pct}
+                          aria-label={`Upload ${f.name}`}
+                        />
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      className="slip-remove"
+                      aria-label={`Verwijder ${f.name}`}
+                      disabled={busy}
+                      onClick={async () => {
+                        if (!session) return;
+                        try {
+                          await remove({
+                            ...session,
+                            fileId: f.fileId as Id<"files">,
+                          });
+                        } catch (e) {
+                          setError(safeError(e));
+                        }
+                      }}
+                    >
+                      ×
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <div className="material-guide">
+              <p>
+                Voeg zoveel mogelijk toe van wat je voor dit onderwerp gebruikt.
+                Hoe meer Krito ziet, hoe vollediger het beeld per leerdoel.
+              </p>
+              <ul>
+                {materialKinds.map((kind) => (
+                  <li key={kind}>{kind}</li>
+                ))}
+              </ul>
+              <button
+                type="button"
+                className="secondary-button"
+                disabled={disabled}
+                onClick={() => input.current?.click()}
               >
-                <span className="slip-pin" aria-hidden="true" />
-                <StatusIcon status={state} size={34} />
-                <div className="slip-body">
-                  <strong title={f.name}>{f.name}</strong>
-                  <small>
-                    {pct !== undefined
-                      ? `Uploaden ${pct}%`
-                      : f.status === "ready"
-                        ? `${pages(f.pageCount)} · Klaar`
-                        : f.status === "validating"
-                          ? "Pdf controleren…"
-                          : f.status === "invalid"
-                            ? safeError(f.safeError)
-                            : "Upload niet afgerond; verwijder en upload opnieuw."}
-                  </small>
-                  {pct !== undefined && (
-                    <progress
-                      max={100}
-                      value={pct}
-                      aria-label={`Upload ${f.name}`}
-                    />
-                  )}
-                </div>
-                <button
-                  type="button"
-                  className="slip-remove"
-                  aria-label={`Verwijder ${f.name}`}
-                  disabled={busy}
-                  onClick={async () => {
-                    if (!session) return;
-                    try {
-                      await remove({
-                        ...session,
-                        fileId: f.fileId as Id<"files">,
-                      });
-                    } catch (e) {
-                      setError(safeError(e));
-                    }
-                  }}
-                >
-                  ×
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      )}
+                Kies bestanden
+              </button>
+            </div>
+          )}
+          {footer && <div className="file-panel-foot">{footer}</div>}
+        </aside>
+      </div>
     </section>
   );
 }
