@@ -1,11 +1,9 @@
 "use client";
 import {
-  useEffect,
   useId,
   useRef,
   useState,
   type CSSProperties,
-  type PointerEvent,
 } from "react";
 import Image from "next/image";
 import { useAction, useMutation } from "convex/react";
@@ -71,13 +69,6 @@ export function UploadPanel({
     [dragging, setDragging] = useState(false),
     [bursts, setBursts] = useState<Burst[]>([]),
     [progress, setProgress] = useState<Record<string, number>>({});
-  const readyCount = files.filter((f) => f.status === "ready").length;
-  const [cheer, setCheer] = useState(0);
-  const lastReady = useRef(readyCount);
-  useEffect(() => {
-    if (readyCount > lastReady.current) setCheer((c) => c + 1);
-    lastReady.current = readyCount;
-  }, [readyCount]);
   const uploading = Object.values(progress);
   const overall = uploading.length
     ? uploading.reduce((a, b) => a + b, 0) / uploading.length
@@ -137,17 +128,6 @@ export function UploadPanel({
       onBusy(false);
     }
   }
-  function tilt(e: PointerEvent<HTMLDivElement>) {
-    const r = e.currentTarget.getBoundingClientRect();
-    e.currentTarget.style.setProperty(
-      "--tilt-x",
-      ((e.clientX - r.left) / r.width - 0.5).toFixed(3),
-    );
-    e.currentTarget.style.setProperty(
-      "--tilt-y",
-      ((e.clientY - r.top) / r.height - 0.5).toFixed(3),
-    );
-  }
   const state = dragging
     ? "dragging"
     : busy
@@ -184,14 +164,7 @@ export function UploadPanel({
           void upload(chosen);
         }}
       />
-      <div
-        className={`board-stage is-${state}`}
-        onPointerMove={tilt}
-        onPointerLeave={(e) => {
-          e.currentTarget.style.setProperty("--tilt-x", "0");
-          e.currentTarget.style.setProperty("--tilt-y", "0");
-        }}
-      >
+      <div className={`board-stage is-${state}`}>
         <button
           type="button"
           className="board"
@@ -279,12 +252,11 @@ export function UploadPanel({
         </button>
         <span className="krito-wrap" aria-hidden="true">
           <Image
-            key={cheer}
             src={krito}
             alt=""
             priority
             sizes="300px"
-            className={`board-krito${cheer ? " is-cheering" : ""}`}
+            className="board-krito"
             draggable={false}
           />
         </span>
