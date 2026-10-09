@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { api } from "../../convex/_generated/api";
 import type { AnalysisSession } from "../lib/analysisSession";
 import { safeError } from "../lib/safeError";
+import { isPersonalEmail } from "../../shared/emailPolicy";
 import { StatusIcon } from "./SiteHeader";
 export function EmailGate({
   session,
@@ -24,6 +25,10 @@ export function EmailGate({
       onSubmit={async (e) => {
         e.preventDefault();
         if (busy) return;
+        if (isPersonalEmail(email)) {
+          setError(safeError("personal_email"));
+          return;
+        }
         setBusy(true);
         setError("");
         try {
@@ -52,7 +57,7 @@ export function EmailGate({
         verschijnt meteen hier op de website.
       </p>
       <label className="field-label" htmlFor="analysis-email">
-        Je e-mailadres
+        Je e-mailadres van school
       </label>
       <input
         id="analysis-email"
@@ -64,11 +69,16 @@ export function EmailGate({
         maxLength={254}
         value={email}
         disabled={busy}
-        placeholder="jij@school.be"
-        onChange={(e) => setEmail(e.target.value)}
+        placeholder="naam@jouwschool.be"
+        aria-invalid={!!error || undefined}
+        aria-describedby={error ? "analysis-email-error" : undefined}
+        onChange={(e) => {
+          setEmail(e.target.value);
+          if (error) setError("");
+        }}
       />
       {error && (
-        <p className="form-error" role="alert">
+        <p className="form-error" role="alert" id="analysis-email-error">
           {error}
         </p>
       )}

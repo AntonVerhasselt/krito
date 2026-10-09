@@ -9,6 +9,7 @@ import {
 } from "../shared/analysisSchema";
 import { getOrCreateUser } from "./users";
 import { PROMPT_VERSION } from "../shared/prompts";
+import { isPersonalEmail } from "../shared/emailPolicy";
 
 export const accessArgs = { analysisId: v.string(), accessToken: v.string() };
 async function chosenTopic(
@@ -128,6 +129,7 @@ export const submit = mutation({
     const email = args.email.trim();
     if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
       throw new ConvexError("invalid_email");
+    if (isPersonalEmail(email)) throw new ConvexError("personal_email");
     const selection = await chosenTopic(ctx, a.catalogVersion, a.goalSetKey);
     const files = (
       await ctx.db

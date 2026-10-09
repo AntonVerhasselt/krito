@@ -6,6 +6,8 @@ const messages: Record<string, string> = {
   already_submitted:
     "Deze analyse is al gestart. Start een nieuwe analyse om materiaal te wijzigen.",
   invalid_email: "Vul een geldig e-mailadres in.",
+  personal_email:
+    "Gebruik je e-mailadres van school. Persoonlijke adressen zoals Gmail, Outlook of Telenet worden niet aanvaard.",
   files_not_ready:
     "Wacht tot alle bestanden gecontroleerd zijn en verwijder afgekeurde bestanden.",
   file_too_large: "Een bestand mag maximaal 10 MiB groot zijn.",
