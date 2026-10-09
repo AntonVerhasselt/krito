@@ -2,11 +2,33 @@
   "rules": [
     {
       "allowed": {
-        "origins": ["http://localhost:3000", "http://127.0.0.1:3000"],
-        "methods": ["PUT", "GET", "HEAD"],
-        "headers": ["Content-Type", "x-amz-checksum-crc32", "x-amz-sdk-checksum-algorithm"]
+        "origins": [
+          "http://127.0.0.1:3000",
+          "http://localhost:3000",
+          "https://krito-2omppkvca-anton-personal-projects.vercel.app",
+          "https://krito-942pfun51-anton-personal-projects.vercel.app",
+          "https://krito-ak8k1kvqw-anton-personal-projects.vercel.app",
+          "https://krito-anton-personal-projects.vercel.app",
+          "https://krito-bsvl5v517-anton-personal-projects.vercel.app",
+          "https://krito-git-feat-setup-preview-check-anton-personal-projects.vercel.app",
+          "https://krito-git-feat-setup-second-preview-anton-personal-projects.vercel.app",
+          "https://krito-git-main-anton-personal-projects.vercel.app",
+          "https://krito-theta.vercel.app"
+        ],
+        "methods": [
+          "PUT",
+          "GET",
+          "HEAD"
+        ],
+        "headers": [
+          "Content-Type",
+          "x-amz-checksum-crc32",
+          "x-amz-sdk-checksum-algorithm"
+        ]
       },
-      "exposeHeaders": ["ETag"],
+      "exposeHeaders": [
+        "ETag"
+      ],
       "maxAgeSeconds": 3600
     }
   ]
