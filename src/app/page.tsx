@@ -1,6 +1,5 @@
 import { GoalSetPicker } from "@/components/GoalSetPicker";
 import Link from "next/link";
-
 export default function Home() {
   return (
     <div className="site-shell">
@@ -10,24 +9,33 @@ export default function Home() {
         </Link>
         <span className="environment-pill">In ontwikkeling</span>
       </header>
-      <main>
-        <div className="eyebrow">
-          <span /> MEER ZICHT OP JE LESMATERIAAL
+      <main className="hero">
+        <div className="hero-copy">
+          <div className="eyebrow">
+            <span /> MEER ZICHT OP JE LESMATERIAAL
+          </div>
+          <h1>
+            Je lesmateriaal.
+            <br />
+            <em>Helder bekeken.</em>
+          </h1>
+          <p className="intro">
+            Ontdek welke Op.stap-leerdoelen aan bod komen in je materiaal. Met
+            een beoordeling per doel en verwijzingen naar je documenten.
+          </p>
+          <div className="hero-assurance">
+            <span className="assurance-icon">✓</span>
+            <p>
+              De volledige doelenlijst van je onderwerp.
+              <br />
+              <span>Meer overzicht. Ruimte voor jouw oordeel.</span>
+            </p>
+          </div>
         </div>
-        <h1>
-          Van lesmateriaal
-          <br />
-          naar <em>heldere inzichten.</em>
-        </h1>
-        <p className="intro">
-          Welke leerdoelen komen aan bod in je lesmateriaal? Krito helpt je de
-          verbinding te zien — met een beoordeling per Op.stap-doel en
-          verwijzingen naar je documenten.
-        </p>
         <GoalSetPicker />
       </main>
       <footer>
-        <span>Meer overzicht. Ruimte voor jouw oordeel.</span>
+        <span>Gemaakt voor leerkrachten, met oog voor je lespraktijk.</span>
         <span>Krito · Ontwikkelversie</span>
       </footer>
     </div>
