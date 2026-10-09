@@ -8,6 +8,8 @@ export type Topic = FunctionReturnType<
   typeof api.goals.listGoalSets
 >["topics"][number];
 const suggestions = ["breuken", "magnetisme", "sociale aandacht"];
+// Show a few results at a time instead of a scrolling list.
+const STEP = 5;
 function highlight(text: string, query: string): ReactNode {
   const words = query
     .toLowerCase()
@@ -39,6 +41,7 @@ export function TopicSearch({
   const [previous, setPrevious] = useState<(string | null)[]>([]);
   const [active, setActive] = useState(-1);
   const [chosen, setChosen] = useState<string | null>(null);
+  const [visible, setVisible] = useState(STEP);
   useEffect(() => {
     const timer = setTimeout(() => setDebounced(query), 180);
     return () => clearTimeout(timer);
@@ -48,6 +51,7 @@ export function TopicSearch({
     open ? { search: debounced, catalogVersion, cursor } : "skip",
   );
   const topics = result?.topics ?? [];
+  const shown = topics.slice(0, visible);
   useEffect(() => {
     if (open && active >= 0)
       document
@@ -59,7 +63,7 @@ export function TopicSearch({
     // Give the dropdown room on desktop; on small screens it goes fullscreen.
     const box = input.current?.parentElement?.getBoundingClientRect();
     if (open && box && innerWidth > 860) {
-      const lack = box.bottom + 470 - innerHeight;
+      const lack = box.bottom + 560 - innerHeight;
       if (lack > 0)
         scrollBy({
           top: Math.min(lack, box.top - 24),
@@ -104,6 +108,7 @@ export function TopicSearch({
     setQuery(value);
     setCursor(null);
     setPrevious([]);
+    setVisible(STEP);
     setActive(-1);
     setOpen(true);
   }
@@ -178,12 +183,14 @@ export function TopicSearch({
             if (e.key === "ArrowDown" || e.key === "ArrowUp") {
               e.preventDefault();
               setOpen(true);
-              if (topics.length)
-                setActive(
+              if (topics.length) {
+                const next =
                   e.key === "ArrowDown"
                     ? (active + 1) % topics.length
-                    : (active - 1 + topics.length) % topics.length,
-                );
+                    : (active - 1 + topics.length) % topics.length;
+                if (next >= visible) setVisible(next + 1);
+                setActive(next);
+              }
             } else if (e.key === "Enter" && open && topics.length) {
               e.preventDefault();
               choose(topics[Math.max(active, 0)]);
@@ -230,7 +237,7 @@ export function TopicSearch({
                 <StatusIcon status="loading" size={22} /> Onderwerpen zoeken…
               </p>
             )}
-            {topics.map((topic, index) => (
+            {shown.map((topic, index) => (
               <button
                 type="button"
                 role="option"
@@ -279,7 +286,18 @@ export function TopicSearch({
               </p>
             )}
           </div>
-          {result && (result.more || previous.length > 0) && (
+          {topics.length > visible && (
+            <button
+              type="button"
+              className="show-more"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => setVisible(visible + STEP)}
+            >
+              Toon meer onderwerpen
+              <span>{topics.length - visible}</span>
+            </button>
+          )}
+          {result && topics.length <= visible && (result.more || previous.length > 0) && (
             <div className="dropdown-pages">
               {previous.length > 0 && (
                 <button
@@ -287,6 +305,7 @@ export function TopicSearch({
                   onClick={() => {
                     setCursor(previous.at(-1) ?? null);
                     setPrevious(previous.slice(0, -1));
+                    setVisible(STEP);
                     setActive(-1);
                   }}
                 >
@@ -299,6 +318,7 @@ export function TopicSearch({
                   onClick={() => {
                     setPrevious([...previous, cursor]);
                     setCursor(result.cursor);
+                    setVisible(STEP);
                     setActive(-1);
                   }}
                 >
