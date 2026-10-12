@@ -22,7 +22,7 @@ export async function reportInput(ctx: QueryCtx, a: Doc<"analyses">): Promise<Re
   return {
     topic: a.topic,
     files: a.manifest,
-    skippedFiles: skipped.map((f) => ({ name: f.name })),
+    skippedFiles: skipped.map((f) => ({ name: f.name, safeError: f.safeError ?? null })),
     goals: rows.map((g) => ({
       snapshot: g.snapshot,
       result: g.finalResult!,

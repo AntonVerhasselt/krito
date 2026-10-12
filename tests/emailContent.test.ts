@@ -68,8 +68,8 @@ describe("template language", () => {
 
   it("names files Krito couldn't read", () => {
     const text = renderTemplate(report(), { ...sampleVariables.report, skippedFiles: "kapot.docx, oud.ppt" }).text;
-    expect(text).toContain("Deze bestanden kon Krito niet openen, dus ze zitten niet in de beoordeling: kapot.docx, oud.ppt.");
-    expect(renderTemplate(report(), sampleVariables.report).text).not.toContain("niet openen");
+    expect(text).toContain("Niet alles zit in de beoordeling. Deze bestanden liet Krito weg: kapot.docx, oud.ppt.");
+    expect(renderTemplate(report(), sampleVariables.report).text).not.toContain("liet Krito weg");
   });
 
   it("cuts long topics in the subject only", () => {

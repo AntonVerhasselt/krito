@@ -27,6 +27,9 @@ import {
   converterConfig,
   convertToPdf,
   imageToPdf,
+  damagedArchive,
+  pngPixels,
+  MAX_LOCAL_PNG_PIXELS,
   warmConverter as wakeConverter,
   MAX_CONVERTED_BYTES,
 } from "./convert";
@@ -124,15 +127,22 @@ export async function inspectPdf(
  * teacher submits many files at once, so quick unavailable answers are retried
  * with growing pauses. A timeout or missing configuration fails at once.
  *
- * LibreOffice also answers 500 for a damaged file. When every attempt gets a
- * 500 while the converter reports itself healthy, the file is the problem.
+ * LibreOffice answers 500 for damaged files as well as for passing resource
+ * trouble, so a 500 is retried like an outage: by later preparation runs too.
+ * Only in the last run, when every attempt got a 500 while the converter says
+ * it's healthy, the file is taken to be the problem and left out. A broken zip
+ * archive (truncated Office file) is recognised before converting.
  */
 export async function convertWithRetries(
   bytes: Buffer,
   type: FileType,
-  fetchImpl: typeof fetch = fetch,
-  pauses = [2_000, 5_000, 15_000],
+  {
+    fetchImpl = fetch,
+    pauses = [2_000, 5_000, 15_000],
+    lastRun = false,
+  }: { fetchImpl?: typeof fetch; pauses?: number[]; lastRun?: boolean } = {},
 ) {
+  if (damagedArchive(bytes, type)) throw new Error("conversion_failed");
   const config = converterConfig();
   let onlyServerErrors = true;
   for (const pause of [...pauses, null]) {
@@ -143,7 +153,7 @@ export async function convertWithRetries(
         throw error;
       onlyServerErrors &&= error.status === 500;
       if (pause === null) {
-        if (onlyServerErrors && (await wakeConverter(fetchImpl, config)))
+        if (lastRun && onlyServerErrors && (await wakeConverter(fetchImpl, config)))
           throw new Error("conversion_failed");
         throw error;
       }
@@ -265,6 +275,7 @@ async function sealFile(
   file: PrepareFile,
   key: string,
   oneAtATime: <T>(work: () => Promise<T>) => Promise<T>,
+  lastRun: boolean,
 ) {
   const type = fileTypeOf(file.name);
   if (!type) throw new Error("unsupported_type");
@@ -293,9 +304,12 @@ async function sealFile(
   );
   // A small image can decode to hundreds of MiB; one at a time stays within
   // the action's memory.
-  const pdf = convertsLocally(type)
+  const local =
+    convertsLocally(type) &&
+    (type.extension !== "png" || pngPixels(bytes) <= MAX_LOCAL_PNG_PIXELS);
+  const pdf = local
     ? await oneAtATime(() => imageToPdf(bytes, type))
-    : await convertWithRetries(bytes, type);
+    : await convertWithRetries(bytes, type, { lastRun });
   const info = await readPdf(pdf);
   await storage().send(
     new PutObjectCommand({
@@ -347,7 +361,7 @@ export const prepare = internalAction({
       const key = `sealed/${args.analysisId}/${args.attempt}/${file._id}-${randomUUID()}.pdf`;
       const started = Date.now();
       try {
-        const info = await sealFile(file, key, oneAtATime);
+        const info = await sealFile(file, key, oneAtATime, context.lastRun);
         const accepted = await ctx.runMutation(internal.workflow.sealed, {
           analysisId: args.analysisId,
           attempt: args.attempt,
@@ -380,8 +394,7 @@ export const prepare = internalAction({
         );
         if (unreadable.has(code))
           await ctx.runMutation(internal.workflow.fileSkipped, {
-            analysisId: args.analysisId,
-            attempt: args.attempt,
+            ...args,
             fileId: file._id,
             code,
             durationMs: Date.now() - started,

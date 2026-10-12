@@ -148,8 +148,10 @@ account access. The setup script remains available for reproducible configuratio
 
 To configure it, place `POSTHOG_PERSONAL_API_KEY` and numeric `POSTHOG_PROJECT_ID`
 in ignored `.secrets/posthog.env` with mode `600`, or provide them as process
-environment variables. The private key needs project read/write, dashboard
-read/write, insight read/write, and event-definition read/write scopes. Then run:
+environment variables. The private key needs project, dashboard, insight,
+event-definition and alert read/write scopes, plus user read (alerts go to the
+key's owner). The script checks read access to all of them before it changes
+anything. Then run:
 
 ```sh
 npm run env:posthog -- --account

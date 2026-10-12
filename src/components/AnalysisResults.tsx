@@ -9,6 +9,7 @@ import { useAccessToken } from "../lib/analysisSession";
 import { analyticsContext, identifyContact, track, trackOnce, captureAnalyticsError } from "../lib/analytics";
 import { analyticsErrorCode } from "../../shared/analytics";
 import { safeError } from "../lib/safeError";
+import { skipReason } from "../../shared/skipReasons";
 import { ResultsPending } from "./ResultsPending";
 import { ReportDownload } from "./ReportDownload";
 import { GoalList, type ListGoal, type Phase } from "./GoalList";
@@ -69,12 +70,6 @@ function ResultsHeading({
   );
 }
 
-const skipReasons: Record<string, string> = {
-  encrypted_pdf: "is beveiligd met een wachtwoord",
-  converted_too_large: "werd te groot na het omzetten naar pdf",
-  converted_total_too_large: "past niet meer binnen 40 MiB na het omzetten naar pdf",
-  file_changed: "is niet meer beschikbaar; voeg het opnieuw toe in een nieuwe analyse",
-};
 /** Files the analysis had to leave out; the teacher can add a readable version in a new analysis. */
 function SkippedFiles({ files }: { files: { name: string; safeError: string | null }[] }) {
   return (
@@ -88,7 +83,7 @@ function SkippedFiles({ files }: { files: { name: string; safeError: string | nu
         {files.map((f, i) => (
           <li key={i} className="ph-no-capture" data-private>
             <strong>{f.name}</strong>{" "}
-            {skipReasons[f.safeError ?? ""] ?? "kon niet geopend worden (beveiligd of beschadigd?)"}
+            {skipReason(f.safeError)}
           </li>
         ))}
       </ul>
@@ -311,7 +306,7 @@ function LiveResults({ analysisId }: { analysisId: string }) {
                 onOpenPdf={(fileId, page) => void openPdf(fileId, page)}
                 hint={
                   status.reportByEmail
-                    ? "Dit kan een paar minuten duren. Je hoeft niet te wachten: zodra het verslag klaar is, krijg je het ook als pdf in je mailbox."
+                    ? "Dit kan een paar minuten duren. Je hoeft niet te wachten: we sturen het verslag ook als pdf naar je e-mailadres. Wil je het meteen zien, laat dit tabblad dan open."
                     : "Dit kan een paar minuten duren. Laat dit tabblad open; de resultaten verschijnen vanzelf."
                 }
               />

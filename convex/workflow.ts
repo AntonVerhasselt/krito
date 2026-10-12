@@ -109,6 +109,8 @@ export const preparationContext = internalQuery({
       files: (await submittedFiles(ctx, a._id)).filter(
         (f) => f.status === "ready" && !f.sealedKey,
       ),
+      // No further run follows a failure of this one.
+      lastRun: a.recoveryCount >= 3,
     };
   },
 });
@@ -152,13 +154,13 @@ export const sealed = internalMutation({
 });
 /** A file that can't be read (damaged, protected, too large) is left out. */
 export const fileSkipped = internalMutation({
-  args: { ...analysisArgs, fileId: v.id("files"), code: v.string(), durationMs: v.optional(v.number()) },
+  args: { ...preparationArgs, fileId: v.id("files"), code: v.string(), durationMs: v.optional(v.number()) },
   handler: async (ctx, args) => {
     const a = await ctx.db.get(args.analysisId),
       f = await ctx.db.get(args.fileId);
     if (
-      a?.status !== "preparing" ||
-      a.attempt !== args.attempt ||
+      !a ||
+      !currentRun(a, args) ||
       f?.analysisId !== a._id ||
       f.status !== "ready" ||
       f.sealedKey

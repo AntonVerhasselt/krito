@@ -114,6 +114,15 @@ async function configureAccount() {
   }
   const project = await api<{ api_token: string }>(root);
   if (project.api_token !== token) throw new Error("The selected PostHog project does not match the configured ingestion token. No account changes made.");
+  // Hourly e-mail alerts to the account owner: any hosted failure of an
+  // upload, a conversion or an analysis. Uploads failed unnoticed for hours
+  // when the R2 CORS rule lacked the launch domain.
+  const me = await fetch(new URL("/api/users/@me/", managementHost), {
+    redirect: "error", signal: AbortSignal.timeout(30_000), headers: { Authorization: `Bearer ${key}` },
+  }).then((response) => response.ok ? response.json() as Promise<{ id: number }> : Promise.reject(new Error("PostHog user lookup failed; response withheld.")));
+  // Read access to everything below is checked before anything changes.
+  const alerts = await all<{ name: string }>(`${root}alerts/?limit=100`);
+
   // Only enable requested functionality and anonymize network IPs. No billing,
   // retention-tier, notification, grouping, or historical-data changes.
   await api(root, "PATCH", { anonymize_ips: true, session_recording_opt_in: false });
@@ -189,13 +198,6 @@ async function configureAccount() {
       await api(`${root}insights/`, "POST", { name: chart.name, saved: true, dashboards: [dashboard.id], query: { kind: "InsightVizNode", source } });
     }
   }
-  // Hourly e-mail alerts to the account owner: any hosted failure of an
-  // upload, a conversion or an analysis. Uploads failed unnoticed for hours
-  // when the R2 CORS rule lacked the launch domain.
-  const me = await fetch(new URL("/api/users/@me/", managementHost), {
-    redirect: "error", signal: AbortSignal.timeout(30_000), headers: { Authorization: `Bearer ${key}` },
-  }).then((response) => response.ok ? response.json() as Promise<{ id: number }> : Promise.reject(new Error("PostHog user lookup failed; response withheld.")));
-  const alerts = await all<{ name: string }>(`${root}alerts/?limit=100`);
   const failures = [
     { event: "upload_failed", label: "upload failed (browser to storage)", filters: [] },
     // The backend couldn't read an upload that did arrive (storage outage).

@@ -11,7 +11,7 @@ import {
 } from "../convex/workflow";
 import { submit } from "../convex/analyses";
 import { convertWithRetries } from "../convex/node/pdf";
-import { warmConverter } from "../convex/node/convert";
+import { damagedArchive, pngPixels, warmConverter } from "../convex/node/convert";
 import { fileTypeOf, needsConversion } from "../shared/fileTypes";
 import { emailModeAllows } from "../shared/emailPolicy";
 import { MAX_TOTAL_BYTES } from "../shared/analysisSchema";
@@ -239,7 +239,8 @@ describe("preparation", () => {
 });
 
 describe("converter retries", () => {
-  const docx = fileTypeOf("les.docx")!;
+  // Not a zip format, so these bytes reach the (fake) converter.
+  const docx = fileTypeOf("les.doc")!;
   beforeEach(() => {
     vi.stubEnv("CONVERTER_URL", "https://convert.example");
     vi.stubEnv("CONVERTER_USERNAME", "u");
@@ -256,31 +257,46 @@ describe("converter retries", () => {
     return { impl, calls };
   }
 
-  it("treats 500 on every attempt from a healthy converter as a damaged file", async () => {
+  const lastRun = true;
+  it("treats 500 on every attempt from a healthy converter as a damaged file, in the last run", async () => {
     const { impl, calls } = converter([500, 500, 500, 500], true);
-    await expect(convertWithRetries(Buffer.from("x"), docx, impl, [0, 0, 0])).rejects.toThrow("conversion_failed");
+    await expect(convertWithRetries(Buffer.from("x"), docx, { fetchImpl: impl, pauses: [0, 0, 0], lastRun })).rejects.toThrow("conversion_failed");
     expect(calls).toEqual([...Array(4).fill("/forms/libreoffice/convert"), "/health"]);
+  });
+
+  it("leaves the decision to a later run before that", async () => {
+    const { impl } = converter([500, 500, 500, 500], true);
+    await expect(
+      convertWithRetries(Buffer.from("x"), docx, { fetchImpl: impl, pauses: [0, 0, 0] }),
+    ).rejects.toThrow("conversion_unavailable");
+  });
+
+  it("refuses a truncated Office archive without asking the converter", async () => {
+    const { impl, calls } = converter([], true);
+    const zipStart = Buffer.from([0x50, 0x4b, 0x03, 0x04, 1, 2, 3]);
+    await expect(convertWithRetries(zipStart, fileTypeOf("les.docx")!, { fetchImpl: impl, lastRun })).rejects.toThrow("conversion_failed");
+    expect(calls).toEqual([]);
   });
 
   it("retries passing 500s (LibreOffice out of resources)", async () => {
     const { impl } = converter([500, 500], true);
-    const pdf = await convertWithRetries(Buffer.from("x"), docx, impl, [0, 0, 0]);
+    const pdf = await convertWithRetries(Buffer.from("x"), docx, { fetchImpl: impl, pauses: [0, 0, 0], lastRun });
     expect(pdf.toString()).toContain("%PDF");
   });
 
   it("keeps the file when the converter mixes 500s with other outages", async () => {
     const { impl } = converter([500, 503, 500, 500], true);
-    await expect(convertWithRetries(Buffer.from("x"), docx, impl, [0, 0, 0])).rejects.toThrow("conversion_unavailable");
+    await expect(convertWithRetries(Buffer.from("x"), docx, { fetchImpl: impl, pauses: [0, 0, 0], lastRun })).rejects.toThrow("conversion_unavailable");
   });
 
   it("keeps the file when the converter itself is down", async () => {
     const { impl } = converter([500, 500, 500, 500], false);
-    await expect(convertWithRetries(Buffer.from("x"), docx, impl, [0, 0, 0])).rejects.toThrow("conversion_unavailable");
+    await expect(convertWithRetries(Buffer.from("x"), docx, { fetchImpl: impl, pauses: [0, 0, 0], lastRun })).rejects.toThrow("conversion_unavailable");
   });
 
   it("waits out a cold start", async () => {
     const { impl } = converter([503, 429], true);
-    const pdf = await convertWithRetries(Buffer.from("x"), docx, impl, [0, 0, 0]);
+    const pdf = await convertWithRetries(Buffer.from("x"), docx, { fetchImpl: impl, pauses: [0, 0, 0], lastRun });
     expect(pdf.toString()).toContain("%PDF");
   });
 
@@ -291,6 +307,22 @@ describe("converter retries", () => {
     expect(await warmConverter((async () => { throw new Error("offline"); }) as unknown as typeof fetch)).toBe(false);
     vi.stubEnv("CONVERTER_URL", "");
     expect(await warmConverter(impl)).toBe(false);
+  });
+});
+
+describe("local conversion limits", () => {
+  it("recognises intact zip archives and measures PNGs from their header", async () => {
+    const { readFileSync } = await import("node:fs");
+    const docx = readFileSync("tests/fixtures/converter/lesson.docx");
+    expect(damagedArchive(docx, fileTypeOf("a.docx")!)).toBe(false);
+    expect(damagedArchive(docx.subarray(0, docx.length - 30), fileTypeOf("a.docx")!)).toBe(true);
+    expect(damagedArchive(Buffer.from("plain text"), fileTypeOf("a.csv")!)).toBe(false);
+    const png = Buffer.alloc(24);
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(png);
+    png.writeUInt32BE(6500, 16);
+    png.writeUInt32BE(6500, 20);
+    expect(pngPixels(png)).toBe(42_250_000);
+    expect(pngPixels(Buffer.from("not a png at all, really"))).toBe(0);
   });
 });
 

@@ -204,6 +204,36 @@ export async function convertToPdf(
   return pdf;
 }
 
+const zipBased = new Set(["docx", "pptx", "xlsx", "odt", "odp", "ods", "pages", "key", "numbers"]);
+/**
+ * Office, OpenDocument and iWork files are zip archives. One without a local
+ * file header at the start or a central directory at the end (a truncated or
+ * renamed file) can't be opened by anyone, so it's refused before converting.
+ */
+export function damagedArchive(bytes: Uint8Array, type: FileType) {
+  if (!zipBased.has(type.extension)) return false;
+  const header = [0x50, 0x4b, 0x03, 0x04];
+  if (header.some((byte, i) => bytes[i] !== byte)) return true;
+  // The end-of-central-directory record sits in the last 22 + 65,535 bytes.
+  for (let i = bytes.length - 22; i >= Math.max(0, bytes.length - 65_557); i--)
+    if (bytes[i] === 0x50 && bytes[i + 1] === 0x4b && bytes[i + 2] === 0x05 && bytes[i + 3] === 0x06)
+      return false;
+  return true;
+}
+
+/** Width × height from a PNG header, or 0 when it isn't one. */
+export function pngPixels(bytes: Uint8Array) {
+  const signature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+  if (bytes.length < 24 || signature.some((byte, i) => bytes[i] !== byte)) return 0;
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  return view.getUint32(16) * view.getUint32(20);
+}
+/**
+ * pdf-lib decodes a PNG completely; above this many pixels that no longer fits
+ * next to other work in a Convex action (512 MiB), so the converter does it.
+ */
+export const MAX_LOCAL_PNG_PIXELS = 16_000_000;
+
 /**
  * Reads the EXIF orientation of a JPEG (1 when absent). Phones store photos
  * as shot and record how to turn them in this tag.
