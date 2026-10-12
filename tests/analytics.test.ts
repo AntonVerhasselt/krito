@@ -100,6 +100,57 @@ describe("analytics boundaries", () => {
     expect(analytics.getAnalyticsConsent()).toBe(choice);
     expect(listener).toHaveBeenCalledOnce();
   });
+  it.each([
+    ["granted", "denied"],
+    ["denied", "granted"],
+  ] as const)("honors a change from %s to %s when storage is readable but rejects writes", async (stored, choice) => {
+    vi.stubGlobal("localStorage", {
+      getItem: () => stored,
+      setItem: () => { throw new Error("Storage write blocked"); },
+    });
+    const analytics = await import("../src/lib/analytics");
+    analytics.initializeAnalytics();
+    const listener = vi.fn();
+    analytics.subscribeAnalyticsConsent(listener);
+    analytics.setAnalyticsConsent(choice);
+    expect(analytics.getAnalyticsConsent()).toBe(choice);
+    expect(listener).toHaveBeenCalledOnce();
+    if (choice === "denied") {
+      expect(analytics.analyticsContext()).toBeUndefined();
+      expect(sdk.opt_out_capturing).toHaveBeenCalledOnce();
+      const captureCount = sdk.capture.mock.calls.length;
+      analytics.track("search_clicked");
+      expect(sdk.capture).toHaveBeenCalledTimes(captureCount);
+      expect(sdk.init.mock.calls[0][1].before_send({ event: "$pageview", properties: {} })).toBeNull();
+    } else {
+      expect(sdk.init).toHaveBeenCalledOnce();
+      expect(analytics.analyticsContext()).toMatchObject({ consent: true });
+    }
+  });
+  it("reconciles a failed-write override when another tab changes or clears consent", async () => {
+    let stored: string | null = "granted";
+    vi.stubGlobal("localStorage", {
+      getItem: () => stored,
+      setItem: () => { throw new Error("Storage write blocked"); },
+    });
+    const analytics = await import("../src/lib/analytics");
+    analytics.setAnalyticsConsent("denied");
+    expect(analytics.getAnalyticsConsent()).toBe("denied");
+    const onStorage = vi.mocked(window.addEventListener).mock.calls
+      .find(([event]) => event === "storage")![1] as (event: Partial<StorageEvent>) => void;
+    stored = null;
+    onStorage({ key: "krito-analytics-consent-v1", newValue: null });
+    expect(analytics.getAnalyticsConsent()).toBe("unknown");
+    expect(analytics.analyticsContext()).toBeUndefined();
+    stored = "granted";
+    onStorage({ key: "krito-analytics-consent-v1", newValue: stored });
+    expect(analytics.getAnalyticsConsent()).toBe("granted");
+    expect(analytics.analyticsContext()).toMatchObject({ consent: true });
+    stored = null;
+    onStorage({ key: null });
+    expect(analytics.getAnalyticsConsent()).toBe("unknown");
+    expect(analytics.analyticsContext()).toBeUndefined();
+  });
   it("resets before switching known contacts and identifies only valid opaque IDs", async () => {
     const analytics = await import("../src/lib/analytics");
     analytics.setAnalyticsConsent("granted"); sdk.get_property.mockReturnValue("firstcontact123");

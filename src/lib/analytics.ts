@@ -12,6 +12,7 @@ const listeners = new Set<() => void>();
 const captured = new Set<string>();
 let initialized = false;
 let memoryConsent: AnalyticsConsent = "unknown";
+let consentOverride: AnalyticsConsent | undefined;
 const diagnostics: { event: string; properties: Record<string, unknown> }[] = [];
 const enabled = process.env.NEXT_PUBLIC_POSTHOG_ENABLED === "true";
 const environment = process.env.NEXT_PUBLIC_KRITO_ENVIRONMENT === "preview" ? "preview" :
@@ -22,6 +23,7 @@ export function analyticsAvailable() {
 }
 export function getAnalyticsConsent(): AnalyticsConsent {
   if (typeof window === "undefined") return "unknown";
+  if (consentOverride !== undefined) return consentOverride;
   try {
     const stored = localStorage.getItem(consentKey);
     return stored === "granted" || stored === "denied" ? stored : memoryConsent;
@@ -181,7 +183,12 @@ export function initializeAnalytics() {
 
 export function setAnalyticsConsent(consent: "granted" | "denied") {
   memoryConsent = consent;
-  try { localStorage.setItem(consentKey, consent); } catch { /* In-memory choice for this visit. */ }
+  // A readable old choice must not override a new choice when storage rejects writes.
+  consentOverride = consent;
+  try {
+    localStorage.setItem(consentKey, consent);
+    consentOverride = undefined;
+  } catch { /* The explicit choice remains authoritative for this visit. */ }
   // The server needs the same explicit opt-in before reporting request errors.
   try {
     document.cookie = `krito_analytics_consent=${consent}; Path=/; SameSite=Lax; Max-Age=15552000${location.protocol === "https:" ? "; Secure" : ""}`;
@@ -235,7 +242,10 @@ export function captureAnalyticsError(error: unknown, operation: string, propert
 
 if (typeof window !== "undefined") {
   window.addEventListener("storage", (event) => {
-    if (event.key === consentKey) {
+    if (event.key === consentKey || event.key === null) {
+      // Another tab changed or cleared consent. Re-read its persisted decision.
+      memoryConsent = "unknown";
+      consentOverride = undefined;
       if (getAnalyticsConsent() === "granted") initializeAnalytics();
       else if (initialized) {
         try { posthog.opt_out_capturing(); } catch { /* fail closed */ }

@@ -12,7 +12,7 @@ export default function PrivacyPage() {
       <p>Zo ontdekken we wat goed werkt en waar mensen vastlopen, en kunnen we Krito eenvoudiger en betrouwbaarder maken. We maken geen sessieopnames. We sturen geen bestanden, bestandsnamen, documentcitaten, toegangssleutels of zoekopdrachten naar PostHog.</p>
       <p>Als je een analyse start, koppelen we je gebruik aan je schoolmail. PostHog bewaart je e-mailadres en het domein apart. Dat helpt ons terugkerend gebruik te begrijpen. Het geeft je school geen toegang tot je materiaal.</p>
       <h2>Je kiest zelf</h2>
-      <p>Met ‘Nee, bedankt’ kun je Krito blijven gebruiken zonder deze metingen en opnames. Met ‘Privacykeuze’ onderaan kun je je keuze later aanpassen. Intrekken stopt nieuwe metingen; gegevens die al verstuurd zijn worden daarmee niet automatisch verwijderd.</p>
+      <p>Met ‘Nee, bedankt’ kun je Krito blijven gebruiken zonder deze metingen. Met ‘Privacykeuze’ onderaan kun je je keuze later aanpassen. Intrekken stopt nieuwe metingen; gegevens die al verstuurd zijn worden daarmee niet automatisch verwijderd.</p>
       <p>We bewaren je privacykeuze in je browser. Na toestemming bewaart PostHog ook een gebruiks-ID en sessie-ID in je browser om bezoeken te verbinden.</p>
     </main>
   </div>;
