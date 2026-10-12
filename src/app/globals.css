@@ -3725,12 +3725,21 @@ html {
 .analytics-consent-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
 .analytics-consent-actions .secondary-button { padding: 9px 16px; font-size: 15px; }
 .analytics-consent-actions a { font-size: 13px; text-underline-offset: 3px; }
-.analytics-settings { position: fixed; bottom: 10px; right: 20px; z-index: 30; background: var(--paper); padding: 4px 10px; font-size: 12px; }
+/* .text-button sits in a nested block with higher specificity; repeat it to win. */
+.analytics-settings.text-button { position: fixed; bottom: 10px; right: 20px; z-index: 30; background: var(--paper); padding: 4px 10px; font-size: 12px; }
 .privacy-page { max-width: 720px; padding: 36px 0; }
 .privacy-page h1 { font-size: clamp(28px, 5vw, 44px); }
 .privacy-page h2 { font-size: 24px; margin-top: 32px; }
 .unsubscribe-page .primary-button { margin-top: 12px; }
 .unsubscribe-page h1:focus { outline: none; }
+.analytics-settings-icon { display: none; }
 @media (max-width: 600px) {
   .analytics-consent { bottom: 12px; right: 12px; width: calc(100vw - 24px); padding: 18px; }
+  .analytics-settings.text-button {
+    bottom: 12px; right: 12px; background: var(--paper); width: 32px; height: 32px; padding: 0;
+    display: grid; place-items: center; border: 1px solid var(--rule); border-radius: 50%;
+    box-shadow: 0 1px 3px rgb(0 0 0 / 0.12);
+  }
+  .analytics-settings-icon { display: block; }
+  .analytics-settings-label { display: none; }
 }
