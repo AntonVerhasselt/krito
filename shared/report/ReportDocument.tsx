@@ -329,6 +329,12 @@ function Overview({ model }: { model: ReportModel }) {
           </Text>
         </View>
       ))}
+      {model.skippedFiles.map((f, i) => (
+        <View key={`skipped-${i}`} style={s.fileRow} wrap={false}>
+          <Text style={s.fileName}>{f.name}</Text>
+          <Text style={s.fileMeta}>Niet beoordeeld: {f.reason}</Text>
+        </View>
+      ))}
 
       <Text style={s.note}>
         Krito beoordeelt of je lesmateriaal een leerdoel ondersteunt, niet of leerlingen het beheersen. De verwijzingen

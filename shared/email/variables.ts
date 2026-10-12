@@ -31,5 +31,6 @@ export function reportVariables(model: ReportModel): Variables {
     notFound: model.counts.not_found,
     uncertain: model.counts.uncertain,
     reviewGoals: model.review ? plural(model.review, "doel", "doelen") : "",
+    skippedFiles: model.skippedFiles.map((f) => `${f.name} (${f.reason})`).join(", "),
   };
 }

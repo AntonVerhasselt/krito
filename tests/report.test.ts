@@ -29,6 +29,26 @@ describe("report model", () => {
     );
   });
 
+  it("lists files that were left out", async () => {
+    const input = {
+      ...demoReportInput(),
+      skippedFiles: [
+        { name: "kapot-werkblad.docx", safeError: "conversion_failed" },
+        { name: "groot.pptx", safeError: "converted_total_too_large" },
+      ],
+    };
+    expect(reportVariables(buildReportModel(input)).skippedFiles).toBe(
+      "kapot-werkblad.docx (kon niet geopend worden (beveiligd of beschadigd?)), groot.pptx (paste niet meer binnen 40 MiB na het omzetten naar pdf)",
+    );
+    const { bytes } = await renderReport(input);
+    const dir = mkdtempSync(join(tmpdir(), "krito-report-"));
+    writeFileSync(join(dir, "r.pdf"), bytes);
+    const text = execFileSync("pdftotext", ["-layout", join(dir, "r.pdf"), "-"]).toString();
+    expect(text).toContain("kapot-werkblad.docx");
+    expect(text).toContain("Niet beoordeeld: kon niet geopend worden");
+    expect(text).toContain("Niet beoordeeld: paste niet meer binnen 40 MiB");
+  });
+
   it("feeds the report e-mail", () => {
     expect(reportVariables(buildReportModel(demoReportInput()))).toMatchObject({
       files: "3 bestanden",

@@ -42,16 +42,20 @@ export const verdicts: Record<Verdict, string> = {
 };
 const order = Object.keys(verdicts) as Verdict[];
 
+const waitHint =
+  "Je kunt dit tabblad open laten; de resultaten verschijnen vanzelf.";
 function Summary({
   goals,
   total,
   phase,
   recheck,
+  hint = waitHint,
 }: {
   goals: ListGoal[];
   total: number;
   phase: Phase;
   recheck: { done: number; total: number };
+  hint?: string;
 }) {
   const done = phase === "completed";
   const counts = Object.fromEntries(
@@ -74,9 +78,7 @@ function Summary({
           {headline}
         </p>
         {!done && (
-          <span className="summary-hint">
-            Je kunt dit tabblad open laten; de resultaten verschijnen vanzelf.
-          </span>
+          <span className="summary-hint">{hint}</span>
         )}
       </div>
       <div
@@ -135,6 +137,7 @@ export function GoalList({
   files = [],
   onOpenPdf,
   analytics = {},
+  hint,
 }: {
   goals: ListGoal[];
   total?: number;
@@ -143,6 +146,8 @@ export function GoalList({
   files?: { fileId: string; name: string }[];
   onOpenPdf?: (fileId: string, page: number) => void;
   analytics?: AnalyticsProperties;
+  /** Shown while the analysis runs. */
+  hint?: string;
 }) {
   const expanded = useRef(new Map<string, boolean>());
   function toggle(key: string, open: boolean, goal: ListGoal, clarification = false) {
@@ -156,7 +161,7 @@ export function GoalList({
   }
   return (
     <>
-      <Summary goals={goals} total={total} phase={phase} recheck={recheck} />
+      <Summary goals={goals} total={total} phase={phase} recheck={recheck} hint={hint} />
       <ol className="goal-rows" aria-label="Leerdoelen">
         {goals.map((g, i) => {
           const r = g.result;

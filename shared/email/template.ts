@@ -17,7 +17,7 @@ export type TemplateId = (typeof TEMPLATE_IDS)[number];
 const welcome = ["siteLink", "email", "unsubscribeLink"];
 /** Which variables each e-mail may use. Documented in emails/README.md. */
 export const TEMPLATE_VARIABLES: Record<TemplateId, string[]> = {
-  report: ["topic", "group", "date", "files", "goals", "covered", "partial", "notFound", "uncertain", "reviewGoals"],
+  report: ["topic", "group", "date", "files", "goals", "covered", "partial", "notFound", "uncertain", "reviewGoals", "skippedFiles"],
   reminder: ["topic", "group", "materialLink"],
   "welcome-1-analysis": welcome,
   "welcome-1-no-analysis": welcome,

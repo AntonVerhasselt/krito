@@ -14,7 +14,7 @@ const welcome = (step: number): Variables => ({
 export const sampleVariables: Record<TemplateId, Variables> = {
   report: {
     topic: "Magnetisme", group: "3de leerjaar", date: "12-10-2026", files: "3 bestanden", goals: "6 leerdoelen",
-    covered: 2, partial: 2, notFound: 1, uncertain: 1, reviewGoals: "1 doel",
+    covered: 2, partial: 2, notFound: 1, uncertain: 1, reviewGoals: "1 doel", skippedFiles: "",
   },
   reminder: { topic: "Magnetisme", group: "3de leerjaar", materialLink: trackedLink(materialUrl(site, goalSet), "herinnering") },
   "welcome-1-analysis": welcome(1),

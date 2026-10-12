@@ -19,7 +19,15 @@ const messages: Record<string, string> = {
   conversion_failed:
     "Dit bestand kon niet worden geopend. Controleer of het niet beveiligd of beschadigd is en upload het opnieuw.",
   conversion_unavailable:
-    "Het omzetten naar pdf lukt even niet. Verwijder het bestand en probeer het zo opnieuw.",
+    "Het omzetten van je bestanden naar pdf lukt even niet. Probeer het zo opnieuw.",
+  no_readable_files:
+    "Geen enkel bestand kon geopend worden. Controleer of ze niet beveiligd of beschadigd zijn en start een nieuwe analyse.",
+  upload_blocked:
+    "Het uploaden lukte niet. Controleer je internetverbinding, verwijder wat niet afgerond is en kies de ontbrekende bestanden opnieuw.",
+  upload_timeout:
+    "Het uploaden duurde te lang. Controleer je internetverbinding, verwijder wat niet afgerond is en kies de ontbrekende bestanden opnieuw.",
+  upload_rejected:
+    "Het uploaden lukte niet. Verwijder wat niet afgerond is en kies de ontbrekende bestanden opnieuw.",
   converted_total_too_large:
     "Na het omzetten naar pdf worden je bestanden samen groter dan 40 MiB. Verwijder dit bestand.",
   converted_too_large:
@@ -58,14 +66,20 @@ const messages: Record<string, string> = {
     "Deze link werkt niet (meer). Gebruik de link onderaan je meest recente mail van Krito.",
   report_failed: "De pdf lukte niet. Probeer het opnieuw.",
 };
+/** Codes the browser raises itself (not from Convex). */
+const browserCodes = new Set([
+  "session_storage_unavailable",
+  "upload_blocked",
+  "upload_timeout",
+  "upload_rejected",
+]);
 export function safeError(error: unknown) {
   const code =
     typeof error === "string"
       ? error
       : error instanceof ConvexError && typeof error.data === "string"
         ? error.data
-        : error instanceof Error &&
-            error.message === "session_storage_unavailable"
+        : error instanceof Error && browserCodes.has(error.message)
           ? error.message
           : "";
   return (

@@ -1,3 +1,5 @@
+import { skipReason } from "../skipReasons";
+
 /**
  * The pdf report as plain data: everything the document shows, already
  * counted, labelled and sorted. Rendering only lays this out.
@@ -21,6 +23,8 @@ export type ReportInput = {
     catalogVersion: string;
   };
   files: { fileId: string; name: string; pageCount: number; bytes: number }[];
+  /** Submitted files Krito couldn't read; the report doesn't cover them. */
+  skippedFiles?: { name: string; safeError: string | null }[];
   goals: {
     snapshot: { goalId: string; wordingText: string; sourceUrl: string };
     result: {
@@ -73,6 +77,7 @@ export type ReportModel = {
   counts: Record<Verdict, number>;
   review: number;
   files: { name: string; pages: number; size: string }[];
+  skippedFiles: { name: string; reason: string }[];
   goals: ReportGoal[];
 };
 
@@ -126,6 +131,7 @@ export function buildReportModel(input: ReportInput): ReportModel {
     counts,
     review: input.goals.filter((g) => g.needsReview).length,
     files: input.files.map((f) => ({ name: printable(f.name), pages: f.pageCount, size: fileSize(f.bytes) })),
+    skippedFiles: (input.skippedFiles ?? []).map((f) => ({ name: printable(f.name), reason: skipReason(f.safeError) })),
     goals: input.goals.map(({ snapshot, result, needsReview, reviewReason, rechecked }) => ({
       code: snapshot.goalId,
       wording: printable(snapshot.wordingText),

@@ -13,7 +13,11 @@ type ConverterConfig = { url: string; username: string; password: string };
  * configuration is not worth waiting for again.
  */
 export class ConverterUnavailable extends Error {
-  constructor(readonly retryable: boolean) {
+  constructor(
+    readonly retryable: boolean,
+    /** The converter's HTTP status; absent when it wasn't reached. */
+    readonly status?: number,
+  ) {
     super("conversion_unavailable");
   }
 }
@@ -122,6 +126,35 @@ function prepareSource(bytes: Buffer, type: FileType) {
 }
 
 /**
+ * Starts a converter instance (Cloud Run scales to zero, and LibreOffice
+ * takes a few seconds to start) so the conversions at analysis time don't
+ * wait for it. Also tells whether the converter is healthy. Best effort:
+ * failures only return false.
+ */
+export async function warmConverter(
+  fetchImpl: typeof fetch = fetch,
+  config?: ConverterConfig,
+) {
+  try {
+    config ??= converterConfig();
+  } catch {
+    return false;
+  }
+  try {
+    const response = await fetchImpl(`${config.url}/health`, {
+      headers: {
+        Authorization: `Basic ${Buffer.from(`${config.username}:${config.password}`).toString("base64")}`,
+      },
+      signal: AbortSignal.timeout(30_000),
+    });
+    await response.body?.cancel();
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Converts teaching material to PDF with Gotenberg (LibreOffice). The source
  * name is fixed so a teacher's file name never reaches the converter.
  */
@@ -162,12 +195,30 @@ export async function convertToPdf(
   if (!response.ok)
     throw new ConverterUnavailable(
       response.status >= 500 || response.status === 429,
+      response.status,
     );
   const length = Number(response.headers.get("content-length") ?? 0);
   if (length > MAX_CONVERTED_BYTES) throw new Error("converted_too_large");
   const pdf = Buffer.from(await response.arrayBuffer());
   if (pdf.length > MAX_CONVERTED_BYTES) throw new Error("converted_too_large");
   return pdf;
+}
+
+const zipBased = new Set(["docx", "pptx", "xlsx", "odt", "odp", "ods", "pages", "key", "numbers"]);
+/**
+ * Office, OpenDocument and iWork files are zip archives. One without a local
+ * file header at the start or a central directory at the end (a truncated or
+ * renamed file) can't be opened by anyone, so it's refused before converting.
+ */
+export function damagedArchive(bytes: Uint8Array, type: FileType) {
+  if (!zipBased.has(type.extension)) return false;
+  const header = [0x50, 0x4b, 0x03, 0x04];
+  if (header.some((byte, i) => bytes[i] !== byte)) return true;
+  // The end-of-central-directory record sits in the last 22 + 65,535 bytes.
+  for (let i = bytes.length - 22; i >= Math.max(0, bytes.length - 65_557); i--)
+    if (bytes[i] === 0x50 && bytes[i + 1] === 0x4b && bytes[i + 2] === 0x05 && bytes[i + 3] === 0x06)
+      return false;
+  return true;
 }
 
 /**

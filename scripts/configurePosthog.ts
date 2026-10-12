@@ -114,15 +114,34 @@ async function configureAccount() {
   }
   const project = await api<{ api_token: string }>(root);
   if (project.api_token !== token) throw new Error("The selected PostHog project does not match the configured ingestion token. No account changes made.");
+  // Everything the script needs is checked before anything changes: the
+  // key's scopes, then every read.
+  const account = <T>(path: string) => fetch(new URL(path, managementHost), {
+    redirect: "error", signal: AbortSignal.timeout(30_000), headers: { Authorization: `Bearer ${key}` },
+  }).then((response) => response.ok ? response.json() as Promise<T> : Promise.reject(new Error(`PostHog request failed (${response.status}); response withheld. No account changes made.`)));
+  const { scopes } = await account<{ scopes: string[] }>("/api/personal_api_keys/@current/");
+  const needed = ["project:write", "event_definition:write", "dashboard:write", "insight:write", "alert:write", "user:read"];
+  const missing = scopes.includes("*") ? [] : needed.filter((scope) =>
+    !scopes.includes(scope) && !(scope.endsWith(":read") && scopes.includes(scope.replace(":read", ":write"))));
+  if (missing.length) throw new Error(`The PostHog key lacks ${missing.join(", ")}. No account changes made.`);
+  // Hourly e-mail alerts go to the key's owner.
+  const me = await account<{ id: number }>("/api/users/@me/");
+  const alerts = await all<{ name: string }>(`${root}alerts/?limit=100`);
+  const definitions = await all<Resource>(`${root}event_definitions/?limit=100`);
+  const dashboards = await all<Resource>(`${root}dashboards/?limit=100`);
+  const insights = await all<Resource>(`${root}insights/?limit=100&saved=true`);
+
   // Only enable requested functionality and anonymize network IPs. No billing,
   // retention-tier, notification, grouping, or historical-data changes.
   await api(root, "PATCH", { anonymize_ips: true, session_recording_opt_in: false });
   const configured = await api<{ session_recording_opt_in: boolean }>(root);
   if (configured.session_recording_opt_in !== false) throw new Error("PostHog session recording must remain disabled.");
-  const definitions = await all<Resource>(`${root}event_definitions/?limit=100`);
   const detail: Record<string, string> = {
-    upload_completed: "Browser file transfer completed and backend acknowledged it; validation/conversion may still fail.",
-    file_ready: "Backend validated the file and, where needed, completed conversion. The file can be analyzed.",
+    upload_completed: "Browser file transfer completed and backend acknowledged it; validation may still fail.",
+    upload_failed: "Browser upload failed. stage says where; error_code upload_blocked means the browser blocked the PUT (CORS, offline, network filter); status is the HTTP status.",
+    file_ready: "Backend validated the upload: a PDF was read completely, other files were stored and pinned. Non-PDFs are converted when the analysis starts.",
+    file_conversion_completed: "A non-PDF file was converted at analysis start; duration_ms, page_count, converted_bytes.",
+    file_conversion_failed: "A file couldn't be converted at analysis start. error_code conversion_failed etc.: left out of the analysis; conversion_unavailable: converter unreachable, retried.",
     analysis_submitted: "Backend accepted the school email and committed an analysis attempt to its queue.",
     analysis_started: "Backend began processing an accepted analysis attempt.",
     analysis_completed: "Backend persisted final results. Check needs_review/review_count for degraded rechecks.",
@@ -143,8 +162,6 @@ async function configureAccount() {
     if (existing) await api(`${root}event_definitions/${existing.id}/`, "PATCH", { description });
     else await api(`${root}event_definitions/`, "POST", { name, description });
   }
-  const dashboards = await all<Resource>(`${root}dashboards/?limit=100`);
-  const insights = await all<Resource>(`${root}insights/?limit=100&saved=true`);
   const properties = [
     { type: "event", key: "environment", operator: "exact", value: "hosted" },
     { type: "event", key: "is_demo", operator: "is_not", value: true },
@@ -160,6 +177,7 @@ async function configureAccount() {
       { name: "Krito · Upload and conversion outcomes", kind: "TrendsQuery", events: ["upload_completed", "file_ready", "upload_failed", "file_validation_failed"] },
       { name: "Krito · Analysis outcomes", kind: "TrendsQuery", events: ["analysis_submitted", "analysis_completed", "analysis_failed", "analysis_goal_recheck_failed"] },
       { name: "Krito · Recovery and retries", kind: "TrendsQuery", events: ["analysis_retry_requested", "ai_run_retry_scheduled", "workflow_recovery_scheduled", "workflow_recovery_exhausted"] },
+      { name: "Krito · Conversion at analysis start", kind: "TrendsQuery", events: ["analysis_submitted", "file_conversion_completed", "file_conversion_failed", "analysis_preparation_completed"] },
     ] },
     { name: "Krito · E-mail", charts: [
       { name: "Krito · Mobile hand-off funnel", kind: "FunnelsQuery", events: ["reminder_prompt_viewed", "reminder_gate_opened", "reminder_requested", "email_link_opened", "analysis_submitted"] },
@@ -185,7 +203,38 @@ async function configureAccount() {
       await api(`${root}insights/`, "POST", { name: chart.name, saved: true, dashboards: [dashboard.id], query: { kind: "InsightVizNode", source } });
     }
   }
-  console.log("Verified selected EU project. Disabled session replay, enabled IP anonymization, documented events, and created missing activation/reliability/e-mail dashboards.");
+  // Any hosted failure of an upload, a conversion or an analysis. Uploads
+  // failed unnoticed for hours when the R2 CORS rule lacked the launch domain.
+  const failures = [
+    { event: "upload_failed", label: "upload failed (browser to storage)", filters: [] },
+    // The backend couldn't read an upload that did arrive (storage outage).
+    { event: "file_validation_failed", label: "upload could not be checked", filters: [
+      { type: "event", key: "error_code", operator: "exact", value: "upload_validation_failed" },
+    ] },
+    { event: "file_conversion_failed", label: "file could not be converted", filters: [] },
+    { event: "analysis_failed", label: "analysis failed", filters: [] },
+  ];
+  for (const failure of failures) {
+    const name = `Krito · Alert: ${failure.label}`;
+    if (alerts.some((alert) => alert.name === name)) continue;
+    let insight = insights.find((entry) => entry.name === name && !entry.deleted);
+    insight ??= await api<Resource>(`${root}insights/`, "POST", {
+      name, saved: true,
+      description: "Source of an hourly alert. Managed by npm run env:posthog -- --account.",
+      query: { kind: "InsightVizNode", source: {
+        kind: "TrendsQuery", dateRange: { date_from: "-24h" }, interval: "hour", properties: [...properties, ...failure.filters],
+        series: [{ kind: "EventsNode", event: failure.event, name: failure.event, math: "total" }],
+        trendsFilter: { display: "ActionsLineGraph" },
+      } },
+    });
+    await api(`${root}alerts/`, "POST", {
+      name, insight: insight.id, subscribed_users: [me.id], enabled: true,
+      calculation_interval: "hourly", condition: { type: "absolute_value" },
+      threshold: { configuration: { type: "absolute", bounds: { upper: 0 } } },
+      config: { type: "TrendsAlertConfig", series_index: 0 },
+    });
+  }
+  console.log("Verified selected EU project. Disabled session replay, enabled IP anonymization, documented events, and created missing activation/reliability/e-mail dashboards and failure alerts.");
   console.log("Existing insight edits preserved. No messages, billing, exports, grouping, or retention-tier changes.");
 }
 

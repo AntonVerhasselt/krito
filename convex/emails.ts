@@ -8,6 +8,7 @@ import { captureEmail, captureForContact } from "./analytics";
 import { reportInput } from "./reports";
 import { verifyUnsubscribeToken } from "../shared/email/signing";
 import type { EmailStatus } from "./emailValidators";
+import { emailModeAllows } from "../shared/emailPolicy";
 
 const MINUTE = 60 * 1000;
 const HOUR = 60 * MINUTE;
@@ -154,6 +155,19 @@ async function topicOf(ctx: QueryCtx, goalSet: { catalogVersion: string; key: st
 }
 
 /** Everything the delivery action needs, read in one consistent snapshot. */
+/**
+ * Whether Krito sends the finished report, so the results page only promises
+ * an e-mail that goes out. Suppression (an address that bounced or complained
+ * before) is deliberately not considered: the address isn't verified, so this
+ * mustn't reveal the state of someone else's mailbox. Such an address couldn't
+ * receive the report anyway; the notice keeps the "leave this tab open" advice.
+ */
+export async function reportWillBeMailed(ctx: QueryCtx, a: Doc<"analyses">) {
+  if (!a.userId || a.testMode || a.fixture) return false;
+  const user = await ctx.db.get(a.userId);
+  return !!user && emailModeAllows(user.email, process.env);
+}
+
 export const loadDelivery = internalQuery({
   args: { messageId: v.id("emailMessages") },
   handler: async (ctx, { messageId }) => {

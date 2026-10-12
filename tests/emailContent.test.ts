@@ -66,6 +66,12 @@ describe("template language", () => {
     expect(text).not.toContain("twijfelde");
   });
 
+  it("names files Krito couldn't read", () => {
+    const text = renderTemplate(report(), { ...sampleVariables.report, skippedFiles: "kapot.docx, oud.ppt" }).text;
+    expect(text).toContain("Niet alles zit in de beoordeling. Deze bestanden liet Krito weg: kapot.docx, oud.ppt.");
+    expect(renderTemplate(report(), sampleVariables.report).text).not.toContain("liet Krito weg");
+  });
+
   it("cuts long topics in the subject only", () => {
     const topic = "Een heel lang onderwerp met veel woorden over magnetisme";
     const email = renderTemplate(report(), { ...sampleVariables.report, topic });

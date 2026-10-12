@@ -44,8 +44,14 @@ export const MAX_TOTAL_BYTES = 40 * 1024 * 1024;
 export const MAX_FILES = 20;
 /**
  * A file that is still validating after this long is restarted by the
- * recovery job. Validation runs in one Node action, which Convex stops after
- * 10 minutes, so a running validation (including a document conversion with
- * its retries) is never restarted while it can still finish.
+ * recovery job. Validation only checks the stored upload (and reads a PDF), so
+ * it takes seconds; a stale validation that still finishes is ignored.
  */
-export const VALIDATION_TIMEOUT_MS = 11 * 60_000;
+export const VALIDATION_TIMEOUT_MS = 3 * 60_000;
+/**
+ * Preparation converts and seals every file when the analysis starts. Each
+ * finished file counts as progress; without progress for this long the
+ * recovery job starts it again. The slowest conversion (retries plus the
+ * converter's own timeout) takes about three minutes.
+ */
+export const PREPARATION_TIMEOUT_MS = 5 * 60_000;

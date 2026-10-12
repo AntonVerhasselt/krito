@@ -37,11 +37,14 @@ function putFile(
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) progress(Math.round((e.loaded / e.total) * 100));
     };
+    // The codes tell blocked requests (CORS, offline, a filter on the school
+    // network) apart from refusals by storage in the analytics.
     xhr.onload = () =>
       xhr.status >= 200 && xhr.status < 300
         ? resolve()
-        : reject(new Error("upload_failed"));
-    xhr.onerror = xhr.ontimeout = () => reject(new Error("upload_failed"));
+        : reject(Object.assign(new Error("upload_rejected"), { status: xhr.status }));
+    xhr.onerror = () => reject(Object.assign(new Error("upload_blocked"), { status: 0 }));
+    xhr.ontimeout = () => reject(Object.assign(new Error("upload_timeout"), { status: 0 }));
     xhr.send(file);
   });
 }
@@ -52,9 +55,19 @@ const materialKinds = [
   "Toetsen en evaluaties",
   "Ander lesmateriaal",
 ];
+const kindLabels: Record<string, string> = {
+  pdf: "Pdf",
+  document: "Document",
+  presentation: "Presentatie",
+  spreadsheet: "Rekenblad",
+  text: "Tekst",
+  image: "Afbeelding",
+};
 function pages(name: string, n: number | null) {
   const kind = fileTypeOf(name)?.kind;
-  if (kind === "image") return "Afbeelding";
+  // Only PDFs are read at upload; other files are converted when the
+  // analysis starts, so their page count isn't known yet.
+  if (kind === "image" || n === null) return kindLabels[kind ?? "document"];
   if (kind === "presentation") return `${n} ${n === 1 ? "dia" : "dia’s"}`;
   if (kind === "spreadsheet")
     return `${n} ${n === 1 ? "werkblad" : "werkbladen"}`;
@@ -84,11 +97,9 @@ export function UploadPanel({
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [dragging, setDragging] = useState(false),
-    [progress, setProgress] = useState<Record<string, number>>({});
-  const uploading = Object.values(progress);
-  const overall = uploading.length
-    ? uploading.reduce((a, b) => a + b, 0) / uploading.length
-    : 0;
+    [progress, setProgress] = useState<Record<string, number>>({}),
+    // Share of the whole batch's bytes sent; only ever grows.
+    [overall, setOverall] = useState(0);
   const disabled = !enabled || busy;
 
   async function upload(chosen: File[], method: "picker" | "drop") {
@@ -120,60 +131,113 @@ export function UploadPanel({
     const batchStarted = Date.now();
     let completed = 0;
     let attempted = 0;
-    let stage = "draft";
-    let currentFileId: string | undefined;
+    let failed = 0;
+    let draftFailed = false;
     let analysisId = session?.analysisId;
     track("upload_batch_started", { batch_id: batchId, file_count: chosen.length, total_bytes: totalBytes });
+    const sent = chosen.map(() => 0);
+    const report = (position: number, bytes: number) => {
+      sent[position - 1] = bytes;
+      setOverall((sent.reduce((a, b) => a + b, 0) / totalBytes) * 100);
+    };
+    setOverall(0);
     setBusy(true);
     onBusy(true);
     try {
-      const credentials = await ensureDraft();
-      analysisId = credentials.analysisId;
-      for (const file of chosen) {
-        attempted++;
-        stage = "registration";
-        currentFileId = undefined;
-        const type = fileTypeOf(file.name)!;
-        const upload = await requestUpload({
-          ...credentials,
-          clientFileId: crypto.randomUUID(),
-          name: file.name,
-          bytes: file.size,
-        });
-        currentFileId = upload.fileId;
-        stage = "transfer";
-        const transferStarted = Date.now();
-        track("upload_started", { analysis_id: analysisId, batch_id: batchId, position: attempted,
-          extension: type.extension, file_kind: type.kind, bytes: file.size });
-
-        setProgress((p) => ({ ...p, [upload.fileId]: 0 }));
-        try {
-          await putFile(upload.uploadUrl, file, upload.contentType, (value) =>
-            setProgress((p) => ({ ...p, [upload.fileId]: value })),
-          );
-          stage = "acknowledgement";
-          await complete({ ...credentials, fileId: upload.fileId });
-          completed++;
-          track("upload_completed", { analysis_id: analysisId, file_id: upload.fileId,
-            batch_id: batchId, bytes: file.size, extension: type.extension, file_kind: type.kind,
-            duration_ms: Date.now() - transferStarted });
-        } finally {
-          setProgress((p) => {
-            const next = { ...p };
-            delete next[upload.fileId];
-            return next;
-          });
-        }
+      let credentials: AnalysisSession;
+      try {
+        credentials = await ensureDraft();
+      } catch (error) {
+        draftFailed = true;
+        throw { error, stage: "draft" };
       }
-    } catch (error) {
-      const props = { analysis_id: analysisId, file_id: currentFileId, batch_id: batchId,
-        stage, error_code: analyticsErrorCode(error) };
+      analysisId = credentials.analysisId;
+      // Files go up side by side; after a failure no new file is started.
+      // Registration stays in selection order: it sets the order of the
+      // list, of the analysis and of the converted-size budget.
+      let next = 0;
+      let stopped = false;
+      let registered: Promise<unknown> = Promise.resolve();
+      const uploadOne = async (file: File, position: number) => {
+        let stage = "registration";
+        let fileId: string | undefined;
+        const type = fileTypeOf(file.name)!;
+        try {
+          const previous = registered;
+          const registration = previous.then(() =>
+            stopped
+              ? Promise.reject(new Error("upload_stopped"))
+              : requestUpload({
+                  ...credentials,
+                  clientFileId: crypto.randomUUID(),
+                  name: file.name,
+                  bytes: file.size,
+                }),
+          );
+          registered = registration.catch(() => {});
+          const upload = await registration;
+          fileId = upload.fileId;
+          stage = "transfer";
+          const transferStarted = Date.now();
+          track("upload_started", { analysis_id: analysisId, batch_id: batchId, position,
+            extension: type.extension, file_kind: type.kind, bytes: file.size });
+          setProgress((p) => ({ ...p, [upload.fileId]: 0 }));
+          try {
+            await putFile(upload.uploadUrl, file, upload.contentType, (value) => {
+              setProgress((p) => ({ ...p, [upload.fileId]: value }));
+              report(position, (file.size * value) / 100);
+            });
+            stage = "acknowledgement";
+            await complete({ ...credentials, fileId: upload.fileId });
+            completed++;
+            track("upload_completed", { analysis_id: analysisId, file_id: upload.fileId,
+              batch_id: batchId, bytes: file.size, extension: type.extension, file_kind: type.kind,
+              duration_ms: Date.now() - transferStarted });
+          } finally {
+            setProgress((p) => {
+              const rest = { ...p };
+              delete rest[upload.fileId];
+              return rest;
+            });
+          }
+        } catch (error) {
+          if (error instanceof Error && error.message === "upload_stopped") throw error;
+          failed++;
+          const props = { analysis_id: analysisId, file_id: fileId, batch_id: batchId,
+            stage, error_code: analyticsErrorCode(error), hostname: window.location.hostname,
+            status: error instanceof Error && "status" in error ? Number(error.status) : undefined,
+            extension: type.extension, file_kind: type.kind };
+          track("upload_failed", props);
+          captureAnalyticsError(error, "file_upload", props);
+          throw error;
+        }
+      };
+      const errors: unknown[] = [];
+      await Promise.all(
+        Array.from({ length: Math.min(3, chosen.length) }, async () => {
+          while (!stopped && next < chosen.length) {
+            const position = ++next;
+            attempted++;
+            await uploadOne(chosen[position - 1], position).catch((error) => {
+              stopped = true;
+              // A file that never started because of an earlier failure isn't an error of its own.
+              if (!(error instanceof Error && error.message === "upload_stopped")) errors.push(error);
+              else attempted--;
+            });
+          }
+        }),
+      );
+      if (errors.length) setError(safeError(errors[0]));
+    } catch (failure) {
+      const { error } = failure as { error: unknown };
+      const props = { analysis_id: analysisId, batch_id: batchId, stage: "draft",
+        error_code: analyticsErrorCode(error), hostname: window.location.hostname };
       track("upload_failed", props);
       captureAnalyticsError(error, "file_upload", props);
       setError(safeError(error));
     } finally {
       track("upload_batch_finished", { analysis_id: analysisId, batch_id: batchId,
-        completed_count: completed, failed_count: Number(completed < attempted || stage === "draft"),
+        completed_count: completed, failed_count: failed + Number(draftFailed),
         unattempted_count: chosen.length - attempted, duration_ms: Date.now() - batchStarted });
       setBusy(false);
       onBusy(false);
@@ -295,9 +359,7 @@ export function UploadPanel({
                           : f.status === "ready"
                             ? `${pages(f.name, f.pageCount)} · Klaar`
                             : f.status === "validating"
-                              ? fileTypeOf(f.name)?.kind === "pdf"
-                                ? "Bestand controleren…"
-                                : "Omzetten naar pdf…"
+                              ? "Bestand controleren…"
                               : f.status === "invalid"
                                 ? safeError(f.safeError)
                                 : "Upload niet afgerond; verwijder en upload opnieuw."}

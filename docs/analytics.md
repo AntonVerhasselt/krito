@@ -148,8 +148,10 @@ account access. The setup script remains available for reproducible configuratio
 
 To configure it, place `POSTHOG_PERSONAL_API_KEY` and numeric `POSTHOG_PROJECT_ID`
 in ignored `.secrets/posthog.env` with mode `600`, or provide them as process
-environment variables. The private key needs project read/write, dashboard
-read/write, insight read/write, and event-definition read/write scopes. Then run:
+environment variables. The private key needs project, dashboard, insight,
+event-definition and alert read/write scopes, plus user read (alerts go to the
+key's owner). The script checks read access to all of them before it changes
+anything. Then run:
 
 ```sh
 npm run env:posthog -- --account
@@ -177,8 +179,18 @@ The funnel measures person progression within seven days; use event context and
 SQL when investigating a single analysis attempt or concurrent journeys. Local
 browser checks and preview runs deliberately do not contribute to these totals.
 Use PostHog's built-in Web Analytics, Error Tracking, and AI
-Observability views for their specialized metrics. Start alerts after establishing
-a traffic baseline and choosing explicit recipients; none are silently sent.
+Observability views for their specialized metrics.
+
+Four hourly alerts (2026-10-12) e-mail the account owner when any hosted
+`upload_failed`, `file_validation_failed` with `upload_validation_failed`,
+`file_conversion_failed` or `analysis_failed` occurs in the past hour; each has a "Krito · Alert: …" source insight. They exist because
+uploads from www.krito.be failed unnoticed while the R2 CORS rule lacked the
+launch domain. `upload_failed` carries `stage`, `status` (HTTP status, 0 when
+the browser blocked the request) and `hostname`; `error_code` `upload_blocked`
+points at CORS, offline browsers or school network filters. Like all events,
+they only cover consenting visitors; the Convex logs record every preparation
+failure (`prepare <analysis>/<attempt>: <file> (<extension>) <code>`) without
+file names.
 
 The SDK disables replay independently of the account settings; account setup was
 rerun on 2026-10-12 and also disabled recording at the project level. Historical
@@ -187,7 +199,8 @@ recordings are not removed by changing the SDK or project setting.
 Two personal API keys exist, each with only the scopes it needs:
 
 - **Account setup** (`.secrets/posthog.env`, local only): project, event_definition,
-  dashboard and insight read/write. Used by `npm run env:posthog -- --account`.
+  dashboard, insight and alert read/write, plus user read (the alerts are sent to
+  the key's owner). Used by `npm run env:posthog -- --account`.
   Create it under PostHog EU → Settings → Personal API keys if it was revoked.
 - **Build source maps** (`.secrets/posthog-build.env` and Vercel
   `POSTHOG_PERSONAL_API_KEY`): `error_tracking:write` only.

@@ -6,7 +6,8 @@ import {
   mutation,
 } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
-import { internal } from "./_generated/api";
+import { components, internal } from "./_generated/api";
+import { MINUTE, RateLimiter } from "@convex-dev/rate-limiter";
 import { requireAccess } from "./access";
 import { accessArgs } from "./analyses";
 import {
@@ -14,9 +15,18 @@ import {
   MAX_TOTAL_BYTES,
   MAX_FILES,
 } from "../shared/analysisSchema";
-import { fileTypeOf } from "../shared/fileTypes";
+import {
+  convertsLocally,
+  fileTypeOf,
+  needsConversion,
+} from "../shared/fileTypes";
 import { captureAnalysis, captureAnalysisException } from "./analytics";
 import { analyticsErrorCode } from "../shared/analytics";
+
+// Cloud Run keeps an instance warm for minutes; more pings add nothing.
+const warmups = new RateLimiter(components.rateLimiter, {
+  converterWarmup: { kind: "fixed window", rate: 1, period: MINUTE },
+});
 
 /** Every stored object of a file: the upload and, if converted, its PDF. */
 export function fileKeys(f: {
@@ -146,8 +156,6 @@ export const completeUpload = mutation({
     await captureAnalysis(ctx, a, "file_validation_started", {
       file_id: f._id, generation, extension: type?.extension, file_kind: type?.kind,
     });
-    if (type && type.kind !== "pdf")
-      await captureAnalysis(ctx, a, "file_conversion_started", { file_id: f._id, generation, extension: type.extension });
     await ctx.scheduler.runAfter(0, internal.node.pdf.validateFile, {
       fileId: f._id,
       generation,
@@ -187,13 +195,14 @@ export const validated = internalMutation({
   args: {
     fileId: v.id("files"),
     generation: v.number(),
+    // A PDF is read completely; other uploads are only pinned by their ETag
+    // and get their page count when they're converted for the analysis.
     info: v.optional(
       v.object({
-        actualBytes: v.number(),
-        pageCount: v.number(),
-        sha256: v.string(),
+        actualBytes: v.optional(v.number()),
+        pageCount: v.optional(v.number()),
+        sha256: v.optional(v.string()),
         etag: v.string(),
-        pdfKey: v.optional(v.string()),
       }),
     ),
     safeError: v.optional(v.string()),
@@ -207,25 +216,9 @@ export const validated = internalMutation({
       return;
     const a = await ctx.db.get(f.analysisId);
     if (a?.status !== "draft") return;
-    // Converted PDFs can be larger than their source. Uploads are limited on
-    // their own size, so the analysed total is checked here, where the teacher
-    // can see which file pushes it over the limit and remove it.
-    let safeError = args.safeError;
-    if (args.info) {
-      const others = await ctx.db
-        .query("files")
-        .withIndex("by_analysis", (q) => q.eq("analysisId", a._id))
-        .collect();
-      const total = others
-        .filter((o) => o._id !== f._id && o.status === "ready")
-        .reduce((sum, o) => sum + (o.actualBytes ?? 0), args.info.actualBytes);
-      if (total > MAX_TOTAL_BYTES) safeError = "converted_total_too_large";
-    }
+    const safeError = args.safeError;
     await ctx.db.patch(f._id, {
-      // A rejected file keeps its pdfKey so cleanup also deletes the PDF.
-      ...(safeError
-        ? args.info?.pdfKey && { pdfKey: args.info.pdfKey }
-        : args.info),
+      ...(safeError ? {} : args.info),
       status: safeError ? "invalid" : "ready",
       safeError,
       updatedAt: Date.now(),
@@ -234,15 +227,19 @@ export const validated = internalMutation({
     const type = fileTypeOf(f.name);
     const metadata = {
       file_id: f._id, generation: args.generation, extension: type?.extension,
-      duration_ms: Date.now() - f.updatedAt, converted: !!args.info?.pdfKey,
-      page_count: args.info?.pageCount, bytes: args.info?.actualBytes,
+      file_kind: type?.kind, duration_ms: Date.now() - f.updatedAt,
+      page_count: args.info?.pageCount, bytes: f.declaredBytes,
     };
+    // Conversion waits for the analysis; a warm converter makes it quick.
+    // Only real uploads wake it, at most once a minute for everyone.
+    if (!safeError && type && needsConversion(type) && !convertsLocally(type)) {
+      const { ok } = await warmups.limit(ctx, "converterWarmup");
+      if (ok) await ctx.scheduler.runAfter(0, internal.node.pdf.warmConverter, {});
+    }
     await captureAnalysis(ctx, a, safeError ? "file_validation_failed" : "file_ready", {
       ...metadata, error_code: safeError ? analyticsErrorCode(safeError) : undefined,
     });
-    if (!safeError && args.info?.pdfKey)
-      await captureAnalysis(ctx, a, "file_conversion_completed", metadata);
-    if (safeError && ["conversion_unavailable", "conversion_failed", "upload_validation_failed"].includes(safeError))
+    if (safeError === "upload_validation_failed")
       await captureAnalysisException(ctx, a, safeError, "file_validation", metadata);
   },
 });

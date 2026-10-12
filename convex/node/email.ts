@@ -12,6 +12,7 @@ import { unsubscribeToken } from "../../shared/email/signing";
 import { antonPhotoJpeg } from "../../shared/email/photo.generated";
 import { buildReportModel, type ReportInput } from "../../shared/report/model";
 import { renderReport } from "../../shared/report/render";
+import { emailModeAllows } from "../../shared/emailPolicy";
 
 type Delivery = NonNullable<FunctionReturnType<typeof internal.emails.loadDelivery>>;
 type Composed = { template: TemplateId; vars: Variables; attachments: Attachment[]; unsubscribe?: string };
@@ -19,7 +20,6 @@ type Composed = { template: TemplateId; vars: Variables; attachments: Attachment
 function config() {
   const site = process.env.SITE_URL ?? "https://www.krito.be";
   return {
-    mode: process.env.EMAIL_MODE ?? "off",
     allowlist: new Set((process.env.EMAIL_ALLOWLIST ?? "").split(",").map((a) => a.trim().toLowerCase()).filter(Boolean)),
     from: process.env.EMAIL_FROM ?? "Anton van Krito <anton@mail.krito.be>",
     replyTo: process.env.EMAIL_REPLY_TO,
@@ -30,9 +30,8 @@ function config() {
 }
 
 /** Why this e-mail must not go out, or null. EMAIL_MODE keeps tests from reaching real teachers. */
-function skipReason(d: Delivery, c: ReturnType<typeof config>) {
-  if (c.mode !== "live" && !(c.mode === "allowlist" && c.allowlist.has(d.user.email.trim().toLowerCase())))
-    return "email_disabled";
+function skipReason(d: Delivery) {
+  if (!emailModeAllows(d.user.email, process.env)) return "email_disabled";
   if (d.user.suppressed) return "email_suppressed";
   if (d.message.kind === "welcome" && (d.user.unsubscribed || !d.user.welcomeActive)) return "unsubscribed";
   return null;
@@ -153,7 +152,7 @@ export const deliver = internalAction({
       const d: Delivery | null = await ctx.runQuery(internal.emails.loadDelivery, { messageId });
       if (!d) return await ctx.runMutation(internal.emails.markFailed, { ...own, errorCode: "not_found" });
       const c = config();
-      const reason = skipReason(d, c);
+      const reason = skipReason(d);
       if (reason) return await ctx.runMutation(internal.emails.markSkipped, { ...own, reason });
       let composed: Composed;
       try {

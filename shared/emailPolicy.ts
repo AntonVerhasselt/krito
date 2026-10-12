@@ -81,3 +81,21 @@ export function schoolEmailProblem(email: string): "invalid_email" | "personal_e
   if (isPersonalEmail(trimmed)) return "personal_email";
   return null;
 }
+
+/**
+ * Whether EMAIL_MODE lets an e-mail reach this address: everyone when "live",
+ * only listed addresses when "allowlist", nobody otherwise.
+ */
+export function emailModeAllows(
+  email: string,
+  env: Record<string, string | undefined>,
+) {
+  const mode = env.EMAIL_MODE ?? "off";
+  if (mode === "live") return true;
+  if (mode !== "allowlist") return false;
+  const allowlist = (env.EMAIL_ALLOWLIST ?? "")
+    .split(",")
+    .map((a) => a.trim().toLowerCase())
+    .filter(Boolean);
+  return allowlist.includes(email.trim().toLowerCase());
+}
