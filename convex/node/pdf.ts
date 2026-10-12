@@ -16,11 +16,14 @@ import { internal } from "../_generated/api";
 import { accessArgs } from "../analyses";
 import { storage, object, signedGet } from "./storage";
 import { MAX_FILE_BYTES } from "../../shared/analysisSchema";
-import { fileTypeOf, type FileType } from "../../shared/fileTypes";
+import {
+  convertsLocally,
+  fileTypeOf,
+  type FileType,
+} from "../../shared/fileTypes";
 import {
   ConverterUnavailable,
   converterConfig,
-  convertsLocally,
   convertToPdf,
   imageToPdf,
   MAX_CONVERTED_BYTES,
@@ -148,10 +151,18 @@ async function prepareUpload(stagingKey: string, declaredBytes: number) {
       ContentType: "application/pdf",
     }),
   );
-  return {
-    ...(await inspectPdf(pdfKey, pdf.length, MAX_CONVERTED_BYTES)),
-    pdfKey,
-  };
+  try {
+    return {
+      ...(await inspectPdf(pdfKey, pdf.length, MAX_CONVERTED_BYTES)),
+      pdfKey,
+    };
+  } catch (error) {
+    // A rejected file never records its pdfKey, so remove the PDF here.
+    await storage()
+      .send(new DeleteObjectCommand(object(pdfKey)))
+      .catch(() => {});
+    throw error;
+  }
 }
 export const signUpload = internalAction({
   args: {

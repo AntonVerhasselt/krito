@@ -1,10 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { PDFDocument } from "pdf-lib";
-import { fileTypeOf } from "../shared/fileTypes";
+import { convertsLocally, fileTypeOf } from "../shared/fileTypes";
 import {
   converterConfig,
   convertToPdf,
-  convertsLocally,
   decodeText,
   imageToPdf,
   MAX_CONVERTED_BYTES,
@@ -156,6 +155,11 @@ describe("csv and text preparation", () => {
   it("treats a quote inside a cell as text", () => {
     expect(normalizeCsv('Maat;Toestel\n12";scherm\n15;laptop')).toBe(
       'Maat,Toestel\n"12""",scherm\n15,laptop',
+    );
+  });
+  it("allows spaces before a quoted cell", () => {
+    expect(normalizeCsv('Les; "Inhoud; deel 1"\nLes 2; kompas')).toBe(
+      'Les,Inhoud; deel 1\nLes 2, kompas',
     );
   });
   it("leaves comma CSV and single columns alone", () => {

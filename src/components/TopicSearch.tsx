@@ -43,6 +43,7 @@ export function TopicSearch({
 }) {
   const id = useId();
   const convex = useConvex();
+  const choosing = useRef(false);
   const input = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -102,9 +103,11 @@ export function TopicSearch({
     }
   }
   function choose(topic: Topic) {
-    if (chosen) return;
+    // A ref, not state: Enter can resolve after an await in an older render.
+    if (choosing.current) return;
+    choosing.current = true;
     setChosen(topic.key);
-    // Let the chalk tick land before the board changes.
+    // Let the pen tick land before the page changes.
     const delay = matchMedia("(prefers-reduced-motion: reduce)").matches
       ? 0
       : 420;
@@ -113,6 +116,7 @@ export function TopicSearch({
       setOpen(false);
       setActive(-1);
       setChosen(null);
+      choosing.current = false;
     }, delay);
   }
   function search(value: string) {
@@ -217,8 +221,8 @@ export function TopicSearch({
               e.preventDefault();
               // Without a highlighted option, Enter takes the first result
               // for what was typed, fetching it if the list is still loading.
-              if (active >= 0) choose(topics[active]);
-              else if (debounced === query) {
+              if (active >= 0 && topics[active]) choose(topics[active]);
+              else if (debounced === query && result) {
                 if (topics[0]) choose(topics[0]);
               } else void chooseFirstFor(query);
             } else if (e.key === "Escape") {

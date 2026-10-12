@@ -44,7 +44,7 @@ export function decodeText(bytes: Uint8Array) {
 
 /**
  * Parses CSV text into rows. A quote opens a quoted cell only at the start of
- * a cell, so a stray quote (12" scherm) stays text. Quoted cells may contain
+ * a cell (after optional spaces), so a stray quote (12" scherm) stays text. Quoted cells may contain
  * the delimiter, doubled quotes and line breaks (Alt+Enter in Excel).
  * With `firstRecordOnly`, parsing stops after the first non-empty row.
  */
@@ -63,8 +63,10 @@ function parseCsv(text: string, delimiter: string, firstRecordOnly = false) {
       } else if (char === '"') quoted = false;
       else field += char;
     } else if (char === '"' && atStart) {
+      // Spaces before an opening quote (a, "b, c") are not part of the cell.
       quoted = true;
       atStart = false;
+      field = "";
     } else if (char === delimiter) {
       row.push(field);
       field = "";
@@ -79,7 +81,7 @@ function parseCsv(text: string, delimiter: string, firstRecordOnly = false) {
       atStart = true;
     } else {
       field += char;
-      atStart = false;
+      if (char !== " ") atStart = false;
     }
   }
   row.push(field);
@@ -167,8 +169,6 @@ export async function convertToPdf(
   if (pdf.length > MAX_CONVERTED_BYTES) throw new Error("converted_too_large");
   return pdf;
 }
-
-export { convertsLocally } from "../../shared/fileTypes";
 
 /**
  * Reads the EXIF orientation of a JPEG (1 when absent). Phones store photos

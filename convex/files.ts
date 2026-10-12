@@ -210,7 +210,9 @@ export const validated = internalMutation({
     }
     await ctx.db.patch(f._id, {
       // A rejected file keeps its pdfKey so cleanup also deletes the PDF.
-      ...(safeError ? { pdfKey: args.info?.pdfKey } : args.info),
+      ...(safeError
+        ? args.info?.pdfKey && { pdfKey: args.info.pdfKey }
+        : args.info),
       status: safeError ? "invalid" : "ready",
       safeError,
       updatedAt: Date.now(),
