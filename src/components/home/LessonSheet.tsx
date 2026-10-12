@@ -216,12 +216,9 @@ export function LessonSheet() {
           <span className="doc-page">2</span>
         </article>
       </div>
-      <figcaption>
-        <span>Een les over magnetisme, nagelezen voor het 3de leerjaar.</span>
-        <span className="caption-key">
-          <span className="key-green">Groen: gevonden</span>
-          <span className="key-red">Rood: ontbreekt</span>
-        </span>
+      <figcaption className="visually-hidden">
+        Een les over magnetisme, nagelezen voor het 3de leerjaar. Groen is
+        gevonden, rood ontbreekt.
       </figcaption>
     </figure>
   );

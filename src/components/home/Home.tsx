@@ -12,6 +12,7 @@ import { ResultsDemo } from "@/components/ResultsDemo";
 import { BackToSearch } from "@/components/BackToSearch";
 import { disclaimer, quotes } from "@/content/home";
 import { demoFiles } from "@/lib/demoAnalysis";
+import { FreeMark } from "./FreeMark";
 import { LessonSheet } from "./LessonSheet";
 import { StepPairs } from "./StepPairs";
 import { SiteNav } from "./SiteNav";
@@ -45,16 +46,16 @@ const key: { status: Status; label: string; text: string }[] = [
 ];
 
 const does = [
-  "Leest je bestaande bestanden. Je vult geen matrix in.",
+  "Leest je lesvoorbereidingen en documenten.",
   "Toont per doel wat er al in zit en wat ontbreekt.",
-  "Wijst de pagina en het citaat aan, zodat je het zelf nakijkt.",
-  "Zegt het eerlijk als het twijfelt.",
+  "Wijst pagina en citaat aan. Nakijken is supergemakkelijk.",
+  "Gokt niet. Twijfelt Krito, dan zegt het dat ook.",
 ];
 
 const doesNot = [
   "Zegt niets over wat je leerlingen kennen of kunnen.",
   "Maakt geen dossier of bewijs voor de inspectie.",
-  "Mailt je resultaten niet. Ze blijven op de website.",
+  "Deelt je bestanden niet met je school of collega's.",
   "Beslist niet wat je met je lessen doet.",
 ];
 
@@ -97,7 +98,7 @@ const faq = [
   },
   {
     q: "Welk e-mailadres moet ik invullen?",
-    a: "Je e-mailadres van school; een persoonlijke mailbox wordt niet aanvaard. Je resultaten krijg je niet per mail: ze verschijnen op de website, in hetzelfde tabblad.",
+    a: "Je e-mailadres van school; een persoonlijke mailbox wordt niet aanvaard. Je resultaten verschijnen op de website, in hetzelfde tabblad.",
   },
   {
     q: "Wie ziet mijn documenten?",
@@ -136,12 +137,12 @@ export function Home() {
         <section className="hero" aria-labelledby="hero-title">
           <div className="hero-copy">
             <h1 id="hero-title" className="hero-title">
-              Welke leerplandoelen dekt je les al?
+              Klopt je les nog met het nieuwe leerplan?
             </h1>
             <p className="hero-intro">
-              Per doel zie je wat er al in je lesmateriaal staat, op welke
-              pagina, en wat nog ontbreekt. Zoek het onderwerp waar je nu over
-              lesgeeft.
+              Krito leest je lesvoorbereidingen, werkbladen en toetsen, en toont
+              per leerplandoel wat er al in zit en wat nog ontbreekt. Zo hoef je
+              niet zelf elke les naast elk doel te leggen.
             </p>
             <TopicPicker />
           </div>
@@ -151,15 +152,14 @@ export function Home() {
         <section className="home-section why" aria-labelledby="why-title">
           <div className="why-copy">
             <h2 id="why-title">
-              <Clause>Nieuwe doelen,</Clause>{" "}
-              <Clause>nog geen nieuwe methodes</Clause>
+              <Clause>Te veel werk</Clause> <Clause>naast de klas</Clause>
             </h2>
             <p>
-              Sinds 1 september gelden de nieuwe minimumdoelen voor Nederlands,
-              wiskunde en wetenschap en techniek, van de kleuterklas tot het 3de
-              leerjaar. Andere vakken volgen volgend schooljaar. Veel aangepaste
-              methodes verschijnen pas de komende jaren. Tot dan werk je met de
-              lessen die je al hebt.
+              Verslagen, zorgdossiers, aanstiplijsten, berichten van ouders,
+              overleg na de bel. En nu ook nog nagaan of al je lessen kloppen
+              met het nieuwe leerplan. Veel daarvan doe je &apos;s avonds of in
+              het weekend, en niemand ziet het. Je koos voor de klas, maar
+              steeds meer van je tijd gaat naar alles errond.
             </p>
           </div>
           <div className="sources">
@@ -182,8 +182,8 @@ export function Home() {
           aria-labelledby="steps-title"
         >
           <h2 id="steps-title">
-            <Clause>Wat je erin legt,</Clause>{" "}
-            <Clause>en wat je terugkrijgt</Clause>
+            <Clause>Je lessen erin,</Clause>{" "}
+            <Clause>een overzicht per doel eruit</Clause>
           </h2>
           <StepPairs />
         </section>
@@ -194,7 +194,7 @@ export function Home() {
           aria-labelledby="demo-title"
         >
           <div className="section-rail">
-            <h2 id="demo-title">Elk antwoord met de pagina erbij</h2>
+            <h2 id="demo-title">Zo ziet je overzicht eruit</h2>
             <p className="rail-lede">
               Een voorbeeld met de echte Op.stap-doelen voor Magnetisme in het
               3de leerjaar. Open een doel om de uitleg en de citaten te lezen.
@@ -272,7 +272,9 @@ export function Home() {
         >
           <div className="leaf price-leaf">
             <div className="price-head">
-              <h2 id="price-title">Krito is gratis</h2>
+              <h2 id="price-title">
+                <span className="price-kicker">Krito is</span> <FreeMark />
+              </h2>
               <p>Voor elke leerkracht, in elke school.</p>
             </div>
             <ul className="price-facts">

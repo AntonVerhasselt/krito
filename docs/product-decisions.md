@@ -37,9 +37,13 @@ This replaces individual-goal checkbox selection in original step 3 and the sele
 - Brand marks live in `src/components/brand.tsx`; all styles in `src/app/globals.css`. The chalk illustrations and old brand icons were removed. The favicon is a green pen tick (`src/app/icon.svg`).
 - `/results/demo` and `/results/demo-loopt` show a fixed example of the results page, so the design can be checked without running an analysis.
 
-## Homepage messaging (2026-10-09)
+## Homepage messaging (2026-10-09, revised 2026-10-12)
 
-- Below the hero: why (minimumdoelen context with sourced quotes from Klasse and GO!), how it works, a live example of the results list with real Op.stap goals, what Krito does and does not do, FAQ and a closing call to action.
+- The hero asks "Klopt je les nog met het nieuwe leerplan?" and says what Krito does: it reads the material a teacher already has and shows per goal what is in it and what is missing. The lesson sheet has no visible caption.
+- The second section, "Te veel werk naast de klas", only names the problem (planlast, administratie, work in the evening) so teachers feel understood; it does not pitch Krito. Its quotes are verbatim, dated and linked to their source.
+- Results will be e-mailed later, so don't claim they aren't.
+- Price: "gratis" is the headline on its own line and is circled in green pen once, when it scrolls into view.
+- Below the hero: why (the workload problem, with sourced quotes), how it works, a live example of the results list with real Op.stap goals, what Krito does and does not do, FAQ and a closing call to action.
 - Claims to avoid: anything about pupils reaching goals; "inspectieklaar" or proof for the inspectie (it asks for no extra documents); any affiliation with or endorsement by Katholiek Onderwijs Vlaanderen; calling per-year leerplandoelen "minimumdoelen" (those exist only at the end of the 3de kleuterklas, 4de and 6de leerjaar); "always up to date" or "approved" claims; unsourced time-saving numbers.
 - Only school email addresses may start an analysis; consumer mailboxes are refused (`shared/emailPolicy.ts`).
 
