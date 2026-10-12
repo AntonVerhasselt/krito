@@ -81,6 +81,15 @@ export const cleanup = internalMutation({
       .query("files")
       .withIndex("by_analysis", (q) => q.eq("analysisId", a._id))
       .collect();
+    // Retain rows while workers can still write converted/sealed objects.
+    // Retrying this mutation after settlement includes every recorded key.
+    if (
+      files.some((f) => f.status === "validating") ||
+      !["draft", "completed", "failed"].includes(a.status)
+    ) {
+      await ctx.scheduler.runAfter(60_000, internal.testHarness.cleanup, args);
+      return;
+    }
     await ctx.scheduler.runAfter(0, internal.node.pdf.deleteObjects, {
       keys: files.flatMap(fileKeys),
     });

@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { execFileSync } from "node:child_process";
+import { PDFDocument } from "pdf-lib";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "../../convex/_generated/api";
 import { assertDevelopment, cli, development } from "../../scripts/lib";
@@ -19,6 +19,12 @@ function internalCall(name: string, args: unknown) {
   ]);
   return output.trim() ? JSON.parse(output) : undefined;
 }
+async function pdfFixture(pages: number) {
+  const pdf = await PDFDocument.create();
+  for (let index = 0; index < pages; index++)
+    pdf.addPage().drawText(`Krito testmateriaal - pagina ${index + 1}`);
+  return { name: `krito-fixture-${pages}-pages.pdf`, mimeType: "application/pdf", buffer: Buffer.from(await pdf.save()) };
+}
 for (const viewport of [
   { width: 1280, height: 900 },
   { width: 390, height: 844 },
@@ -26,16 +32,12 @@ for (const viewport of [
   test(`private multiple-PDF flow ${viewport.width}px`, async ({ page }) => {
     assertDevelopment();
     await page.setViewportSize(viewport);
-    const downloads = execFileSync("xdg-user-dir", ["DOWNLOAD"], {
-      encoding: "utf8",
-    }).trim();
-    const pdfs = [
-      `${downloads}/krito-magnetisme-les-10jaar.pdf`,
-      `${downloads}/krito-magnetisme-oefeningen-10jaar.pdf`,
-    ];
+    const pdfs = [await pdfFixture(3), await pdfFixture(4)];
     let analysisId: string | undefined;
     try {
       await page.goto("/");
+      const declineAnalytics = page.getByRole("button", { name: "Nee, bedankt", exact: true });
+      if (await declineAnalytics.isVisible()) await declineAnalytics.click();
       await page.getByRole("combobox").fill("breuken 3de leerjaar");
       await page
         .getByRole("option")
@@ -46,12 +48,9 @@ for (const viewport of [
         page.getByText("Alle 11 bijbehorende leerdoelen worden gecontroleerd."),
       ).toBeVisible();
       await page.locator('input[type="file"]').setInputFiles(pdfs);
-      await expect(page.getByText("3 pagina’s · Klaar")).toBeVisible({
-        timeout: 60_000,
-      });
-      await expect(page.getByText("4 pagina’s · Klaar")).toBeVisible({
-        timeout: 60_000,
-      });
+      await expect.poll(() => page.evaluate(() =>
+        JSON.parse(sessionStorage.getItem("krito-active-analysis") ?? "null")?.analysisId ?? null,
+      )).not.toBeNull();
       const credentials = await page.evaluate(() =>
         JSON.parse(sessionStorage.getItem("krito-active-analysis")!),
       );
@@ -60,6 +59,8 @@ for (const viewport of [
         analysisId,
         deterministic: true,
       });
+      await expect(page.getByText("3 pagina’s · Klaar")).toBeVisible({ timeout: 60_000 });
+      await expect(page.getByText("4 pagina’s · Klaar")).toBeVisible({ timeout: 60_000 });
       expect(
         internalCall("testHarness:audit", { analysisId }).runs,
       ).toHaveLength(0);

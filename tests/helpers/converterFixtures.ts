@@ -10,9 +10,9 @@ const examples = [
   { name: "scores.xlsx", pages: 2, text: ["Breuken", "Oefeningen", "Een vierde van twaalf blokjes"] },
   { name: "dutch.csv", pages: 1, text: ["café; oefeningen", "3,5"] },
   { name: "windows-1252.txt", pages: 1, text: ["Café", "Een half is twee vierden"] },
-  { name: "pages5-file.pages", pages: 1, text: [] },
-  { name: "keynote6-file.key", pages: 1, text: [] },
-  { name: "numbers3-file.numbers", pages: 1, text: [] },
+  { name: "pages5-file.pages", pages: 1, text: ["My hovercraft is full of eels.", "Mé vznášedlo je plné úhořů.", "Mój poduszkowiec jest pełen węgorzy."] },
+  { name: "keynote5-file.key", pages: 2, text: ["Title slide", "Capitalized Title", "more colored text here"] },
+  { name: "numbers3-file.numbers", pages: 1, text: ["automatic", "22USD", "57.00%", "text"] },
 ];
 
 export function converterFixtures() {

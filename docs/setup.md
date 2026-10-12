@@ -176,13 +176,16 @@ installed on this machine). GCP CLI authentication and a running frontend are
 not required. Missing prerequisites or failed checks return a nonzero exit code;
 credentials, signed URLs and provider responses are not printed. It creates only
 its own marked test draft and schedules cleanup even when a later check fails.
+Upload polling allows the backend's full validation budget. The development
+cleanup mutation retains rows while conversion or analysis is still running,
+then retries cleanup after settlement so late PDF writes remain tracked.
 
 The command does not deploy, publish backend code, rotate credentials, call the
 real AI models or alter normal teacher analyses. It is an explicit test command;
-no CI workflow, timer or schedule was added. Use the existing
+no CI workflow or scheduled test run was added. Use the existing
 `npm run test:e2e:dev` separately when changing the browser upload/results flow.
 
-Validated on 2026-10-12: all 58 unit tests, the complete live converter test,
+Validated on 2026-10-12: the unit suite, the complete live converter test,
 lint and TypeScript checks passed. The live test's marked draft was cleaned up.
 
 ## Daily workflow

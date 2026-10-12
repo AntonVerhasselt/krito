@@ -6,6 +6,7 @@ import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
 import { convertToPdf, converterConfig } from "../convex/node/convert";
 import { assertDevelopment, cli, development } from "./lib";
+import { VALIDATION_TIMEOUT_MS } from "../shared/analysisSchema";
 import { checkConvertedPdf, converterFixtures } from "../tests/helpers/converterFixtures";
 
 // An explicitly run test of the existing development service, not a deployment.
@@ -106,7 +107,7 @@ async function run() {
     const status = await waitFor(
       () => client.query(api.analyses.getStatus, credentials),
       (status) => status?.files.some((file) => file.fileId === upload.fileId && ["ready", "invalid"].includes(file.status)) ?? false,
-      180,
+      VALIDATION_TIMEOUT_MS / 1000,
     );
     const file = status?.files.find((file) => file.fileId === upload.fileId);
     assert.equal(file?.status, "ready", `${fixture.name}: upload did not become ready (safe error: ${file?.safeError ?? "none"})`);

@@ -12,7 +12,7 @@ or require Office/iWork to be installed.
 | `dutch.csv` | 1 page | Semicolon columns, quoted semicolon, decimal comma and café accent. |
 | `windows-1252.txt` | 1 page | Legacy encoding; Café must survive conversion. |
 | `pages5-file.pages` | 1 page | Representative Pages import. |
-| `keynote6-file.key` | 1 page | Representative Keynote import. |
+| `keynote5-file.key` | 2 pages | Nonblank Keynote slides with styled text. |
 | `numbers3-file.numbers` | 1 page | Representative Numbers import. |
 
 The first five fixtures are original synthetic Krito test data under the
