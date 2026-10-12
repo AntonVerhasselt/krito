@@ -3,6 +3,8 @@ import { mutation, query, type MutationCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { authorized, requireAccess } from "./access";
 import { MAX_TOTAL_BYTES } from "../shared/analysisSchema";
+import { fileTypeOf, needsConversion } from "../shared/fileTypes";
+import { reportWillBeMailed } from "./emails";
 import { resolveContact } from "./users";
 import { startWelcome, withdrawEmailAnalytics } from "./emails";
 import { PROMPT_VERSION } from "../shared/prompts";
@@ -116,6 +118,7 @@ export const getStatus = query({
       recheckTotal: a.recheckTotal,
       recheckCompleted: a.recheckCompleted,
       safeError: a.safeError ?? null,
+      reportByEmail: await reportWillBeMailed(ctx, a),
       files: files
         .filter((f) => f.status !== "removed")
         .map((f) => ({
@@ -146,19 +149,19 @@ export const submit = mutation({
         .withIndex("by_analysis", (q) => q.eq("analysisId", a._id))
         .collect()
     ).filter((f) => f.status !== "removed");
+    // A PDF was read at upload; other files are converted after this.
     if (
       !files.length ||
-      files.some(
-        (f) =>
+      files.some((f) => {
+        const type = fileTypeOf(f.name);
+        return (
           f.status !== "ready" ||
-          !f.pageCount ||
-          !f.actualBytes ||
-          !f.sha256 ||
-          !f.etag,
-      ) ||
-      // files.validated keeps the converted total under the limit; this
-      // only guards against files that changed underneath.
-      files.reduce((sum, f) => sum + (f.actualBytes ?? 0), 0) > MAX_TOTAL_BYTES
+          !f.etag ||
+          !type ||
+          (!needsConversion(type) && (!f.pageCount || !f.actualBytes || !f.sha256))
+        );
+      }) ||
+      files.reduce((sum, f) => sum + f.declaredBytes, 0) > MAX_TOTAL_BYTES
     )
       throw new ConvexError("files_not_ready");
     for (const [order, goalId] of selection.goalIds.entries()) {
@@ -211,12 +214,8 @@ export const submit = mutation({
       ...selection,
       userId,
       analyticsContext: validAnalyticsContext(args.analyticsContext),
-      manifest: files.map((f) => ({
-        fileId: f._id,
-        name: f.name,
-        pageCount: f.pageCount!,
-        bytes: f.actualBytes!,
-      })),
+      // Set once every file is a PDF; see workflow.prepared.
+      manifest: undefined,
       promptVersion: PROMPT_VERSION,
       attempt: 1,
       status: "queued",
@@ -232,8 +231,8 @@ export const submit = mutation({
       if (!a.testMode && !a.fixture) await startWelcome(ctx, userId, "analysis", submitted.analyticsContext);
     }
     await captureAnalysis(ctx, submitted, "analysis_submitted", {
-      file_count: files.length, total_bytes: files.reduce((sum, f) => sum + f.actualBytes!, 0),
-      page_count: files.reduce((sum, f) => sum + f.pageCount!, 0),
+      file_count: files.length, total_bytes: files.reduce((sum, f) => sum + f.declaredBytes, 0),
+      converted_count: files.filter((f) => needsConversion(fileTypeOf(f.name)!)).length,
     }, now);
     await ctx.scheduler.runAfter(0, internal.workflow.begin, {
       analysisId: a._id,
@@ -250,15 +249,24 @@ export const getResults = query({
     // While rechecking, the initial results of this attempt are saved; only
     // low-confidence goals still wait for their independent second check.
     if (a.status !== "completed" && a.status !== "rechecking")
-      return { status: a.status, topic: a.topic, files: [], goals: [] };
+      return { status: a.status, topic: a.topic, files: [], skippedFiles: [], goals: [] };
     const rows = await ctx.db
       .query("analysisGoals")
       .withIndex("by_analysis_order", (q) => q.eq("analysisId", a._id))
       .collect();
+    const skipped = (
+      await ctx.db
+        .query("files")
+        .withIndex("by_analysis", (q) => q.eq("analysisId", a._id))
+        .collect()
+    )
+      .filter((f) => f.status === "invalid")
+      .map((f) => ({ name: f.name, safeError: f.safeError ?? null }));
     return {
       status: a.status,
       topic: a.topic,
       files: a.manifest ?? [],
+      skippedFiles: skipped,
       goals: rows.map((g) => {
         const settled =
           a.status === "completed" || (!!g.finalResult && !g.awaitingRecheck);

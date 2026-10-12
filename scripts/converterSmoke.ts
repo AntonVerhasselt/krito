@@ -93,7 +93,7 @@ async function run() {
   const uploaded: { fileId: Id<"files">; fixture: typeof fixtures[number] }[] = [];
 
   for (const fixture of fixtures) {
-    stage = `private upload and backend conversion of ${fixture.name}`;
+    stage = `private upload of ${fixture.name}`;
     const upload = await client.action(api.files.requestUpload, {
       ...credentials, clientFileId: randomUUID(), name: fixture.name, bytes: fixture.bytes.length,
     });
@@ -111,11 +111,12 @@ async function run() {
     );
     const file = status?.files.find((file) => file.fileId === upload.fileId);
     assert.equal(file?.status, "ready", `${fixture.name}: upload did not become ready (safe error: ${file?.safeError ?? "none"})`);
-    assert.equal(file.pageCount, fixture.pages, `${fixture.name}: backend recorded the wrong page count`);
+    // Conversion waits for the analysis, so only PDFs have a page count now.
+    assert.equal(file.pageCount, fixture.type.kind === "pdf" ? fixture.pages : null, `${fixture.name}: unexpected page count before the analysis`);
     uploaded.push({ fileId: upload.fileId, fixture });
     // Draft sources must not be exposed as analysis documents before sealing.
     await assert.rejects(client.action(api.files.getViewUrl, { ...credentials, fileId: upload.fileId, page: 1 }));
-    console.log(`PASS ${fixture.name}: uploaded and converted through Convex; draft PDF remains unavailable`);
+    console.log(`PASS ${fixture.name}: uploaded and stored unconverted; draft source remains unavailable`);
   }
 
   stage = "analysis and file sealing";
@@ -130,6 +131,9 @@ async function run() {
   assert(results, "Converted-file analysis results are missing");
   assert.equal(results.goals.length, topic.goalCount, "Analysis lost selected goals");
   assert.equal(results.files.length, fixtures.length, "Analysis lost converted files");
+  assert.deepEqual(results.skippedFiles, [], "Analysis left out a readable file");
+  for (const { fileId, fixture } of uploaded)
+    assert.equal(results.files.find((f) => f.fileId === fileId)?.pageCount, fixture.pages, `${fixture.name}: analysis recorded the wrong page count`);
   const pageCounts = new Map(uploaded.map(({ fileId, fixture }) => [String(fileId), fixture.pages]));
   for (const goal of results.goals) {
     assert(goal.result, "Analysis goal has no result");

@@ -69,6 +69,34 @@ function ResultsHeading({
   );
 }
 
+const skipReasons: Record<string, string> = {
+  encrypted_pdf: "is beveiligd met een wachtwoord",
+  converted_too_large: "werd te groot na het omzetten naar pdf",
+  converted_total_too_large: "past niet meer binnen 40 MiB na het omzetten naar pdf",
+  file_changed: "is niet meer beschikbaar; voeg het opnieuw toe in een nieuwe analyse",
+};
+/** Files the analysis had to leave out; the teacher can add a readable version in a new analysis. */
+function SkippedFiles({ files }: { files: { name: string; safeError: string | null }[] }) {
+  return (
+    <section className="results-skipped" aria-label="Niet meegenomen">
+      <h2>
+        {files.length === 1
+          ? "Eén bestand kon Krito niet lezen"
+          : `${files.length} bestanden kon Krito niet lezen`}
+      </h2>
+      <ul>
+        {files.map((f, i) => (
+          <li key={i} className="ph-no-capture" data-private>
+            <strong>{f.name}</strong>{" "}
+            {skipReasons[f.safeError ?? ""] ?? "kon niet geopend worden (beveiligd of beschadigd?)"}
+          </li>
+        ))}
+      </ul>
+      <p>De beoordeling hieronder gaat over je andere bestanden.</p>
+    </section>
+  );
+}
+
 function ResultsNote() {
   return (
     <p className="results-note">
@@ -267,6 +295,9 @@ function LiveResults({ analysisId }: { analysisId: string }) {
             </p>
           ) : (
             <>
+              {results && results.skippedFiles.length > 0 && (
+                <SkippedFiles files={results.skippedFiles} />
+              )}
               <GoalList
                 goals={goals}
                 total={status.topic.goalCount}
@@ -278,6 +309,11 @@ function LiveResults({ analysisId }: { analysisId: string }) {
                 files={results?.files ?? []}
                 analytics={{ analysis_id: analysisId, attempt: status.attempt, is_demo: false }}
                 onOpenPdf={(fileId, page) => void openPdf(fileId, page)}
+                hint={
+                  status.reportByEmail
+                    ? "Dit kan een paar minuten duren. Je hoeft niet te wachten: zodra het verslag klaar is, krijg je het ook als pdf in je mailbox."
+                    : "Dit kan een paar minuten duren. Laat dit tabblad open; de resultaten verschijnen vanzelf."
+                }
               />
               {pending?.more && (
                 <p className="results-more">

@@ -121,8 +121,11 @@ async function configureAccount() {
   if (configured.session_recording_opt_in !== false) throw new Error("PostHog session recording must remain disabled.");
   const definitions = await all<Resource>(`${root}event_definitions/?limit=100`);
   const detail: Record<string, string> = {
-    upload_completed: "Browser file transfer completed and backend acknowledged it; validation/conversion may still fail.",
-    file_ready: "Backend validated the file and, where needed, completed conversion. The file can be analyzed.",
+    upload_completed: "Browser file transfer completed and backend acknowledged it; validation may still fail.",
+    upload_failed: "Browser upload failed. stage says where; error_code upload_blocked means the browser blocked the PUT (CORS, offline, network filter); status is the HTTP status.",
+    file_ready: "Backend validated the upload: a PDF was read completely, other files were stored and pinned. Non-PDFs are converted when the analysis starts.",
+    file_conversion_completed: "A non-PDF file was converted at analysis start; duration_ms, page_count, converted_bytes.",
+    file_conversion_failed: "A file couldn't be converted at analysis start. error_code conversion_failed etc.: left out of the analysis; conversion_unavailable: converter unreachable, retried.",
     analysis_submitted: "Backend accepted the school email and committed an analysis attempt to its queue.",
     analysis_started: "Backend began processing an accepted analysis attempt.",
     analysis_completed: "Backend persisted final results. Check needs_review/review_count for degraded rechecks.",
@@ -160,6 +163,7 @@ async function configureAccount() {
       { name: "Krito · Upload and conversion outcomes", kind: "TrendsQuery", events: ["upload_completed", "file_ready", "upload_failed", "file_validation_failed"] },
       { name: "Krito · Analysis outcomes", kind: "TrendsQuery", events: ["analysis_submitted", "analysis_completed", "analysis_failed", "analysis_goal_recheck_failed"] },
       { name: "Krito · Recovery and retries", kind: "TrendsQuery", events: ["analysis_retry_requested", "ai_run_retry_scheduled", "workflow_recovery_scheduled", "workflow_recovery_exhausted"] },
+      { name: "Krito · Conversion at analysis start", kind: "TrendsQuery", events: ["analysis_submitted", "file_conversion_completed", "file_conversion_failed", "analysis_preparation_completed"] },
     ] },
     { name: "Krito · E-mail", charts: [
       { name: "Krito · Mobile hand-off funnel", kind: "FunnelsQuery", events: ["reminder_prompt_viewed", "reminder_gate_opened", "reminder_requested", "email_link_opened", "analysis_submitted"] },
@@ -185,7 +189,39 @@ async function configureAccount() {
       await api(`${root}insights/`, "POST", { name: chart.name, saved: true, dashboards: [dashboard.id], query: { kind: "InsightVizNode", source } });
     }
   }
-  console.log("Verified selected EU project. Disabled session replay, enabled IP anonymization, documented events, and created missing activation/reliability/e-mail dashboards.");
+  // Hourly e-mail alerts to the account owner: any hosted failure of an
+  // upload, a conversion or an analysis. Uploads failed unnoticed for hours
+  // when the R2 CORS rule lacked the launch domain.
+  const me = await fetch(new URL("/api/users/@me/", managementHost), {
+    redirect: "error", signal: AbortSignal.timeout(30_000), headers: { Authorization: `Bearer ${key}` },
+  }).then((response) => response.ok ? response.json() as Promise<{ id: number }> : Promise.reject(new Error("PostHog user lookup failed; response withheld.")));
+  const alerts = await all<{ name: string }>(`${root}alerts/?limit=100`);
+  const failures = [
+    { event: "upload_failed", label: "upload failed (browser to storage)" },
+    { event: "file_conversion_failed", label: "file could not be converted" },
+    { event: "analysis_failed", label: "analysis failed" },
+  ];
+  for (const failure of failures) {
+    const name = `Krito · Alert: ${failure.label}`;
+    if (alerts.some((alert) => alert.name === name)) continue;
+    let insight = insights.find((entry) => entry.name === name && !entry.deleted);
+    insight ??= await api<Resource>(`${root}insights/`, "POST", {
+      name, saved: true,
+      description: "Source of an hourly alert. Managed by npm run env:posthog -- --account.",
+      query: { kind: "InsightVizNode", source: {
+        kind: "TrendsQuery", dateRange: { date_from: "-24h" }, interval: "hour", properties,
+        series: [{ kind: "EventsNode", event: failure.event, name: failure.event, math: "total" }],
+        trendsFilter: { display: "ActionsLineGraph" },
+      } },
+    });
+    await api(`${root}alerts/`, "POST", {
+      name, insight: insight.id, subscribed_users: [me.id], enabled: true,
+      calculation_interval: "hourly", condition: { type: "absolute_value" },
+      threshold: { configuration: { type: "absolute", bounds: { upper: 0 } } },
+      config: { type: "TrendsAlertConfig", series_index: 0 },
+    });
+  }
+  console.log("Verified selected EU project. Disabled session replay, enabled IP anonymization, documented events, and created missing activation/reliability/e-mail dashboards and failure alerts.");
   console.log("Existing insight edits preserved. No messages, billing, exports, grouping, or retention-tier changes.");
 }
 

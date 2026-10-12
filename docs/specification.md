@@ -305,7 +305,7 @@ Use these functions:
 
 - `files.requestUpload`: verify the capability and draft state, register a file, and return a short-lived signed PUT URL.
 
-- `files.completeUpload`: verify access, schedule server-side validation, and update the UI through file status.
+- `files.completeUpload`: verify access, schedule server-side validation (PDFs are read completely; other files are checked for size and pinned by ETag, and converted only when the analysis starts), and update the UI through file status.
 
 - Internal Node action `validatePdf`: check the R2 object and PDF structure.
 

@@ -136,7 +136,7 @@ while serving rebuilt output; a fresh development server avoids those mismatches
 
 ## Document converter
 
-Word, PowerPoint, spreadsheet and text uploads are converted to PDF by Gotenberg (LibreOffice) on Cloud Run. One-time setup:
+Word, PowerPoint, spreadsheet and text uploads are converted to PDF by Gotenberg (LibreOffice) on Cloud Run. Originals are stored in R2 as uploaded; conversion runs when the teacher starts the analysis (after the e-mail step), straight into the sealed analysis copy. Uploading a non-PDF file sends an authenticated `GET /health` to wake the service, so the conversions later don't wait for a cold start. One-time setup:
 
 1. Install the Google Cloud CLI without root into `~/.local/google-cloud-sdk` (the script finds it there), run `gcloud auth login`, and create or choose a project linked to a billing account. Cloud Run's free tier (2 million requests, 180,000 vCPU-seconds and 360,000 GiB-seconds per month) covers thousands of conversions, but Google requires a billing account, and outbound data from Europe is billed per GB; add a small budget alert.
 2. Put its ID in `gcpProject` in `infra/development.json` (`gcpRegion` defaults to `europe-west1`).
@@ -161,7 +161,7 @@ Converter variables belong on Convex, not Vercel or `NEXT_PUBLIC_*` variables.
 New worktrees need the existing ignored `.env.local` and owner-only
 `.secrets/development.env` before running the deployment script.
 
-Without these variables PDFs still work; other files are marked "Het omzetten naar pdf lukt even niet".
+Without these variables PDFs still work; an analysis with other files retries and then fails with "Het omzetten van je bestanden naar pdf lukt even niet".
 
 ### Verified deployment (2026-10-12)
 
@@ -207,9 +207,10 @@ from Convex, verifies that missing/incorrect credentials return 401, and convert
 the eight [checked-in fixtures](../tests/fixtures/converter/README.md). It checks
 PDF parsing, expected page counts, Office/text content, accents and rejection of
 a truncated DOCX archive. It then uploads all eight sources through the public
-Convex API, waits for conversion, checks that drafts are not exposed, submits a
-deterministic analysis, and verifies sealed PDF contents, citation page bounds,
-page links, and denial of unsigned downloads and wrong capabilities.
+Convex API, checks that they are ready without being converted and that drafts
+are not exposed, submits a deterministic analysis (which converts them), and
+verifies page counts, sealed PDF contents, citation page bounds, page links, and
+denial of unsigned downloads and wrong capabilities.
 
 Run it from this repository with its selected development `.env.local`, an
 authenticated Convex CLI and `pdftotext` on PATH (provided by Poppler; already

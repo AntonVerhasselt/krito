@@ -15,6 +15,8 @@ export const development = JSON.parse(readFileSync("infra/development.json", "ut
   /** Google Cloud project that hosts the document converter on Cloud Run. */
   gcpProject: string;
   gcpRegion: string;
+  /** Launch domains that upload to the bucket next to the Vercel deployments. */
+  publicOrigins: string[];
 };
 
 export function readEnv(path = ".env.local"): Record<string, string> {

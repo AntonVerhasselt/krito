@@ -13,7 +13,11 @@ type ConverterConfig = { url: string; username: string; password: string };
  * configuration is not worth waiting for again.
  */
 export class ConverterUnavailable extends Error {
-  constructor(readonly retryable: boolean) {
+  constructor(
+    readonly retryable: boolean,
+    /** The converter's HTTP status; absent when it wasn't reached. */
+    readonly status?: number,
+  ) {
     super("conversion_unavailable");
   }
 }
@@ -122,6 +126,35 @@ function prepareSource(bytes: Buffer, type: FileType) {
 }
 
 /**
+ * Starts a converter instance (Cloud Run scales to zero, and LibreOffice
+ * takes a few seconds to start) so the conversions at analysis time don't
+ * wait for it. Also tells whether the converter is healthy. Best effort:
+ * failures only return false.
+ */
+export async function warmConverter(
+  fetchImpl: typeof fetch = fetch,
+  config?: ConverterConfig,
+) {
+  try {
+    config ??= converterConfig();
+  } catch {
+    return false;
+  }
+  try {
+    const response = await fetchImpl(`${config.url}/health`, {
+      headers: {
+        Authorization: `Basic ${Buffer.from(`${config.username}:${config.password}`).toString("base64")}`,
+      },
+      signal: AbortSignal.timeout(30_000),
+    });
+    await response.body?.cancel();
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Converts teaching material to PDF with Gotenberg (LibreOffice). The source
  * name is fixed so a teacher's file name never reaches the converter.
  */
@@ -162,6 +195,7 @@ export async function convertToPdf(
   if (!response.ok)
     throw new ConverterUnavailable(
       response.status >= 500 || response.status === 429,
+      response.status,
     );
   const length = Number(response.headers.get("content-length") ?? 0);
   if (length > MAX_CONVERTED_BYTES) throw new Error("converted_too_large");

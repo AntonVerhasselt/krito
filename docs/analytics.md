@@ -177,8 +177,18 @@ The funnel measures person progression within seven days; use event context and
 SQL when investigating a single analysis attempt or concurrent journeys. Local
 browser checks and preview runs deliberately do not contribute to these totals.
 Use PostHog's built-in Web Analytics, Error Tracking, and AI
-Observability views for their specialized metrics. Start alerts after establishing
-a traffic baseline and choosing explicit recipients; none are silently sent.
+Observability views for their specialized metrics.
+
+Three hourly alerts (2026-10-12) e-mail the account owner when any hosted
+`upload_failed`, `file_conversion_failed` or `analysis_failed` occurs in the
+past hour; each has a "Krito · Alert: …" source insight. They exist because
+uploads from www.krito.be failed unnoticed while the R2 CORS rule lacked the
+launch domain. `upload_failed` carries `stage`, `status` (HTTP status, 0 when
+the browser blocked the request) and `hostname`; `error_code` `upload_blocked`
+points at CORS, offline browsers or school network filters. Like all events,
+they only cover consenting visitors; the Convex logs record every preparation
+failure (`prepare <analysis>/<attempt>: <file> (<extension>) <code>`) without
+file names.
 
 The SDK disables replay independently of the account settings; account setup was
 rerun on 2026-10-12 and also disabled recording at the project level. Historical

@@ -20,7 +20,7 @@ export const ANALYTICS_EVENTS = [
   "upload_files_selected", "upload_selection_rejected", "upload_batch_started",
   "upload_batch_finished", "file_upload_registered", "upload_started",
   "upload_completed", "upload_failed", "file_validation_started",
-  "file_conversion_started", "file_conversion_completed", "file_ready",
+  "file_conversion_started", "file_conversion_completed", "file_conversion_failed", "file_ready",
   "file_validation_failed", "file_remove_clicked", "file_removed", "file_remove_failed",
   "material_ready", "analysis_start_clicked", "email_gate_opened", "email_typing_started",
   "email_validation_failed", "email_gate_closed", "email_submit_requested",
@@ -60,7 +60,7 @@ const propertyNames = new Set([
   "query_length", "word_count", "result_count", "visible_count", "has_more", "position", "page",
   "direction", "suggestion", "had_input", "had_existing_draft", "file_count", "ready_count",
   "preserved_file_count", "bytes", "total_bytes", "page_count", "batch_id", "completed_count",
-  "failed_count", "unattempted_count", "extension", "file_kind", "converted", "converted_bytes",
+  "failed_count", "unattempted_count", "converted_count", "extension", "file_kind", "converted", "converted_bytes",
   "goal_id", "verdict", "confidence_bucket", "needs_review", "model", "recheck_count",
   "recheck_completed", "review_count", "covered_count", "partial_count", "not_found_count",
   "uncertain_count", "retry_count", "recovery_count", "fallback_used", "prompt_version",
@@ -106,6 +106,7 @@ const safeCodes = new Set([
   "popup_blocked", "missing_access", "invalid_capability", "rate_limited", "email_disabled",
   "email_suppressed", "quota_exceeded", "email_provider_error", "report_failed", "invalid_link",
   "monthly_quota_exceeded", "delivery_interrupted", "idempotency_conflict",
+  "upload_blocked", "upload_rejected", "upload_timeout", "no_readable_files", "file_changed",
 ]);
 export function analyticsErrorCode(error: unknown): string {
   const candidate = typeof error === "string" ? error :

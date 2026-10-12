@@ -19,7 +19,14 @@ const messages: Record<string, string> = {
   conversion_failed:
     "Dit bestand kon niet worden geopend. Controleer of het niet beveiligd of beschadigd is en upload het opnieuw.",
   conversion_unavailable:
-    "Het omzetten naar pdf lukt even niet. Verwijder het bestand en probeer het zo opnieuw.",
+    "Het omzetten van je bestanden naar pdf lukt even niet. Probeer het zo opnieuw.",
+  no_readable_files:
+    "Geen enkel bestand kon geopend worden. Controleer of ze niet beveiligd of beschadigd zijn en start een nieuwe analyse.",
+  upload_blocked:
+    "Het uploaden lukte niet. Controleer je internetverbinding en probeer opnieuw.",
+  upload_timeout:
+    "Het uploaden duurde te lang. Controleer je internetverbinding en probeer opnieuw.",
+  upload_rejected: "Het uploaden lukte niet. Probeer opnieuw.",
   converted_total_too_large:
     "Na het omzetten naar pdf worden je bestanden samen groter dan 40 MiB. Verwijder dit bestand.",
   converted_too_large:

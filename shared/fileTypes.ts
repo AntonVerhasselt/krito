@@ -71,6 +71,14 @@ export function fileTypeOf(name: string): FileType | null {
   return { extension, ...types[extension] };
 }
 
+/**
+ * Uploads are stored as they are. Anything that isn't a PDF is converted when
+ * the analysis starts, not while the teacher is still adding material.
+ */
+export function needsConversion(type: FileType) {
+  return type.kind !== "pdf";
+}
+
 /** JPG and PNG become a one-page PDF inside Convex; no converter needed. */
 export function convertsLocally(type: FileType) {
   return ["jpg", "jpeg", "png"].includes(type.extension);

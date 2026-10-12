@@ -9,5 +9,9 @@
   "vercelScope": "anton-personal-projects",
   "vercelProject": "krito",
   "gcpProject": "gen-lang-client-0534719308",
-  "gcpRegion": "europe-west1"
+  "gcpRegion": "europe-west1",
+  "publicOrigins": [
+    "https://krito.be",
+    "https://www.krito.be"
+  ]
 }

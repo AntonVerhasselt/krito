@@ -16,3 +16,5 @@ Word, PowerPoint, spreadsheet, text and iWork uploads are converted to PDF by a 
 - [x] Run development desktop/mobile end-to-end checks against the deployed backend (mobile test context declined the analytics prompt).
 - [x] Add repeatable regression checks: `npm test` for conversion code and `npm run test:converter` for actual authentication, eight upload formats, private PDFs and page links.
 - [ ] Plan the production converter (separate service and credentials) before launch.
+- [x] Store originals at upload and convert only when the analysis starts; unreadable files are left out and named on the results page (2026-10-12).
+- [x] Add www.krito.be and krito.be to the R2 CORS rule; uploads from the launch domain were blocked (2026-10-12).

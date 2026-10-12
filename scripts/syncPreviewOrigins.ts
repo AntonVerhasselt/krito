@@ -13,7 +13,12 @@ type Project = { id: string; name: string; accountId: string };
 const project = vercelApi<Project>(`/v9/projects/${development.vercelProject}`);
 if (project.name !== development.vercelProject)
   throw new Error("Unexpected Vercel project.");
-const origins = new Set(["http://localhost:3000", "http://127.0.0.1:3000"]);
+const publicOrigins = new Set(development.publicOrigins);
+const origins = new Set([
+  "http://localhost:3000",
+  "http://127.0.0.1:3000",
+  ...publicOrigins,
+]);
 let until: number | undefined;
 do {
   const page = vercelApi<{
@@ -29,9 +34,11 @@ do {
       throw new Error("Deployment belongs to a different project.");
     for (const hostname of [detail.url, ...(detail.alias ?? [])]) {
       const origin = new URL(`https://${hostname}`).origin;
-      if (!origin.endsWith(".vercel.app"))
+      // Browsers PUT uploads straight to R2, so every domain that serves
+      // the app must be listed; unknown custom domains are a setup error.
+      if (!origin.endsWith(".vercel.app") && !publicOrigins.has(origin))
         throw new Error(
-          "Public launch domains are not configured during setup.",
+          `Add ${origin} to publicOrigins in infra/development.json.`,
         );
       origins.add(origin);
     }
