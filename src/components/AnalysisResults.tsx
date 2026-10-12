@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useAction, useMutation, useQuery } from "convex/react";
@@ -9,9 +9,107 @@ import { saveSession, useAccessToken } from "../lib/analysisSession";
 import { safeError } from "../lib/safeError";
 import { SiteHeader } from "./SiteHeader";
 import { GoalList, type ListGoal, type Phase } from "./GoalList";
+import {
+  demoFiles,
+  demoGoals,
+  demoGoalsRunning,
+  demoTopic,
+} from "../lib/demoAnalysis";
+
+type HeadingTopic = {
+  title: string;
+  path: { title: string }[];
+  group: { title: string; routeCode: string; routeTitle: string };
+  goalCount: number;
+  catalogVersion: string;
+};
+
+function ResultsHeading({
+  topic,
+  fileCount,
+}: {
+  topic: HeadingTopic;
+  fileCount: number;
+}) {
+  return (
+    <header className="results-heading" data-topic={topic.title}>
+      <p className="results-context">
+        {topic.path
+          .slice(0, -1)
+          .map((p) => p.title)
+          .join(" / ")}
+      </p>
+      <h1>{topic.title}</h1>
+      <div className="results-meta">
+        <span className="group-tag">
+          {topic.group.title}
+          <b title={topic.group.routeTitle}>{topic.group.routeCode}</b>
+        </span>
+        <span>
+          {topic.goalCount} {topic.goalCount === 1 ? "leerdoel" : "leerdoelen"}
+        </span>
+        {fileCount > 0 && (
+          <span>
+            {fileCount} {fileCount === 1 ? "bestand" : "bestanden"}
+          </span>
+        )}
+        <span>Op.stap v{topic.catalogVersion}</span>
+      </div>
+    </header>
+  );
+}
+
+function ResultsNote() {
+  return (
+    <p className="results-note">
+      Krito beoordeelt of je lesmateriaal een leerdoel ondersteunt, niet of
+      leerlingen het beheersen. Zekerheid beschrijft het vertrouwen van het
+      model in de beoordeling; ze is geen dekkingspercentage of gekalibreerde
+      kans.
+    </p>
+  );
+}
+
+function ResultsShell({ children }: { children: ReactNode }) {
+  return (
+    <div className="site-shell results-shell">
+      <SiteHeader>
+        <Link href="/" className="back-link" onClick={() => saveSession(null)}>
+          Nieuwe analyse
+        </Link>
+      </SiteHeader>
+      <main className="results">{children}</main>
+    </div>
+  );
+}
+
+/** /results/demo and /results/demo-loopt: a fixed example to preview the results page without running an analysis. */
+function DemoResults({ running }: { running: boolean }) {
+  const goals = running ? demoGoalsRunning : demoGoals;
+  return (
+    <ResultsShell>
+      <ResultsHeading topic={demoTopic} fileCount={demoFiles.length} />
+      <GoalList
+        goals={goals}
+        total={demoTopic.goalCount}
+        phase={running ? "rechecking" : "completed"}
+        recheck={{ done: 1, total: 3 }}
+        files={demoFiles}
+        onOpenPdf={() => {}}
+      />
+      <ResultsNote />
+    </ResultsShell>
+  );
+}
 
 export function AnalysisResults() {
   const { analysisId } = useParams<{ analysisId: string }>();
+  if (analysisId === "demo" || analysisId === "demo-loopt")
+    return <DemoResults running={analysisId === "demo-loopt"} />;
+  return <LiveResults analysisId={analysisId} />;
+}
+
+function LiveResults({ analysisId }: { analysisId: string }) {
   const accessToken = useAccessToken(analysisId);
   const credentials = accessToken ? { analysisId, accessToken } : null;
   const status = useQuery(api.analyses.getStatus, credentials ?? "skip");
@@ -80,123 +178,85 @@ export function AnalysisResults() {
   const fileCount = results?.files.length || status?.files.length || 0;
 
   return (
-    <div className="site-shell results-shell">
-      <SiteHeader>
-        <Link href="/" className="back-link" onClick={() => saveSession(null)}>
-          Nieuwe analyse
-        </Link>
-      </SiteHeader>
-      <main className="results">
-        {unavailable ? (
-          <div className="result-state">
-            <h1>Analyse niet beschikbaar</h1>
-            <p>Open de analyse in het tabblad waarin je ze gestart hebt.</p>
-            <Link className="primary-button" href="/">
-              Start een nieuwe analyse
-            </Link>
-          </div>
-        ) : status === undefined ? (
-          <p className="page-loading" role="status">
-            Analyse laden…
-          </p>
-        ) : (
-          <>
-            <header className="results-heading">
-              <p className="results-context">
-                {status.topic.path
-                  .slice(0, -1)
-                  .map((p) => p.title)
-                  .join(" / ")}
-              </p>
-              <h1>{status.topic.title}</h1>
-              <div className="results-meta">
-                <span className="group-tag">
-                  {status.topic.group.title}
-                  <b title={status.topic.group.routeTitle}>
-                    {status.topic.group.routeCode}
-                  </b>
-                </span>
-                <span>
-                  {status.topic.goalCount}{" "}
-                  {status.topic.goalCount === 1 ? "leerdoel" : "leerdoelen"}
-                </span>
-                {fileCount > 0 && (
-                  <span>
-                    {fileCount} {fileCount === 1 ? "bestand" : "bestanden"}
-                  </span>
-                )}
-                <span>Op.stap v{status.topic.catalogVersion}</span>
-              </div>
-            </header>
-            {status.status === "failed" ? (
-              <div className="result-state">
-                <h2>De analyse is onderbroken</h2>
-                <p>{safeError(status.safeError)}</p>
-                <button
-                  className="primary-button"
-                  disabled={busy}
-                  onClick={async () => {
-                    if (!credentials) return;
-                    setBusy(true);
-                    setError("");
-                    try {
-                      await retry(credentials);
-                    } catch (e) {
-                      setError(safeError(e));
-                    } finally {
-                      setBusy(false);
-                    }
-                  }}
-                >
-                  {busy ? "Opnieuw starten…" : "Probeer opnieuw"}
-                </button>
-              </div>
-            ) : status.status === "draft" ? (
-              <div className="result-state">
-                <h2>Je analyse is nog niet gestart</h2>
-                <p>Voeg je lesmateriaal toe en vul je e-mailadres in.</p>
-                <Link className="primary-button" href="/materiaal">
-                  Ga naar mijn materiaal
-                </Link>
-              </div>
-            ) : !goals || !phase ? (
-              <p className="page-loading" role="status">
-                Leerdoelen laden…
-              </p>
-            ) : (
-              <>
-                <GoalList
-                  goals={goals}
-                  total={status.topic.goalCount}
-                  phase={phase}
-                  recheck={{
-                    done: status.recheckCompleted,
-                    total: status.recheckTotal,
-                  }}
-                  files={results?.files ?? []}
-                  onOpenPdf={(fileId, page) => void openPdf(fileId, page)}
-                />
-                {pending?.more && (
-                  <p className="results-more">
-                    En nog {pending.total - pending.goals.length} leerdoelen.
-                  </p>
-                )}
-                <p className="results-note">
-                  Krito beoordeelt of je lesmateriaal een leerdoel
-                  ondersteunt, niet of leerlingen het beheersen. Zekerheid
-                  beschrijft het vertrouwen van het model in de beoordeling;
-                  ze is geen dekkingspercentage of gekalibreerde kans.
+    <ResultsShell>
+      {unavailable ? (
+        <div className="result-state">
+          <h1>Analyse niet beschikbaar</h1>
+          <p>Open de analyse in het tabblad waarin je ze gestart hebt.</p>
+          <Link className="primary-button" href="/">
+            Start een nieuwe analyse
+          </Link>
+        </div>
+      ) : status === undefined ? (
+        <p className="page-loading" role="status">
+          Analyse laden…
+        </p>
+      ) : (
+        <>
+          <ResultsHeading topic={status.topic} fileCount={fileCount} />
+          {status.status === "failed" ? (
+            <div className="result-state">
+              <h2>De analyse is onderbroken</h2>
+              <p>{safeError(status.safeError)}</p>
+              <button
+                className="primary-button"
+                disabled={busy}
+                onClick={async () => {
+                  if (!credentials) return;
+                  setBusy(true);
+                  setError("");
+                  try {
+                    await retry(credentials);
+                  } catch (e) {
+                    setError(safeError(e));
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+              >
+                {busy ? "Opnieuw starten…" : "Probeer opnieuw"}
+              </button>
+            </div>
+          ) : status.status === "draft" ? (
+            <div className="result-state">
+              <h2>Je analyse is nog niet gestart</h2>
+              <p>Voeg je lesmateriaal toe en vul je e-mailadres in.</p>
+              <Link className="primary-button" href="/materiaal">
+                Ga naar mijn materiaal
+              </Link>
+            </div>
+          ) : !goals || !phase ? (
+            <p className="page-loading" role="status">
+              Leerdoelen laden…
+            </p>
+          ) : (
+            <>
+              <GoalList
+                goals={goals}
+                total={status.topic.goalCount}
+                phase={phase}
+                recheck={{
+                  done: status.recheckCompleted,
+                  total: status.recheckTotal,
+                }}
+                files={results?.files ?? []}
+                onOpenPdf={(fileId, page) => void openPdf(fileId, page)}
+              />
+              {pending?.more && (
+                <p className="results-more">
+                  En nog {pending.total - pending.goals.length} leerdoelen.
                 </p>
-              </>
-            )}
-          </>
-        )}
-        {error && (
-          <p className="form-error" role="alert">
-            {error}
-          </p>
-        )}
-      </main>
-    </div>
+              )}
+              <ResultsNote />
+            </>
+          )}
+        </>
+      )}
+      {error && (
+        <p className="form-error" role="alert">
+          {error}
+        </p>
+      )}
+    </ResultsShell>
   );
 }

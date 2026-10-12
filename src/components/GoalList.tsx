@@ -1,7 +1,7 @@
 "use client";
 import type { CSSProperties } from "react";
 import { SourceMarkup } from "./SourceMarkup";
-import { StatusIcon } from "./SiteHeader";
+import { StatusIcon } from "./brand";
 
 export type Verdict = "covered" | "partial" | "not_found" | "uncertain";
 export type ListGoal = {

@@ -1,12 +1,5 @@
 "use client";
-import {
-  useId,
-  useRef,
-  useState,
-  type CSSProperties,
-  type ReactNode,
-} from "react";
-import Image from "next/image";
+import { useId, useRef, useState, type ReactNode } from "react";
 import { useAction, useMutation } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
 import { api } from "../../convex/_generated/api";
@@ -23,13 +16,11 @@ import {
 } from "../../shared/fileTypes";
 import type { AnalysisSession } from "../lib/analysisSession";
 import { safeError } from "../lib/safeError";
-import { StatusIcon } from "./SiteHeader";
-import chalkboard from "../../public/illustrations/chalkboard.webp";
-import krito from "../../public/illustrations/krito-pointer.webp";
+import { StatusIcon } from "./brand";
+import { DropArt } from "./brand";
 type FileRow = NonNullable<
   FunctionReturnType<typeof api.analyses.getStatus>
 >["files"][number];
-type Burst = { id: number; x: number; y: number };
 function putFile(
   url: string,
   file: File,
@@ -91,7 +82,6 @@ export function UploadPanel({
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [dragging, setDragging] = useState(false),
-    [bursts, setBursts] = useState<Burst[]>([]),
     [progress, setProgress] = useState<Record<string, number>>({});
   const uploading = Object.values(progress);
   const overall = uploading.length
@@ -99,11 +89,6 @@ export function UploadPanel({
     : 0;
   const disabled = !enabled || busy;
 
-  function burst(x: number, y: number) {
-    const id = Date.now() + Math.random();
-    setBursts((b) => [...b, { id, x, y }]);
-    setTimeout(() => setBursts((b) => b.filter((p) => p.id !== id)), 1000);
-  }
   async function upload(chosen: File[]) {
     if (!chosen.length || busy) return;
     setError("");
@@ -163,15 +148,20 @@ export function UploadPanel({
       : files.length
         ? "filled"
         : "empty";
-  const lines = {
-    empty: ["Sleep je lesmateriaal hierheen", "of klik om bestanden te kiezen"],
-    dragging: ["Laat maar los!", "Krito neemt het over"],
-    uploading: ["Bestanden uploaden…", `${Math.round(overall)}%`],
-    filled: [
-      `${files.length} ${files.length === 1 ? "bestand" : "bestanden"} toegevoegd`,
-      "Nog meer? Sleep of klik.",
-    ],
-  }[state];
+  const lines = (
+    {
+      empty: [
+        "Sleep je lesmateriaal hierheen",
+        "of klik om bestanden te kiezen",
+      ],
+      dragging: ["Laat los om toe te voegen", "Je bestanden worden toegevoegd"],
+      uploading: ["Bestanden uploaden…", `${Math.round(overall)}%`],
+      filled: [
+        `${files.length} ${files.length === 1 ? "bestand" : "bestanden"} toegevoegd`,
+        "Nog meer? Sleep of klik.",
+      ],
+    } satisfies Record<string, [string, string]>
+  )[state];
 
   return (
     <section className="upload-panel" aria-labelledby={`${id}-title`}>
@@ -216,83 +206,11 @@ export function UploadPanel({
                 dragDepth.current = 0;
                 setDragging(false);
                 if (disabled) return;
-                const r = e.currentTarget.getBoundingClientRect();
-                burst(
-                  ((e.clientX - r.left) / r.width) * 100,
-                  ((e.clientY - r.top) / r.height) * 100,
-                );
                 void upload(Array.from(e.dataTransfer.files));
               }}
             >
-              <Image
-                src={chalkboard}
-                alt=""
-                priority
-                sizes="(max-width: 900px) 92vw, 760px"
-                className="board-image"
-                draggable={false}
-              />
-              <span className="board-surface">
-                <span className="board-glow" aria-hidden="true" />
-                <svg
-                  className="chalk-doodle"
-                  viewBox="0 0 120 120"
-                  aria-hidden="true"
-                >
-                  <path
-                    pathLength={1}
-                    d="M30 14h42l20 20v70c0 2-1 3-3 3H31c-2 0-3-1-3-3V17c0-2 1-3 2-3Z"
-                  />
-                  <path pathLength={1} d="M71 15v20h20" />
-                  <path pathLength={1} d="M60 40v42m-16-15 16 16 16-16" />
-                </svg>
-                <span className="chalk-text" key={state}>
-                  <span className="chalk-line chalk-line-big">{lines[0]}</span>
-                  <svg
-                    className="chalk-underline"
-                    viewBox="0 0 300 16"
-                    preserveAspectRatio="none"
-                    aria-hidden="true"
-                  >
-                    <path
-                      pathLength={1}
-                      d="M4 10c40-6 90-7 140-4s100 4 152-3"
-                    />
-                  </svg>
-                  <span className="chalk-line">{lines[1]}</span>
-                </span>
-                {state === "uploading" && (
-                  <span className="chalk-progress" aria-hidden="true">
-                    <span style={{ width: `${overall}%` }} />
-                  </span>
-                )}
-                {bursts.map((b) => (
-                  <span
-                    key={b.id}
-                    className="chalk-burst"
-                    style={{ left: `${b.x}%`, top: `${b.y}%` } as CSSProperties}
-                    aria-hidden="true"
-                  >
-                    {Array.from({ length: 10 }, (_, i) => (
-                      <i
-                        key={i}
-                        style={{ "--a": `${i * 36}deg` } as CSSProperties}
-                      />
-                    ))}
-                  </span>
-                ))}
-              </span>
+              <DropArt state={state} lines={lines} overall={overall} />
             </button>
-            <span className="krito-wrap" aria-hidden="true">
-              <Image
-                src={krito}
-                alt=""
-                priority
-                sizes="300px"
-                className="board-krito"
-                draggable={false}
-              />
-            </span>
           </div>
           <p id={`${id}-limits`} className="upload-limits">
             {ACCEPTED_LABEL}. Max. 20 bestanden, 10 MiB per bestand en 40 MiB
@@ -388,9 +306,7 @@ export function UploadPanel({
                   <li key={kind}>{kind}</li>
                 ))}
               </ul>
-              <p className="material-formats">
-                Werkt met {ACCEPTED_LABEL}.
-              </p>
+              <p className="material-formats">Werkt met {ACCEPTED_LABEL}.</p>
               <button
                 type="button"
                 className="secondary-button"

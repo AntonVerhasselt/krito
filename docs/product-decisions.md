@@ -24,7 +24,18 @@ This replaces individual-goal checkbox selection in original step 3 and the sele
 - The start page has one hero: title, intro and topic search on the left, the thinking-Krito illustration on the right. On small screens the illustration sits on top and the open search becomes fullscreen.
 - Choosing a topic moves to `/materiaal`: one centred column with the green dotted chalkboard as the PDF drop zone and Krito standing in front of it. The email field and start button appear under the board once files are added.
 - The results page is deliberately calmer than the rest of the site: a summary bar and one list row per goal, with the verdict icon on the left and the reasoning and evidence folded out per row. No filters. During rechecking, goals whose initial confidence was below 60 keep the loading icon until their independent Sol result is saved; all other results are shown as soon as the initial analysis finishes.
-- Brand assets live in `public/brand` and `public/illustrations`; the favicon is `src/app/icon.svg`.
+- ~~Brand assets live in `public/brand` and `public/illustrations`.~~ Superseded by the Groene pen identity below.
+
+## Groene pen identity (2026-10-12)
+
+- The mascot illustrations felt made for children rather than teachers. After comparing five directions, the owner chose **Groene pen**: a cool grey desk, white paper sheets and Krito's voice in green pen (many Flemish schools correct in green). The homepage hero is a realistic lesson document annotated in the margin with Op.stap goal codes; there are no mascots or stock images.
+- Type: Schibsted Grotesk for the interface, Carlito for anything quoted from a teacher's own document, Reenie Beanie only for short margin notes.
+- The homepage combines the strongest sections of five refinements (2026-10-12): the annotated lesson hero; the context beside the two sourced quotes on one sheet; how it works as three before/after pairs; the example report with a key to the verdict marks; two cards for what Krito does and what it does not do (struck in red, with a pen note "jij beslist"); a price section on one punched notepad sheet: "Krito is gratis" first, then a personal note from the maker, Anton, with a photo placeholder. Don't claim "no account" (accounts are planned) or mention the school e-mail there; an FAQ accordion where one question is open at a time; a punched closing sheet. Every section is 128px apart on desktop (96px tablet, 72px phone).
+- Verdict marks: a green tick (gedekt), a half-filled circle (gedeeltelijk gedekt), a red cross (niet gevonden) and a pencil question mark (onzeker). A goal still being checked shows a pen writing a short line. Hovering a result row circles its mark and tints the row.
+- The homepage header is sticky and has a menu (Hoe werkt het?, Voorbeeld, Prijs and a button that opens the search). On small screens the links fold into a menu button; the search button stays visible beside it.
+- The topic search never shows a loading state: it is usable immediately and the catalog loads in the background.
+- Brand marks live in `src/components/brand.tsx`; all styles in `src/app/globals.css`. The chalk illustrations and old brand icons were removed. The favicon is a green pen tick (`src/app/icon.svg`).
+- `/results/demo` and `/results/demo-loopt` show a fixed example of the results page, so the design can be checked without running an analysis.
 
 ## Homepage messaging (2026-10-09)
 

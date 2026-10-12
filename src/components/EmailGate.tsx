@@ -6,7 +6,7 @@ import { api } from "../../convex/_generated/api";
 import type { AnalysisSession } from "../lib/analysisSession";
 import { safeError } from "../lib/safeError";
 import { isPersonalEmail } from "../../shared/emailPolicy";
-import { StatusIcon } from "./SiteHeader";
+import { StatusIcon } from "./brand";
 export function EmailGate({
   session,
   onCancel,

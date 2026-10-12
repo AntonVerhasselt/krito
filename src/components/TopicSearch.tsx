@@ -1,9 +1,17 @@
 "use client";
-import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import { useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
 import { api } from "../../convex/_generated/api";
-import { StatusIcon } from "./SiteHeader";
+import { StatusIcon } from "./brand";
+import { OptionMark } from "./brand";
 export type Topic = FunctionReturnType<
   typeof api.goals.listGoalSets
 >["topics"][number];
@@ -28,7 +36,8 @@ export function TopicSearch({
   disabled = false,
 }: {
   selected: Topic | null | undefined;
-  catalogVersion: string;
+  /** Optional: without it the search uses the published catalog. */
+  catalogVersion?: string;
   onSelect: (topic: Topic) => void;
   disabled?: boolean;
 }) {
@@ -137,8 +146,19 @@ export function TopicSearch({
           viewBox="0 0 24 24"
           fill="none"
         >
-          <circle cx="10.5" cy="10.5" r="6.5" stroke="currentColor" strokeWidth="2.6" />
-          <path d="m15.5 15.5 5 5" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" />
+          <circle
+            cx="10.5"
+            cy="10.5"
+            r="6.5"
+            stroke="currentColor"
+            strokeWidth="2.6"
+          />
+          <path
+            d="m15.5 15.5 5 5"
+            stroke="currentColor"
+            strokeWidth="2.6"
+            strokeLinecap="round"
+          />
         </svg>
         <input
           ref={input}
@@ -239,8 +259,7 @@ export function TopicSearch({
                 onClick={() => choose(topic)}
               >
                 <span className="option-tick" aria-hidden="true">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src="/brand/mark.svg" alt="" width={30} height={24} />
+                  <OptionMark />
                 </span>
                 <span className="search-option-body">
                   <span className="search-option-title">
@@ -285,36 +304,38 @@ export function TopicSearch({
               <span>{topics.length - visible}</span>
             </button>
           )}
-          {result && topics.length <= visible && (result.more || previous.length > 0) && (
-            <div className="dropdown-pages">
-              {previous.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCursor(previous.at(-1) ?? null);
-                    setPrevious(previous.slice(0, -1));
-                    setVisible(STEP);
-                    setActive(-1);
-                  }}
-                >
-                  Vorige
-                </button>
-              )}
-              {result.more && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPrevious([...previous, cursor]);
-                    setCursor(result.cursor);
-                    setVisible(STEP);
-                    setActive(-1);
-                  }}
-                >
-                  Meer resultaten
-                </button>
-              )}
-            </div>
-          )}
+          {result &&
+            topics.length <= visible &&
+            (result.more || previous.length > 0) && (
+              <div className="dropdown-pages">
+                {previous.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCursor(previous.at(-1) ?? null);
+                      setPrevious(previous.slice(0, -1));
+                      setVisible(STEP);
+                      setActive(-1);
+                    }}
+                  >
+                    Vorige
+                  </button>
+                )}
+                {result.more && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPrevious([...previous, cursor]);
+                      setCursor(result.cursor);
+                      setVisible(STEP);
+                      setActive(-1);
+                    }}
+                  >
+                    Meer resultaten
+                  </button>
+                )}
+              </div>
+            )}
         </div>
       )}
     </div>
