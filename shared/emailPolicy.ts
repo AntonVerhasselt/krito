@@ -24,6 +24,8 @@ const personalDomains = new Set([
   "yahoo.be",
   "yahoo.fr",
   "ymail.com",
+  "outlook.fr",
+  "hotmail.co.uk",
   // Belgian internet providers
   "telenet.be",
   "skynet.be",
@@ -33,6 +35,14 @@ const personalDomains = new Set([
   "belgacom.net",
   "edpnet.be",
   "voo.be",
+  "skynet.net",
+  "belgacom.be",
+  "tvcablenet.be",
+  "mobistar.be",
+  "orange.be",
+  "base.be",
+  "dommel.be",
+  "easynet.be",
   // Other free mailboxes
   "aol.com",
   "gmx.com",
