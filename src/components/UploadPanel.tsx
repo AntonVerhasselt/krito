@@ -15,6 +15,8 @@ import {
   fileTypeOf,
 } from "../../shared/fileTypes";
 import type { AnalysisSession } from "../lib/analysisSession";
+import { track, captureAnalyticsError } from "../lib/analytics";
+import { analyticsErrorCode } from "../../shared/analytics";
 import { safeError } from "../lib/safeError";
 import { StatusIcon } from "./brand";
 import { DropArt } from "./brand";
@@ -89,14 +91,18 @@ export function UploadPanel({
     : 0;
   const disabled = !enabled || busy;
 
-  async function upload(chosen: File[]) {
+  async function upload(chosen: File[], method: "picker" | "drop") {
     if (!chosen.length || busy) return;
     setError("");
+    const totalBytes = chosen.reduce((sum, f) => sum + f.size, 0);
+    track("upload_files_selected", { file_count: chosen.length, total_bytes: totalBytes, interaction_method: method });
     if (chosen.some((f) => !fileTypeOf(f.name))) {
+      track("upload_selection_rejected", { reason: "unsupported_type", file_count: chosen.length, total_bytes: totalBytes });
       setError(safeError("unsupported_type"));
       return;
     }
     if (chosen.some((f) => !f.size || f.size > MAX_FILE_BYTES)) {
+      track("upload_selection_rejected", { reason: "file_too_large", file_count: chosen.length, total_bytes: totalBytes });
       setError(safeError("file_too_large"));
       return;
     }
@@ -106,26 +112,51 @@ export function UploadPanel({
         files.reduce((sum, f) => sum + f.bytes, 0) >
         MAX_TOTAL_BYTES
     ) {
+      track("upload_selection_rejected", { reason: "total_too_large", file_count: chosen.length, total_bytes: totalBytes });
       setError(safeError("total_too_large"));
       return;
     }
+    const batchId = crypto.randomUUID();
+    const batchStarted = Date.now();
+    let completed = 0;
+    let attempted = 0;
+    let stage = "draft";
+    let currentFileId: string | undefined;
+    let analysisId = session?.analysisId;
+    track("upload_batch_started", { batch_id: batchId, file_count: chosen.length, total_bytes: totalBytes });
     setBusy(true);
     onBusy(true);
     try {
       const credentials = await ensureDraft();
+      analysisId = credentials.analysisId;
       for (const file of chosen) {
+        attempted++;
+        stage = "registration";
+        currentFileId = undefined;
+        const type = fileTypeOf(file.name)!;
         const upload = await requestUpload({
           ...credentials,
           clientFileId: crypto.randomUUID(),
           name: file.name,
           bytes: file.size,
         });
+        currentFileId = upload.fileId;
+        stage = "transfer";
+        const transferStarted = Date.now();
+        track("upload_started", { analysis_id: analysisId, batch_id: batchId, position: attempted,
+          extension: type.extension, file_kind: type.kind, bytes: file.size });
+
         setProgress((p) => ({ ...p, [upload.fileId]: 0 }));
         try {
           await putFile(upload.uploadUrl, file, upload.contentType, (value) =>
             setProgress((p) => ({ ...p, [upload.fileId]: value })),
           );
+          stage = "acknowledgement";
           await complete({ ...credentials, fileId: upload.fileId });
+          completed++;
+          track("upload_completed", { analysis_id: analysisId, file_id: upload.fileId,
+            batch_id: batchId, bytes: file.size, extension: type.extension, file_kind: type.kind,
+            duration_ms: Date.now() - transferStarted });
         } finally {
           setProgress((p) => {
             const next = { ...p };
@@ -135,8 +166,15 @@ export function UploadPanel({
         }
       }
     } catch (error) {
+      const props = { analysis_id: analysisId, file_id: currentFileId, batch_id: batchId,
+        stage, error_code: analyticsErrorCode(error) };
+      track("upload_failed", props);
+      captureAnalyticsError(error, "file_upload", props);
       setError(safeError(error));
     } finally {
+      track("upload_batch_finished", { analysis_id: analysisId, batch_id: batchId,
+        completed_count: completed, failed_count: Number(completed < attempted || stage === "draft"),
+        unattempted_count: chosen.length - attempted, duration_ms: Date.now() - batchStarted });
       setBusy(false);
       onBusy(false);
     }
@@ -179,7 +217,7 @@ export function UploadPanel({
         onChange={(e) => {
           const chosen = Array.from(e.target.files ?? []);
           e.target.value = "";
-          void upload(chosen);
+          void upload(chosen, "picker");
         }}
       />
       <div className="upload-layout">
@@ -190,7 +228,7 @@ export function UploadPanel({
               className="board"
               disabled={disabled}
               aria-describedby={`${id}-limits`}
-              onClick={() => input.current?.click()}
+              onClick={() => { track("upload_picker_opened", { source: "upload_board" }); input.current?.click(); }}
               onDragEnter={(e) => {
                 e.preventDefault();
                 dragDepth.current += 1;
@@ -206,7 +244,7 @@ export function UploadPanel({
                 dragDepth.current = 0;
                 setDragging(false);
                 if (disabled) return;
-                void upload(Array.from(e.dataTransfer.files));
+                void upload(Array.from(e.dataTransfer.files), "drop");
               }}
             >
               <DropArt state={state} lines={lines} overall={overall} />
@@ -247,7 +285,7 @@ export function UploadPanel({
                       ? "covered"
                       : "not_found";
                 return (
-                  <li key={f.fileId} className={`file-slip slip-${state}`}>
+                  <li key={f.fileId} className={`file-slip slip-${state} ph-no-capture`} data-private>
                     <StatusIcon status={state} size={30} />
                     <div className="slip-body">
                       <strong title={f.name}>{f.name}</strong>
@@ -279,12 +317,15 @@ export function UploadPanel({
                       disabled={busy}
                       onClick={async () => {
                         if (!session) return;
+                        track("file_remove_clicked", { analysis_id: session.analysisId, file_id: f.fileId });
                         try {
                           await remove({
                             ...session,
                             fileId: f.fileId as Id<"files">,
                           });
                         } catch (e) {
+                          track("file_remove_failed", { analysis_id: session.analysisId, file_id: f.fileId, error_code: analyticsErrorCode(e) });
+                          captureAnalyticsError(e, "file_remove", { analysis_id: session.analysisId });
                           setError(safeError(e));
                         }
                       }}
@@ -311,7 +352,7 @@ export function UploadPanel({
                 type="button"
                 className="secondary-button"
                 disabled={disabled}
-                onClick={() => input.current?.click()}
+                onClick={() => { track("upload_picker_opened", { source: "choose_files" }); input.current?.click(); }}
               >
                 Kies bestanden
               </button>

@@ -1,9 +1,11 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useMutation } from "convex/react";
 import { useRouter } from "next/navigation";
 import { api } from "../../convex/_generated/api";
 import type { AnalysisSession } from "../lib/analysisSession";
+import { analyticsContext, track, captureAnalyticsError } from "../lib/analytics";
+import { analyticsErrorCode } from "../../shared/analytics";
 import { safeError } from "../lib/safeError";
 import { isPersonalEmail } from "../../shared/emailPolicy";
 import { StatusIcon } from "./brand";
@@ -17,6 +19,7 @@ export function EmailGate({
   const [email, setEmail] = useState(""),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
+  const typingStarted = useRef(false);
   const submit = useMutation(api.analyses.submit);
   const router = useRouter();
   return (
@@ -26,15 +29,21 @@ export function EmailGate({
         e.preventDefault();
         if (busy) return;
         if (isPersonalEmail(email)) {
+          track("email_validation_failed", { analysis_id: session.analysisId, reason: "personal_email" });
           setError(safeError("personal_email"));
           return;
         }
+        track("email_submit_requested", { analysis_id: session.analysisId });
         setBusy(true);
         setError("");
         try {
-          const id = await submit({ ...session, email });
+          const id = await submit({ ...session, email, analyticsContext: analyticsContext() });
+          // Results restore analytics identity from their protected status response.
+          // No extra analytics request may delay an already accepted submission.
           router.push(`/results/${id}`);
         } catch (e) {
+          track("email_submit_failed", { analysis_id: session.analysisId, error_code: analyticsErrorCode(e) });
+          captureAnalyticsError(e, "email_submit", { analysis_id: session.analysisId });
           setError(safeError(e));
           setBusy(false);
         }
@@ -72,7 +81,12 @@ export function EmailGate({
         placeholder="naam@jouwschool.be"
         aria-invalid={!!error || undefined}
         aria-describedby={error ? "analysis-email-error" : undefined}
+        onInvalid={() => track("email_validation_failed", { analysis_id: session.analysisId, reason: "invalid_email" })}
         onChange={(e) => {
+          if (e.target.value && !typingStarted.current) {
+            typingStarted.current = true;
+            track("email_typing_started", { analysis_id: session.analysisId });
+          }
           setEmail(e.target.value);
           if (error) setError("");
         }}

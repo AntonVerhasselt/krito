@@ -7,6 +7,7 @@ import {
   topicSnapshot,
 } from "./analysisValidators";
 import { v } from "convex/values";
+import { analyticsContextValidator } from "./analytics";
 import {
   counts,
   goalFields,
@@ -101,6 +102,9 @@ export default defineSchema({
     manifest: v.optional(v.array(manifest)),
     promptVersion: v.optional(v.string()),
     attempt: v.number(),
+    analyticsContext: v.optional(analyticsContextValidator),
+    attemptStartedAt: v.optional(v.number()),
+    preparationStartedAt: v.optional(v.number()),
     recheckTotal: v.number(),
     recheckCompleted: v.number(),
     recoveryCount: v.number(),
@@ -174,6 +178,8 @@ export default defineSchema({
       v.literal("interrupted"),
     ),
     responseId: v.optional(v.string()),
+    generationStartedAt: v.optional(v.number()),
+    telemetryGeneration: v.optional(v.number()),
     retryCount: v.number(),
     pollCount: v.number(),
     pollFailures: v.number(),

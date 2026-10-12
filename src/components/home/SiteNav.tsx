@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useId, useRef, useState } from "react";
+import { track } from "../../lib/analytics";
 import { focusSearch } from "../BackToSearch";
 
 const links = [
@@ -21,12 +22,13 @@ export function SiteNav() {
     if (!open) return;
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") {
+        track("mobile_menu_closed", { reason: "escape" });
         setOpen(false);
         nav.current?.querySelector<HTMLButtonElement>(".nav-toggle")?.focus();
       }
     }
     function onPointer(e: PointerEvent) {
-      if (!nav.current?.contains(e.target as Node)) setOpen(false);
+      if (!nav.current?.contains(e.target as Node)) { track("mobile_menu_closed", { reason: "outside" }); setOpen(false); }
     }
     document.addEventListener("keydown", onKey);
     document.addEventListener("pointerdown", onPointer);
@@ -48,7 +50,7 @@ export function SiteNav() {
       <ul id={`${id}-menu`} className="nav-menu">
         {links.map((l) => (
           <li key={l.href}>
-            <a href={l.href} onClick={() => setOpen(false)}>
+            <a href={l.href} onClick={() => { track("navigation_link_clicked", { destination: l.href.slice(1), source: "header" }); if (open) track("mobile_menu_closed", { reason: "navigation" }); setOpen(false); }}>
               <span className="nav-label">{l.label}</span>
               <span className="nav-hint">{l.hint}</span>
             </a>
@@ -59,6 +61,8 @@ export function SiteNav() {
         type="button"
         className="primary-button nav-cta"
         onClick={() => {
+          track("search_cta_clicked", { source: "header" });
+          if (open) track("mobile_menu_closed", { reason: "search" });
           setOpen(false);
           focusSearch();
         }}
@@ -70,7 +74,7 @@ export function SiteNav() {
         className="nav-toggle"
         aria-expanded={open}
         aria-controls={`${id}-menu`}
-        onClick={() => setOpen(!open)}
+        onClick={() => { track(open ? "mobile_menu_closed" : "mobile_menu_opened", { reason: "toggle" }); setOpen(!open); }}
       >
         <svg
           aria-hidden="true"

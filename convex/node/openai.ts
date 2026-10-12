@@ -226,19 +226,25 @@ export const poll = internalAction({
       });
       return;
     }
+    const transientTerminal = response.status === "failed" &&
+      ["server_error", "rate_limit_exceeded"].includes(response.error?.code ?? "");
+    const terminalCode = transientTerminal ? "provider_transient" :
+      response.status === "incomplete" ? "request_too_large" : "provider_request_rejected";
+    // Only usage and approved metadata cross this boundary; never provider content.
+    // Capture independently of output validation, so rejected output still counts usage.
+    await ctx.runMutation(internal.workflow.providerTerminal, {
+      ...args, isError: response.status !== "completed",
+      errorCode: response.status !== "completed" ? terminalCode : undefined,
+      inputTokens: response.usage?.input_tokens,
+      outputTokens: response.usage?.output_tokens,
+      cachedTokens: response.usage?.input_tokens_details?.cached_tokens,
+      reasoningTokens: response.usage?.output_tokens_details?.reasoning_tokens,
+    }).catch(() => {});
     if (response.status !== "completed") {
-      const code = response.error?.code ?? "";
-      const transient =
-        response.status === "failed" &&
-        ["server_error", "rate_limit_exceeded"].includes(code);
       await ctx.runMutation(internal.workflow.failed, {
         ...args,
-        code: transient
-          ? "provider_transient"
-          : response.status === "incomplete"
-            ? "request_too_large"
-            : "provider_request_rejected",
-        retryable: transient,
+        code: terminalCode,
+        retryable: transientTerminal,
         interrupted: false,
       });
       return;

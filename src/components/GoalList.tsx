@@ -1,5 +1,7 @@
 "use client";
-import type { CSSProperties } from "react";
+import { useRef, type CSSProperties } from "react";
+import { track } from "../lib/analytics";
+import type { AnalyticsProperties } from "../../shared/analytics";
 import { SourceMarkup } from "./SourceMarkup";
 import { Chevron, ExternalIcon, StatusIcon } from "./brand";
 import { RECHECK_MODEL } from "../../shared/analysisSchema";
@@ -132,6 +134,7 @@ export function GoalList({
   recheck = { done: 0, total: 0 },
   files = [],
   onOpenPdf,
+  analytics = {},
 }: {
   goals: ListGoal[];
   total?: number;
@@ -139,7 +142,18 @@ export function GoalList({
   recheck?: { done: number; total: number };
   files?: { fileId: string; name: string }[];
   onOpenPdf?: (fileId: string, page: number) => void;
+  analytics?: AnalyticsProperties;
 }) {
+  const expanded = useRef(new Map<string, boolean>());
+  function toggle(key: string, open: boolean, goal: ListGoal, clarification = false) {
+    if ((expanded.current.get(key) ?? false) === open) return;
+    expanded.current.set(key, open);
+    const event = clarification
+      ? open ? "result_clarification_opened" : "result_clarification_closed"
+      : analytics.is_demo ? open ? "example_goal_expanded" : "example_goal_collapsed"
+      : open ? "result_goal_expanded" : "result_goal_collapsed";
+    track(event, { ...analytics, goal_id: goal.goalId, verdict: goal.result?.status, needs_review: !!goal.needsReview });
+  }
   return (
     <>
       <Summary goals={goals} total={total} phase={phase} recheck={recheck} />
@@ -195,12 +209,12 @@ export function GoalList({
             );
           return (
             <li key={g.goalId} className="goal-row" style={style}>
-              <details className={`result-card note-${r.status}`}>
+              <details className={`result-card note-${r.status}`} onToggle={(e) => toggle(g.goalId, e.currentTarget.open, g)}>
                 <summary className="goal-row-head">
                   {head}
                   <Chevron />
                 </summary>
-                <div className="result-detail">
+                <div className="result-detail ph-no-capture" data-private>
                   <div className="detail-col">
                     <h3>Beoordeling</h3>
                     <p className="explanation">{r.explanation}</p>
@@ -238,7 +252,7 @@ export function GoalList({
                               <button
                                 type="button"
                                 className="page-link"
-                                onClick={() => onOpenPdf(e.fileId, e.page)}
+                                onClick={() => { track("evidence_clicked", { ...analytics, goal_id: g.goalId, file_id: e.fileId, page: e.page, evidence_kind: e.kind }); onOpenPdf(e.fileId, e.page); }}
                               >
                                 <span className="page-link-name">
                                   {
@@ -284,13 +298,13 @@ export function GoalList({
                         : "Beoordeling met Luna"}
                     </span>
                     {g.sourceUrl && (
-                      <a href={g.sourceUrl} target="_blank" rel="noreferrer">
+                      <a href={g.sourceUrl} target="_blank" rel="noreferrer" onClick={() => track("official_source_clicked", { ...analytics, goal_id: g.goalId, source: "result" })}>
                         Officiële bron <ExternalIcon />
                       </a>
                     )}
                   </div>
                   {g.clarification && (
-                    <details className="clarification">
+                    <details className="clarification" onToggle={(e) => toggle(`${g.goalId}:clarification`, e.currentTarget.open, g, true)}>
                       <summary>Officiële toelichting</summary>
                       <div className="source-clarification">
                         <SourceMarkup html={g.clarification} />

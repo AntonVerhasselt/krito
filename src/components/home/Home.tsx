@@ -16,6 +16,7 @@ import { FreeMark } from "./FreeMark";
 import { LessonSheet } from "./LessonSheet";
 import { StepPairs } from "./StepPairs";
 import { SiteNav } from "./SiteNav";
+import { HomeAnalytics } from "./HomeAnalytics";
 
 /* Claims follow docs/product-decisions.md. */
 
@@ -130,11 +131,12 @@ function Struck() {
 export function Home() {
   return (
     <div className="site-shell">
+      <HomeAnalytics />
       <SiteHeader sticky>
         <SiteNav />
       </SiteHeader>
       <main>
-        <section className="hero" aria-labelledby="hero-title">
+        <section className="hero" aria-labelledby="hero-title" data-landing-section="hero">
           <div className="hero-copy">
             <h1 id="hero-title" className="hero-title">
               Klopt je les nog met het nieuwe leerplan?
@@ -149,7 +151,7 @@ export function Home() {
           <LessonSheet />
         </section>
 
-        <section className="home-section why" aria-labelledby="why-title">
+        <section className="home-section why" aria-labelledby="why-title" data-landing-section="why">
           <div className="why-copy">
             <h2 id="why-title">
               <Clause>Te veel werk</Clause> <Clause>naast de klas</Clause>
@@ -167,7 +169,7 @@ export function Home() {
               <figure key={q.href} className="source">
                 <blockquote>{q.text}</blockquote>
                 <figcaption>
-                  <a href={q.href} target="_blank" rel="noreferrer">
+                  <a href={q.href} target="_blank" rel="noreferrer" data-external-reference>
                     {q.source} <ExternalIcon />
                   </a>
                 </figcaption>
@@ -178,6 +180,7 @@ export function Home() {
 
         <section
           id="hoe-werkt-het"
+          data-landing-section="steps"
           className="home-section steps"
           aria-labelledby="steps-title"
         >
@@ -190,6 +193,7 @@ export function Home() {
 
         <section
           id="voorbeeld"
+          data-landing-section="example"
           className="home-section demo"
           aria-labelledby="demo-title"
         >
@@ -228,7 +232,7 @@ export function Home() {
           </div>
         </section>
 
-        <section className="home-section scope" aria-labelledby="scope-title">
+        <section className="home-section scope" aria-labelledby="scope-title" data-landing-section="scope">
           <h2 id="scope-title">
             <Clause>Krito wijst aan.</Clause> <Clause>Jij beslist.</Clause>
           </h2>
@@ -267,6 +271,7 @@ export function Home() {
 
         <section
           id="prijs"
+          data-landing-section="price"
           className="home-section price"
           aria-labelledby="price-title"
         >
@@ -324,7 +329,7 @@ export function Home() {
           </div>
         </section>
 
-        <section className="home-section faq" aria-labelledby="faq-title">
+        <section className="home-section faq" aria-labelledby="faq-title" data-landing-section="faq">
           <div className="section-rail">
             <h2 id="faq-title">Voor je begint</h2>
             <p className="rail-lede">
@@ -332,8 +337,8 @@ export function Home() {
             </p>
           </div>
           <div className="section-body faq-list">
-            {faq.map((item) => (
-              <details key={item.q} name="faq">
+            {faq.map((item, index) => (
+              <details key={item.q} name="faq" data-faq-id={`faq_${index + 1}`}>
                 <summary>
                   {item.q}
                   <Chevron />
@@ -346,6 +351,7 @@ export function Home() {
 
         <section
           className="home-section closing"
+          data-landing-section="closing"
           aria-labelledby="closing-title"
         >
           <div className="leaf closing-leaf">

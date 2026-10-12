@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withPostHogConfig } from "@posthog/nextjs-config";
 
 const nextConfig: NextConfig = {
   /* config options here */
@@ -19,4 +20,14 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default process.env.POSTHOG_PERSONAL_API_KEY && process.env.POSTHOG_PROJECT_ID
+  ? withPostHogConfig(nextConfig, {
+      personalApiKey: process.env.POSTHOG_PERSONAL_API_KEY,
+      projectId: process.env.POSTHOG_PROJECT_ID,
+      host: "https://eu.posthog.com",
+      // Next 16.4's generated server chunks do not all carry native debug IDs.
+      // Let PostHog inject IDs before uploading and bind maps to this release.
+      sourcemaps: { enabled: true, deleteAfterUpload: true, releaseMode: "symbol-set", releaseName: "krito",
+        releaseVersion: process.env.VERCEL_GIT_COMMIT_SHA ?? process.env.NEXT_PUBLIC_KRITO_RELEASE },
+    })
+  : nextConfig;

@@ -2,6 +2,8 @@
 
 import { ConvexProvider, ConvexReactClient } from "convex/react";
 import { useState, type ReactNode } from "react";
+import { AnalyticsConsent } from "../components/AnalyticsConsent";
+import { AnalyticsLifecycle } from "../components/AnalyticsLifecycle";
 
 export function Providers({ children }: { children: ReactNode }) {
   const [client] = useState(() => {
@@ -12,5 +14,5 @@ export function Providers({ children }: { children: ReactNode }) {
     return new ConvexReactClient(url);
   });
 
-  return <ConvexProvider client={client}>{children}</ConvexProvider>;
+  return <ConvexProvider client={client}><AnalyticsLifecycle />{children}<AnalyticsConsent /></ConvexProvider>;
 }

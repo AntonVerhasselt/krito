@@ -9,6 +9,8 @@ import { fileKeys } from "./files";
 import type { Doc, Id } from "./_generated/dataModel";
 import { result } from "./analysisValidators";
 import { validateAnalysis, isCurrentRun } from "../shared/validateAnalysis";
+import { captureAnalysis, captureAnalysisException } from "./analytics";
+import { analyticsErrorCode, type AnalyticsProperties } from "../shared/analytics";
 import {
   PRIMARY_MODEL,
   RECHECK_BELOW_CONFIDENCE,
@@ -60,7 +62,9 @@ export const begin = internalMutation({
   handler: async (ctx, args) => {
     const a = await ctx.db.get(args.analysisId);
     if (a?.status !== "queued" || a.attempt !== args.attempt) return;
-    await ctx.db.patch(a._id, { status: "preparing", updatedAt: Date.now() });
+    await ctx.db.patch(a._id, { status: "preparing", preparationStartedAt: Date.now(), updatedAt: Date.now() });
+    await captureAnalysis(ctx, a, "analysis_started", { duration_ms: Date.now() - (a.attemptStartedAt ?? a.submittedAt ?? a.createdAt) });
+    await captureAnalysis(ctx, a, "analysis_preparation_started");
     await ctx.scheduler.runAfter(0, internal.node.pdf.prepare, args);
   },
 });
@@ -111,6 +115,7 @@ export const prepared = internalMutation({
     )
       return;
     await ctx.db.patch(a._id, { status: "checking", updatedAt: Date.now() });
+    await captureAnalysis(ctx, a, "analysis_preparation_completed", { duration_ms: Date.now() - (a.preparationStartedAt ?? a.updatedAt) });
     const runId = await insertRun(ctx, a, "initial", 0);
     await ctx.scheduler.runAfter(0, internal.node.openai.startInitialAnalysis, {
       runId,
@@ -128,6 +133,8 @@ export const preparationFailed = internalMutation({
       safeError: "preparation_failed",
       updatedAt: Date.now(),
     });
+    await captureAnalysis(ctx, a, "analysis_failed", { stage: "preparing", error_code: "preparation_failed" });
+    await captureAnalysisException(ctx, a, "preparation_failed", "analysis_preparation");
   },
 });
 export const claimCreate = internalMutation({
@@ -158,6 +165,7 @@ export const claimCreate = internalMutation({
     const model = run.stage === "initial" ? PRIMARY_MODEL : RECHECK_MODEL;
     await ctx.db.patch(run._id, {
       status: "creating",
+      generationStartedAt: Date.now(),
       deadline: Date.now() + 20 * 60_000,
       updatedAt: Date.now(),
       requestShape: {
@@ -166,6 +174,9 @@ export const claimCreate = internalMutation({
         fileIds: a.manifest.map((f) => f.fileId),
         detail: "auto",
       },
+    });
+    await captureAnalysis(ctx, a, run.stage === "initial" ? "analysis_initial_check_started" : "analysis_goal_recheck_started", {
+      run_id: run._id, generation: run.generation, goal_id: run.goalId, model,
     });
     return {
       model,
@@ -297,7 +308,58 @@ async function advance(ctx: MutationCtx, a: Doc<"analyses">) {
     updatedAt: Date.now(),
     completedAt: Date.now(),
   });
+  await captureAnalysis(ctx, a, "analysis_completed", {
+    duration_ms: Date.now() - (a.attemptStartedAt ?? a.submittedAt ?? a.createdAt),
+    total_elapsed_ms: Date.now() - (a.submittedAt ?? a.createdAt),
+    file_count: a.manifest?.length ?? 0,
+    page_count: a.manifest?.reduce((sum, f) => sum + f.pageCount, 0) ?? 0,
+    recheck_count: runs.filter((r) => r.stage === "recheck").length,
+    recheck_completed: runs.filter((r) => r.stage === "recheck" && r.status === "completed").length,
+    review_count: goals.filter((g) => g.needsReview).length,
+    covered_count: goals.filter((g) => g.finalResult?.status === "covered").length,
+    partial_count: goals.filter((g) => g.finalResult?.status === "partial").length,
+    not_found_count: goals.filter((g) => g.finalResult?.status === "not_found").length,
+    uncertain_count: goals.filter((g) => g.finalResult?.status === "uncertain").length,
+  });
 }
+
+async function captureGeneration(
+  ctx: MutationCtx, a: Doc<"analyses">, run: Doc<"aiRuns">,
+  extra: AnalyticsProperties,
+) {
+  if (run.telemetryGeneration === run.generation) return;
+  await ctx.db.patch(run._id, { telemetryGeneration: run.generation });
+  await captureAnalysis(ctx, a, "$ai_generation", {
+    run_id: run._id, generation: run.generation, stage: run.stage,
+    goal_id: run.goalId, retry_count: run.retryCount, prompt_version: a.promptVersion,
+    $ai_trace_id: `${a._id}:${a.attempt}`, $ai_span_id: `${run._id}:${run.generation}`,
+    $ai_span_name: run.stage, $ai_model: run.requestShape?.model,
+    $ai_provider: "openai", $ai_stream: false,
+    $ai_latency: (Date.now() - (run.generationStartedAt ?? run.updatedAt)) / 1000,
+    ...extra,
+  });
+}
+
+// Capture provider terminal usage before parsing/validating output. Persistence retries
+// poll the same generation, and must not count token usage twice.
+export const providerTerminal = internalMutation({
+  args: {
+    ...runArgs,
+    isError: v.boolean(), errorCode: v.optional(v.string()),
+    inputTokens: v.optional(v.number()), outputTokens: v.optional(v.number()),
+    cachedTokens: v.optional(v.number()), reasoningTokens: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const state = await active(ctx, args.runId, args.generation);
+    if (!state || state.run.status !== "polling") return;
+    await captureGeneration(ctx, state.a, state.run, {
+      $ai_is_error: args.isError,
+      $ai_error: args.isError ? analyticsErrorCode(args.errorCode) : undefined,
+      $ai_input_tokens: args.inputTokens, $ai_output_tokens: args.outputTokens,
+      $ai_cache_read_input_tokens: args.cachedTokens, $ai_reasoning_tokens: args.reasoningTokens,
+    });
+  },
+});
 async function finishFailure(
   ctx: MutationCtx,
   a: Doc<"analyses">,
@@ -306,12 +368,15 @@ async function finishFailure(
   retryable: boolean,
   interrupted: boolean,
 ) {
+  await captureGeneration(ctx, a, run, { $ai_is_error: true, $ai_error: analyticsErrorCode(code) });
+  await captureAnalysisException(ctx, a, code, "ai_generation", { run_id: run._id, stage: run.stage, generation: run.generation });
   if (retryable && run.retryCount < 2 && !interrupted) {
     const generation = run.generation + 1;
     await ctx.db.patch(run._id, {
       generation,
       status: "pending",
       responseId: undefined,
+      generationStartedAt: undefined,
       pollLeaseUntil: undefined,
       retryCount: run.retryCount + 1,
       pollCount: 0,
@@ -319,6 +384,10 @@ async function finishFailure(
       safeError: code,
       deadline: Date.now() + 20 * 60_000,
       updatedAt: Date.now(),
+    });
+    await captureAnalysis(ctx, a, "ai_run_retry_scheduled", {
+      run_id: run._id, generation, stage: run.stage, retry_count: run.retryCount + 1,
+      error_code: analyticsErrorCode(code),
     });
     await ctx.scheduler.runAfter(
       5_000 * (run.retryCount + 1),
@@ -335,13 +404,17 @@ async function finishFailure(
     pollLeaseUntil: undefined,
     updatedAt: Date.now(),
   });
-  if (run.stage === "initial")
+  if (run.stage === "initial") {
     await ctx.db.patch(a._id, {
       status: "failed",
       safeError: code,
       updatedAt: Date.now(),
     });
-  else {
+    await captureAnalysis(ctx, a, "analysis_failed", {
+      stage: "initial", error_code: analyticsErrorCode(code), run_id: run._id,
+      duration_ms: Date.now() - (a.attemptStartedAt ?? a.submittedAt ?? a.createdAt),
+    });
+  } else {
     const goal = await ctx.db
       .query("analysisGoals")
       .withIndex("by_analysis_goal", (q) =>
@@ -360,6 +433,10 @@ async function finishFailure(
       recheckCompleted: a.recheckCompleted + 1,
       updatedAt: Date.now(),
     });
+    await captureAnalysis(ctx, a, "analysis_goal_recheck_failed", {
+      run_id: run._id, goal_id: run.goalId, generation: run.generation,
+      error_code: analyticsErrorCode(code), fallback_used: true, needs_review: true,
+    });
     await advance(ctx, a);
   }
   if (run.responseId)
@@ -377,7 +454,7 @@ export const failed = internalMutation({
   },
   handler: async (ctx, args) => {
     const state = await active(ctx, args.runId, args.generation);
-    if (!state) return;
+    if (!state || !["creating", "polling"].includes(state.run.status)) return;
     // An uncertain response-ID save can have committed. Keep polling that known ID.
     if (
       args.interrupted &&
@@ -417,6 +494,10 @@ export const accepted = internalMutation({
       status: "completed",
       pollLeaseUntil: undefined,
       updatedAt: Date.now(),
+    });
+    await captureAnalysis(ctx, a, run.stage === "initial" ? "analysis_initial_check_completed" : "analysis_goal_recheck_completed", {
+      run_id: run._id, generation: run.generation, goal_id: run.goalId,
+      duration_ms: Date.now() - (run.generationStartedAt ?? run.updatedAt),
     });
     for (const r of validated.results) {
       const goal = await ctx.db
@@ -458,6 +539,8 @@ export const accepted = internalMutation({
         recheckTotal: rechecks.length,
         updatedAt: Date.now(),
       });
+      if (rechecks.length)
+        await captureAnalysis(ctx, a, "analysis_rechecking_started", { recheck_count: rechecks.length });
     } else
       await ctx.db.patch(a._id, {
         recheckCompleted: a.recheckCompleted + 1,
@@ -490,12 +573,16 @@ export const recover = internalMutation({
             safeError: "preparation_failed",
             updatedAt: now,
           });
+          await captureAnalysis(ctx, a, "workflow_recovery_exhausted", { stage: status, recovery_count: a.recoveryCount });
+          await captureAnalysis(ctx, a, "analysis_failed", { stage: status, error_code: "preparation_failed" });
+          await captureAnalysisException(ctx, a, "preparation_failed", "workflow_recovery");
           continue;
         }
         await ctx.db.patch(a._id, {
           recoveryCount: a.recoveryCount + 1,
           updatedAt: now,
         });
+        await captureAnalysis(ctx, a, "workflow_recovery_scheduled", { stage: status, recovery_count: a.recoveryCount + 1 });
         await ctx.scheduler.runAfter(
           0,
           status === "queued"
@@ -544,6 +631,7 @@ export const recover = internalMutation({
           updatedAt: now,
           pollLeaseUntil: undefined,
         });
+        await captureAnalysis(ctx, a, "workflow_recovery_scheduled", { stage: status, run_id: run._id, generation: run.generation });
         await ctx.scheduler.runAfter(
           0,
           status === "polling"
@@ -571,6 +659,11 @@ export const recover = internalMutation({
           safeError: "upload_validation_failed",
           updatedAt: now,
         });
+        const a = await ctx.db.get(f.analysisId);
+        if (a) {
+          await captureAnalysis(ctx, a, "file_validation_failed", { file_id: f._id, error_code: "upload_validation_failed" });
+          await captureAnalysisException(ctx, a, "upload_validation_failed", "file_validation");
+        }
         continue;
       }
       const generation = f.validationGeneration + 1;
@@ -600,6 +693,7 @@ export const cleanDrafts = internalMutation({
         .query("files")
         .withIndex("by_analysis", (q) => q.eq("analysisId", a._id))
         .collect();
+      await captureAnalysis(ctx, a, "analysis_draft_abandoned", { file_count: files.length });
       await ctx.scheduler.runAfter(0, internal.node.pdf.deleteObjects, {
         keys: files.flatMap(fileKeys),
       });

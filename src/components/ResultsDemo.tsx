@@ -9,7 +9,7 @@ export function ResultsDemo({ ids }: { ids?: string[] }) {
     : demoGoals.filter((g) => !["3.5.GL3.15", "3.5.GL3.17"].includes(g.goalId));
   return (
     <div className="results-demo">
-      <GoalList goals={goals} phase="completed" files={demoFiles} />
+      <GoalList goals={goals} phase="completed" files={demoFiles} analytics={{ is_demo: true, surface: "homepage_example" }} />
     </div>
   );
 }
