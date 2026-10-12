@@ -11,7 +11,7 @@ export function validateBuildEnvironment(
   if (environment.CONVEX_DEPLOY_KEY) {
     throw new Error("Frontend builds must not receive a Convex deployment key.");
   }
-  for (const name of ["OPENAI_API_KEY", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY"]) {
+  for (const name of ["OPENAI_API_KEY", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "RESEND_API_KEY", "RESEND_WEBHOOK_SECRET", "EMAIL_LINK_SECRET"]) {
     if (environment[name]) throw new Error(`${name} belongs on the Convex backend, not Vercel.`);
   }
 }

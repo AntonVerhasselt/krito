@@ -4,12 +4,13 @@ import { internal } from "./_generated/api";
 import { authorized, requireAccess } from "./access";
 import { MAX_TOTAL_BYTES } from "../shared/analysisSchema";
 import { resolveContact } from "./users";
+import { startWelcome, withdrawEmailAnalytics } from "./emails";
 import { PROMPT_VERSION } from "../shared/prompts";
-import { isPersonalEmail } from "../shared/emailPolicy";
+import { schoolEmailProblem } from "../shared/emailPolicy";
 import { analyticsContextValidator, validAnalyticsContext, captureAnalysis, identifyContact } from "./analytics";
 
 export const accessArgs = { analysisId: v.string(), accessToken: v.string() };
-async function chosenTopic(
+export async function chosenTopic(
   ctx: MutationCtx,
   catalogVersion: string,
   goalSetKey: string,
@@ -136,9 +137,8 @@ export const submit = mutation({
     const a = await requireAccess(ctx, args.analysisId, args.accessToken);
     if (a.status !== "draft") return a._id;
     const email = args.email.trim();
-    if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
-      throw new ConvexError("invalid_email");
-    if (isPersonalEmail(email)) throw new ConvexError("personal_email");
+    const problem = schoolEmailProblem(email);
+    if (problem) throw new ConvexError(problem);
     const selection = await chosenTopic(ctx, a.catalogVersion, a.goalSetKey);
     const files = (
       await ctx.db
@@ -226,8 +226,11 @@ export const submit = mutation({
     });
     const submitted = (await ctx.db.get(a._id))!;
     await identifyContact(ctx, submitted);
-    if (created)
+    if (created) {
       await captureAnalysis(ctx, submitted, "user_profile_created", {}, now);
+      // Smoke-test analyses must never start a real sequence.
+      if (!a.testMode && !a.fixture) await startWelcome(ctx, userId, "analysis", submitted.analyticsContext);
+    }
     await captureAnalysis(ctx, submitted, "analysis_submitted", {
       file_count: files.length, total_bytes: files.reduce((sum, f) => sum + f.actualBytes!, 0),
       page_count: files.reduce((sum, f) => sum + f.pageCount!, 0),
@@ -304,5 +307,7 @@ export const setAnalyticsConsent = mutation({
     const context = validAnalyticsContext(args.analyticsContext);
     await ctx.db.patch(a._id, { analyticsContext: context });
     if (context && a.userId) await identifyContact(ctx, { ...a, analyticsContext: context });
+    // Withdrawal also covers e-mail events: report, welcome sequence, reminders.
+    if (!context && a.userId) await withdrawEmailAnalytics(ctx, a.userId);
   },
 });

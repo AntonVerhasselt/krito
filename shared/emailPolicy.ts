@@ -70,3 +70,14 @@ export function emailDomain(email: string) {
 export function isPersonalEmail(email: string) {
   return personalDomains.has(emailDomain(email));
 }
+
+/**
+ * The same rules wherever an address is entered (analysis, mobile reminder):
+ * returns the error code, or null for an acceptable school address.
+ */
+export function schoolEmailProblem(email: string): "invalid_email" | "personal_email" | null {
+  const trimmed = email.trim();
+  if (trimmed.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) return "invalid_email";
+  if (isPersonalEmail(trimmed)) return "personal_email";
+  return null;
+}

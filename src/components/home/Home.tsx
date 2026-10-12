@@ -99,7 +99,7 @@ const faq = [
   },
   {
     q: "Welk e-mailadres moet ik invullen?",
-    a: "Je e-mailadres van school; een persoonlijke mailbox wordt niet aanvaard. Je resultaten verschijnen op de website, in hetzelfde tabblad.",
+    a: "Je e-mailadres van school; een persoonlijke mailbox wordt niet aanvaard. Je resultaten verschijnen op de website, en je krijgt het verslag ook als pdf in je mailbox.",
   },
   {
     q: "Wie ziet mijn documenten?",

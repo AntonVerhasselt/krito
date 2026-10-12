@@ -198,7 +198,8 @@ npm run test:converter
 `npm test` runs fast tests without external services. They cover missing
 configuration, basic-auth request headers, 401/403 failures, retryable 429/5xx
 responses, timeouts, converted-file size limits, CSV normalization, legacy text
-encoding and local image conversion.
+encoding and local image conversion. The pdf report tests read the rendered pdf
+with `pdftotext`, so Poppler must be installed (CI installs `poppler-utils`).
 
 `npm run test:converter` takes roughly two to four minutes and checks the actual
 development service and backend. It reads the installed converter variables
@@ -227,6 +228,66 @@ no CI workflow or scheduled test run was added. Use the existing
 
 Validated on 2026-10-12: the unit suite, the complete live converter test,
 lint and TypeScript checks passed. The live test's marked draft was cleaned up.
+
+## E-mail (Resend) and the pdf report
+
+Krito sends four kinds of e-mail through the `resend` SDK from Convex: the
+report (pdf attached) when an analysis completes, the mobile "stuur dit naar
+mezelf" link, and the three-step welcome sequence. The content lives in
+`emails/*.md` (see `emails/README.md`); `npm run emails:build` compiles it to
+`shared/email/content.generated.ts`, and `npm test` fails when that is stale.
+Every send is recorded in `emailMessages` (no content); `convex/node/email.ts`
+renders and sends, retrying transient failures with the same idempotency key
+(the pdf is byte-identical on every render, and a welcome variant is fixed at
+the first attempt). Each attempt carries a number, so a run that outlived its
+lease can't overwrite a newer one; a cron retries deliveries stuck in "sending"
+for more than 15 minutes. A full Resend quota (daily or monthly) is waited out:
+the message tries again just after midnight UTC, for up to three days, without
+using up its retries. A webhook event that arrives before its send is recorded
+is kept and applied once it is; events are applied once per svix-id.
+Suppression (hard bounce, complaint) and unsubscribing apply to the whole
+mailbox, whatever capitalisation the address was typed with. Withdrawing
+analytics consent also removes the analytics context from that contact's
+e-mails, and from e-mails requested in that browser tab.
+
+The sending domain `mail.krito.be` is verified in Resend (EU region,
+`eu-west-1`). The webhook `https://majestic-sturgeon-687.eu-west-1.convex.site/resend-webhook`
+receives sent, delivered, delivery_delayed, bounced, complained, failed,
+suppressed, opened and clicked events (created through the API on 2026-10-12;
+the free plan allows one endpoint). Open and click tracking must be switched on
+in the Resend dashboard (Domains → mail.krito.be → Configuration): the domain
+update API accepted the change but did not apply it.
+
+| Variable | Runtime location | Where the value comes from |
+| --- | --- | --- |
+| `RESEND_API_KEY` | Convex development | Resend → API Keys. Secret; never on Vercel. |
+| `RESEND_WEBHOOK_SECRET` | Convex development | Signing secret (`whsec_…`) of the Resend webhook. |
+| `EMAIL_MODE` | Convex development | `off` sends nothing, `allowlist` only to `EMAIL_ALLOWLIST`, `live` to everyone. |
+| `EMAIL_ALLOWLIST` | Convex development | Comma-separated addresses for `allowlist` mode. |
+| `EMAIL_FROM` | Convex development | `Anton van Krito <anton@mail.krito.be>` |
+| `EMAIL_REPLY_TO` | Convex development | `anton.verhasselt@gmail.com` until a krito.be inbox exists. |
+| `EMAIL_LINK_SECRET` | Convex development | `openssl rand -hex 32`; signs unsubscribe links. Changing it invalidates sent links. |
+| `SITE_URL` | Convex development | `https://www.krito.be`; base of links in e-mails. |
+| `WELCOME_DELAY_SCALE` | Convex development, optional | Testing only, e.g. `0.001`; ignored when `EMAIL_MODE=live`. |
+
+The live site uses this development deployment, so keep `EMAIL_MODE=allowlist`
+until the copy is approved. Going live is one command:
+`npx convex env set EMAIL_MODE live`.
+
+The pdf report (`shared/report/`) is rendered on demand with
+`@react-pdf/renderer` and never stored. `convex.json` marks `@react-pdf/renderer`
+and `react` as external packages: bundled by Convex, react-pdf fails at runtime.
+Fonts and the e-mail photo are embedded as base64 modules; after changing
+`assets/`, run `npm run assets:build`. `npm run report:preview` writes sample
+reports to `/tmp`.
+
+Checks:
+
+```bash
+npm run emails:preview                       # every e-mail as text, html in /tmp
+npx convex run node/email:sendSamples '{"to":"anton@trooper.be"}'  # to an allowlisted inbox
+npm run report:preview                       # demo and 268-goal pdf in /tmp
+```
 
 ## Daily workflow
 

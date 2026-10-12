@@ -2,7 +2,7 @@ Build Krito as a public, Dutch-language MVP: teachers choose an Op.stap goal lis
 
 Use Next.js and TypeScript on Vercel, Convex for data and background jobs, private Cloudflare R2 for PDFs, and the OpenAI Responses API. Make one Luna analysis request containing every selected goal and every PDF. Recheck each goal whose confidence is strictly below 60 with a separate Sol request containing that goal and every PDF.
 
-This plan covers steps 1–10. Login, a dashboard, generated PDF reports, emailed reports, and a separate usage/cost-tracking feature remain outside these steps.
+This plan covers steps 1–10. Login, a dashboard and a separate usage/cost-tracking feature remain outside these steps. Pdf reports and e-mail were added on 2026-10-12; see `docs/product-decisions.md`.
 
 **Development rule:** manage external services from the terminal using official CLIs or checked-in TypeScript scripts calling official APIs. Account creation, billing activation, OAuth/device authorization, or initial credential issuance may still require a one-time provider flow. Document those exceptions; routine configuration and deployments must be reproducible from the repository. Commands below are implementation instructions, not commands already executed.
 
@@ -355,7 +355,7 @@ Implement `analyses.submit({ analysisId, accessToken, email })` as a Convex muta
 
 Allow goal/file changes only while status is `draft`. Disable the submit button while submitting, but also enforce duplicate prevention on the server.
 
-Use clear form text: the result appears on this page; no email delivery is promised. A syntactically valid address is not a verified address or an authenticated identity. Keep emails out of public queries and logs.
+Use clear form text: the result appears on this page, and the report is also e-mailed as a pdf (added 2026-10-12). A syntactically valid address is not a verified address or an authenticated identity. Keep emails out of public queries and logs.
 
 **Done when:** double-clicking or repeating submission produces one active job, no AI call occurs before email submission, and an invalid email leaves the teacher's draft intact.
 

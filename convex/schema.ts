@@ -8,6 +8,7 @@ import {
 } from "./analysisValidators";
 import { v } from "convex/values";
 import { analyticsContextValidator } from "./analytics";
+import { emailMessageFields } from "./emailValidators";
 import {
   counts,
   goalFields,
@@ -85,11 +86,47 @@ export default defineSchema({
     email: v.string(),
     emailVerified: v.boolean(),
     authId: v.optional(v.string()),
+    /** Lowercased address: suppression, unsubscribing and the welcome sequence apply per mailbox. */
+    emailKey: v.string(),
+    welcome: v.optional(
+      v.object({
+        status: v.union(v.literal("active"), v.literal("completed"), v.literal("stopped")),
+        source: v.union(v.literal("analysis"), v.literal("reminder")),
+        startedAt: v.number(),
+        stoppedReason: v.optional(v.string()),
+      }),
+    ),
+    emailUnsubscribedAt: v.optional(v.number()),
+    emailSuppressedAt: v.optional(v.number()),
+    emailSuppressedReason: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index("by_email", ["email"])
+    .index("by_email_key", ["emailKey"])
     .index("by_auth", ["authId"]),
+  /** Every e-mail Krito sends: idempotency, delivery status and tracking. No content is stored. */
+  emailMessages: defineTable(emailMessageFields)
+    .index("by_dedupe", ["dedupeKey"])
+    .index("by_provider", ["providerId"])
+    .index("by_user", ["userId", "createdAt"])
+    .index("by_status_updated", ["status", "updatedAt"])
+    .index("by_journey", ["analyticsContext.journeyId"]),
+  /**
+   * Resend webhook events by id, so retries and replays count once. An event
+   * for a message whose send isn't recorded yet waits here (applied: false)
+   * until markSent stores the provider id.
+   */
+  webhookEvents: defineTable({
+    eventId: v.string(),
+    receivedAt: v.number(),
+    providerId: v.optional(v.string()),
+    applied: v.optional(v.boolean()),
+    event: v.optional(v.object({ type: v.string(), at: v.number(), bounceType: v.optional(v.string()) })),
+  })
+    .index("by_event", ["eventId"])
+    .index("by_received", ["receivedAt"])
+    .index("by_provider_applied", ["providerId", "applied"]),
   analyses: defineTable({
     capabilityHash: v.string(),
     status: analysisStatus,

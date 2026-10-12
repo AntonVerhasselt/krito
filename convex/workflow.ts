@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+import { enqueueEmail } from "./emails";
 import {
   internalMutation,
   internalQuery,
@@ -321,6 +322,15 @@ async function advance(ctx: MutationCtx, a: Doc<"analyses">) {
     not_found_count: goals.filter((g) => g.finalResult?.status === "not_found").length,
     uncertain_count: goals.filter((g) => g.finalResult?.status === "uncertain").length,
   });
+  // The report as a pdf in the teacher's mailbox; smoke-test analyses never mail.
+  if (a.userId && !a.testMode && !a.fixture)
+    await enqueueEmail(ctx, {
+      userId: a.userId,
+      kind: "report",
+      analysisId: a._id,
+      dedupeKey: `report:${a._id}`,
+      analyticsContext: a.analyticsContext,
+    });
 }
 
 async function captureGeneration(

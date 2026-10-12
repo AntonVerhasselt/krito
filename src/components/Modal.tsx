@@ -5,9 +5,12 @@ export function Modal({
   onClose,
   children,
   narrow = false,
+  dismissible = true,
 }: {
   label: string;
   narrow?: boolean;
+  /** False while a request is in flight: Escape and the backdrop do nothing. */
+  dismissible?: boolean;
   onClose: () => void;
   children: ReactNode;
 }) {
@@ -31,6 +34,9 @@ export function Modal({
       ref={ref}
       className={`app-dialog${narrow ? " is-narrow" : ""}`}
       aria-label={label}
+      onCancel={(e) => {
+        if (!dismissible) e.preventDefault();
+      }}
       onClose={() => {
         if (closingFromCleanup.current) {
           closingFromCleanup.current = false;
@@ -39,7 +45,7 @@ export function Modal({
         onClose();
       }}
       onClick={(e) => {
-        if (e.target !== e.currentTarget) return;
+        if (e.target !== e.currentTarget || !dismissible) return;
         const r = e.currentTarget.getBoundingClientRect();
         if (
           e.clientX < r.left ||

@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useAction, useMutation, useQuery } from "convex/react";
@@ -10,6 +10,7 @@ import { analyticsContext, identifyContact, track, trackOnce, captureAnalyticsEr
 import { analyticsErrorCode } from "../../shared/analytics";
 import { safeError } from "../lib/safeError";
 import { ResultsPending } from "./ResultsPending";
+import { ReportDownload } from "./ReportDownload";
 import { GoalList, type ListGoal, type Phase } from "./GoalList";
 import {
   demoFiles,
@@ -31,12 +32,15 @@ type HeadingTopic = {
 function ResultsHeading({
   topic,
   fileCount,
+  action,
 }: {
   topic: HeadingTopic;
   fileCount: number;
+  action?: ReactNode;
 }) {
   return (
-    <header className="results-heading" data-topic={topic.title}>
+    <header className={`results-heading${action ? " has-action" : ""}`} data-topic={topic.title}>
+      <div className="results-heading-text">
       <p className="results-context">
         {topic.path
           .slice(0, -1)
@@ -59,6 +63,8 @@ function ResultsHeading({
         )}
         <span>Op.stap v{topic.catalogVersion}</span>
       </div>
+      </div>
+      {action}
     </header>
   );
 }
@@ -212,7 +218,15 @@ function LiveResults({ analysisId }: { analysisId: string }) {
         </div>
       ) : status ? (
         <>
-          <ResultsHeading topic={status.topic} fileCount={fileCount} />
+          <ResultsHeading
+            topic={status.topic}
+            fileCount={fileCount}
+            action={
+              status.status === "completed" && results && credentials ? (
+                <ReportDownload {...credentials} goalCount={results.goals.length} />
+              ) : undefined
+            }
+          />
           {status.status === "failed" ? (
             <div className="result-state">
               <h2>De analyse is onderbroken</h2>

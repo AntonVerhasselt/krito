@@ -131,6 +131,11 @@ async function configureAccount() {
     search_query_updated: "Settled query edit; only length and word count are captured, never raw text.",
     evidence_opened: "Signed document link obtained and tab navigation initiated; does not confirm viewer rendering.",
     $ai_generation: "Completed or failed provider generation with tokens and timing; no prompts, documents, or model outputs.",
+    email_message_delivered: "Resend webhook: the receiving server accepted the e-mail. email_kind/sequence_step/email_variant say which.",
+    email_message_opened: "First open of one e-mail (Resend pixel). Apple Mail preloads images: read as a trend.",
+    email_message_clicked: "First click in one e-mail. is_bot_suspected=true when within 10 s of delivery (school link scanners).",
+    email_link_opened: "Visit through a link in a Krito e-mail (?via=herinnering or welkom-1..3).",
+    reminder_requested: "Backend accepted a mobile 'stuur dit naar mezelf' request and queued the e-mail. Starts no analysis.",
   };
   for (const name of ANALYTICS_EVENTS) {
     const existing = definitions.find((entry) => entry.name === name);
@@ -156,6 +161,12 @@ async function configureAccount() {
       { name: "Krito · Analysis outcomes", kind: "TrendsQuery", events: ["analysis_submitted", "analysis_completed", "analysis_failed", "analysis_goal_recheck_failed"] },
       { name: "Krito · Recovery and retries", kind: "TrendsQuery", events: ["analysis_retry_requested", "ai_run_retry_scheduled", "workflow_recovery_scheduled", "workflow_recovery_exhausted"] },
     ] },
+    { name: "Krito · E-mail", charts: [
+      { name: "Krito · Mobile hand-off funnel", kind: "FunnelsQuery", events: ["reminder_prompt_viewed", "reminder_gate_opened", "reminder_requested", "email_link_opened", "analysis_submitted"] },
+      { name: "Krito · Welcome sequence", kind: "TrendsQuery", events: ["email_message_delivered", "email_message_opened", "email_message_clicked", "email_link_opened", "email_unsubscribed"] },
+      { name: "Krito · Deliverability", kind: "TrendsQuery", events: ["email_message_bounced", "email_message_complained", "email_message_failed", "email_message_skipped"] },
+      { name: "Krito · Report downloads", kind: "TrendsQuery", events: ["analysis_completed", "report_download_clicked", "report_download_completed", "report_download_failed"] },
+    ] },
   ];
   for (const report of reports) {
     let dashboard = dashboards.find((entry) => entry.name === report.name && !entry.deleted);
@@ -174,7 +185,7 @@ async function configureAccount() {
       await api(`${root}insights/`, "POST", { name: chart.name, saved: true, dashboards: [dashboard.id], query: { kind: "InsightVizNode", source } });
     }
   }
-  console.log("Verified selected EU project. Disabled session replay, enabled IP anonymization, documented events, and created missing activation/reliability dashboards.");
+  console.log("Verified selected EU project. Disabled session replay, enabled IP anonymization, documented events, and created missing activation/reliability/e-mail dashboards.");
   console.log("Existing insight edits preserved. No messages, billing, exports, grouping, or retention-tier changes.");
 }
 

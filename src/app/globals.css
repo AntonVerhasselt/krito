@@ -1732,6 +1732,10 @@ html {
     background-repeat: no-repeat;
     pointer-events: none;
   }
+  /* Phones only: send the topic to yourself, above the upload. */
+  .send-self {
+    display: none;
+  }
   .closing-leaf p {
     margin: var(--s-4) 0 28px;
     max-width: 32em;
@@ -1844,6 +1848,36 @@ html {
   .results-meta > .group-tag + span {
     border-left: 0;
     padding-left: 0;
+  }
+  .results-heading.has-action {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 28px;
+    align-items: start;
+  }
+  .report-download {
+    display: grid;
+    justify-items: end;
+    gap: 8px;
+    padding-top: 22px;
+  }
+  .report-download .secondary-button {
+    gap: 8px;
+    min-height: 42px;
+    padding: 0 16px;
+    font-size: 15px;
+    white-space: nowrap;
+  }
+  .report-download .form-error {
+    max-width: 220px;
+    margin: 0;
+    text-align: right;
+  }
+  .download-icon path {
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
 
   .results-summary {
@@ -2964,6 +2998,12 @@ html {
     line-height: 1.55;
     color: var(--ink-soft);
   }
+  .email-notice {
+    margin: 12px 0 0;
+    font-size: 13.5px;
+    line-height: 1.45;
+    color: var(--ink-faint);
+  }
   .field-label {
     display: block;
     margin-bottom: 8px;
@@ -3107,6 +3147,39 @@ html {
     }
   }
   @media (max-width: 900px) {
+    .send-self.leaf {
+      display: block;
+      --h1: 52px;
+      --h2: 150px;
+      min-height: 0;
+      margin: 4px 0 26px;
+      padding: 26px 20px 24px 70px;
+    }
+    .send-self h2 {
+      margin: 0 0 8px;
+      font-size: 21px;
+      line-height: 1.2;
+      font-weight: 650;
+      letter-spacing: -0.01em;
+    }
+    .send-self p {
+      margin: 0 0 18px;
+      font-size: 16px;
+      line-height: 1.5;
+      color: var(--ink-soft);
+    }
+    .send-self .primary-button {
+      width: 100%;
+    }
+    .send-self .send-self-alt {
+      margin: 14px 0 0;
+      font-family: var(--handface);
+      font-size: 22px;
+      line-height: 1.05;
+      color: var(--pen-stroke);
+      transform: rotate(-1.5deg);
+      transform-origin: 0 50%;
+    }
     .site-shell {
       --shell-pad: 20px;
       padding: 0 var(--shell-pad) 88px;
@@ -3491,6 +3564,16 @@ html {
       padding: 0;
       border: 0;
     }
+    .results-heading.has-action {
+      display: block;
+    }
+    .report-download {
+      justify-items: start;
+      padding-top: 18px;
+    }
+    .report-download .form-error {
+      text-align: left;
+    }
     .results-meta > .group-tag {
       margin-right: 0;
     }
@@ -3626,6 +3709,8 @@ html {
 .privacy-page { max-width: 720px; padding: 36px 0; }
 .privacy-page h1 { font-size: clamp(28px, 5vw, 44px); }
 .privacy-page h2 { font-size: 24px; margin-top: 32px; }
+.unsubscribe-page .primary-button { margin-top: 12px; }
+.unsubscribe-page h1:focus { outline: none; }
 @media (max-width: 600px) {
   .analytics-consent { bottom: 12px; right: 12px; width: calc(100vw - 24px); padding: 18px; }
 }

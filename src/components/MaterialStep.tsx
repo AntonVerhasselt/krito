@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useConvex, useMutation, useQuery } from "convex/react";
+import { chooseTopic } from "../lib/chooseTopic";
+import { safeError } from "../lib/safeError";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api } from "../../convex/_generated/api";
@@ -15,6 +17,7 @@ import { analyticsContext, track, trackOnce } from "../lib/analytics";
 import { SiteHeader } from "./SiteHeader";
 import { UploadPanel } from "./UploadPanel";
 import { EmailGate } from "./EmailGate";
+import { SendToSelf } from "./SendToSelf";
 import { Modal } from "./Modal";
 import { GoalPreview } from "./GoalPreview";
 
@@ -27,10 +30,34 @@ function useHydrated() {
   );
 }
 
+/** The topic an e-mail link carries ("versie|onderwerp"), read from the address bar. */
+const linkListeners = new Set<() => void>();
+function subscribeLink(listener: () => void) {
+  linkListeners.add(listener);
+  return () => {
+    linkListeners.delete(listener);
+  };
+}
+function linkSnapshot() {
+  const params = new URLSearchParams(window.location.search);
+  const key = params.get("onderwerp"),
+    catalogVersion = params.get("versie");
+  return key && catalogVersion ? `${catalogVersion}|${key}` : "";
+}
+/** Removes the e-mail link's topic from the address bar once it has been applied. */
+function dropLinkParams() {
+  const url = new URL(window.location.href);
+  url.searchParams.delete("onderwerp");
+  url.searchParams.delete("versie");
+  history.replaceState(history.state, "", `${url.pathname}${url.search}${url.hash}`);
+  linkListeners.forEach((listener) => listener());
+}
+
 export function MaterialStep() {
   const router = useRouter();
   const hydrated = useHydrated();
-  const [selection] = useTopicSelection();
+  const [selection, setSelection] = useTopicSelection();
+  const convex = useConvex();
   const selected = useQuery(
     api.goals.getGoalSet,
     selection.goalSetKey
@@ -77,10 +104,32 @@ export function MaterialStep() {
     track("email_gate_closed", { analysis_id: session?.analysisId, reason });
     setAskEmail(false);
   }
+  // The "stuur dit naar mezelf" e-mail links here with the topic in the URL.
+  // Until that topic is the selection, the page must not redirect home.
+  const link = useSyncExternalStore(subscribeLink, linkSnapshot, () => "");
+  const [linkError, setLinkError] = useState("");
+  const [linkTry, setLinkTry] = useState(0);
+  const handledLink = useRef("");
   useEffect(() => {
+    // After hydration, so a draft from this browser's session is known.
+    const attempt = `${link}#${linkTry}`;
+    if (!hydrated || !link || handledLink.current === attempt) return;
+    handledLink.current = attempt;
+    const [catalogVersion, key] = link.split("|");
+    chooseTopic(convex, session, status, { catalogVersion, key }, setSelection).then(
+      () => setLinkError(""),
+      // The current draft and selection stay as they were; the link stays for a retry.
+      (e) => setLinkError(safeError(e)),
+    );
+  }, [hydrated, link, linkTry, convex, session, status, setSelection]);
+  useEffect(() => {
+    if (link && link === `${selection.catalogVersion}|${selection.goalSetKey}`) dropLinkParams();
+  }, [link, selection.catalogVersion, selection.goalSetKey]);
+  useEffect(() => {
+    if (link) return;
     if (hydrated && (!selection.goalSetKey || selected === null))
       router.replace("/");
-  }, [hydrated, selection.goalSetKey, selected, router]);
+  }, [link, hydrated, selection.goalSetKey, selected, router]);
 
   async function ensureDraft(): Promise<AnalysisSession> {
     if (!selected) throw new Error("invalid_topic");
@@ -158,6 +207,14 @@ export function MaterialStep() {
             </>
           )}
         </div>
+        {linkError && (
+          <p className="form-error" role="alert">
+            {linkError}{" "}
+            <button type="button" className="text-button" onClick={() => setLinkTry((n) => n + 1)}>
+              Probeer opnieuw
+            </button>
+          </p>
+        )}
         {submitted && session ? (
           <div className="started-note">
             <h2>Je analyse is gestart</h2>
@@ -184,6 +241,7 @@ export function MaterialStep() {
           </div>
         ) : (
           <>
+            {selected && <SendToSelf topic={selected} />}
             <UploadPanel
               ensureDraft={ensureDraft}
               session={session}

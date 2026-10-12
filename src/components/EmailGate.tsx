@@ -1,120 +1,30 @@
 "use client";
-import { useRef, useState } from "react";
 import { useMutation } from "convex/react";
 import { useRouter } from "next/navigation";
 import { api } from "../../convex/_generated/api";
 import type { AnalysisSession } from "../lib/analysisSession";
-import { analyticsContext, track, captureAnalyticsError } from "../lib/analytics";
-import { analyticsErrorCode } from "../../shared/analytics";
-import { safeError } from "../lib/safeError";
-import { isPersonalEmail } from "../../shared/emailPolicy";
-import { StatusIcon } from "./brand";
-export function EmailGate({
-  session,
-  onCancel,
-}: {
-  session: AnalysisSession;
-  onCancel: () => void;
-}) {
-  const [email, setEmail] = useState(""),
-    [busy, setBusy] = useState(false),
-    [error, setError] = useState("");
-  const typingStarted = useRef(false);
+import { analyticsContext } from "../lib/analytics";
+import { SchoolEmailForm } from "./SchoolEmailForm";
+
+export function EmailGate({ session, onCancel }: { session: AnalysisSession; onCancel: () => void }) {
   const submit = useMutation(api.analyses.submit);
   const router = useRouter();
   return (
-    <form
-      className="email-gate"
-      onSubmit={async (e) => {
-        e.preventDefault();
-        if (busy) return;
-        if (isPersonalEmail(email)) {
-          track("email_validation_failed", { analysis_id: session.analysisId, reason: "personal_email" });
-          setError(safeError("personal_email"));
-          return;
-        }
-        track("email_submit_requested", { analysis_id: session.analysisId });
-        setBusy(true);
-        setError("");
-        try {
-          const id = await submit({ ...session, email, analyticsContext: analyticsContext() });
-          // Results restore analytics identity from their protected status response.
-          // No extra analytics request may delay an already accepted submission.
-          router.push(`/results/${id}`);
-        } catch (e) {
-          track("email_submit_failed", { analysis_id: session.analysisId, error_code: analyticsErrorCode(e) });
-          captureAnalyticsError(e, "email_submit", { analysis_id: session.analysisId });
-          setError(safeError(e));
-          setBusy(false);
-        }
+    <SchoolEmailForm
+      id="analysis-email"
+      title="Nog één ding"
+      lead="Vul je e-mailadres in en Krito begint met nakijken. Je resultaat verschijnt meteen hier, en je krijgt het verslag ook als pdf in je mailbox."
+      submitLabel="Start de analyse"
+      busyLabel="Analyse starten…"
+      analytics={{ analysis_id: session.analysisId, source: "analysis" }}
+      events={{ requested: "email_submit_requested", failed: "email_submit_failed", operation: "email_submit" }}
+      onCancel={onCancel}
+      onSubmit={async (email) => {
+        const id = await submit({ ...session, email, analyticsContext: analyticsContext() });
+        // Results restore analytics identity from their protected status response.
+        // No extra analytics request may delay an already accepted submission.
+        router.push(`/results/${id}`);
       }}
-    >
-      <div className="modal-heading">
-        <h2>Nog één ding</h2>
-        <button
-          type="button"
-          className="icon-button"
-          aria-label="Sluit"
-          disabled={busy}
-          onClick={onCancel}
-        >
-          ×
-        </button>
-      </div>
-      <p className="email-gate-lead">
-        Vul je e-mailadres in en Krito begint met nakijken. Je resultaat
-        verschijnt meteen hier op de website.
-      </p>
-      <label className="field-label" htmlFor="analysis-email">
-        Je e-mailadres van school
-      </label>
-      <input
-        id="analysis-email"
-        className="text-input"
-        type="email"
-        autoComplete="email"
-        data-autofocus
-        required
-        maxLength={254}
-        value={email}
-        disabled={busy}
-        placeholder="naam@jouwschool.be"
-        aria-invalid={!!error || undefined}
-        aria-describedby={error ? "analysis-email-error" : undefined}
-        onInvalid={() => track("email_validation_failed", { analysis_id: session.analysisId, reason: "invalid_email" })}
-        onChange={(e) => {
-          if (e.target.value && !typingStarted.current) {
-            typingStarted.current = true;
-            track("email_typing_started", { analysis_id: session.analysisId });
-          }
-          setEmail(e.target.value);
-          if (error) setError("");
-        }}
-      />
-      {error && (
-        <p className="form-error" role="alert" id="analysis-email-error">
-          {error}
-        </p>
-      )}
-      <div className="email-actions">
-        <button
-          className="text-button"
-          type="button"
-          disabled={busy}
-          onClick={onCancel}
-        >
-          Annuleer
-        </button>
-        <button className="primary-button" type="submit" disabled={busy}>
-          {busy ? (
-            <>
-              <StatusIcon status="loading" size={22} /> Analyse starten…
-            </>
-          ) : (
-            "Start de analyse"
-          )}
-        </button>
-      </div>
-    </form>
+    />
   );
 }

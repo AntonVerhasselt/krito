@@ -4,6 +4,7 @@ import { ConvexProvider, ConvexReactClient } from "convex/react";
 import { Suspense, useState, type ReactNode } from "react";
 import { AnalyticsConsent } from "../components/AnalyticsConsent";
 import { AnalyticsLifecycle } from "../components/AnalyticsLifecycle";
+import { EmailLinkTracker } from "../components/EmailLinkTracker";
 
 export function Providers({ children }: { children: ReactNode }) {
   const [client] = useState(() => {
@@ -28,6 +29,7 @@ export function Providers({ children }: { children: ReactNode }) {
       <Suspense fallback={null}>
         <AnalyticsLifecycle />
       </Suspense>
+      <EmailLinkTracker />
       {children}
       <AnalyticsConsent />
     </ConvexProvider>
