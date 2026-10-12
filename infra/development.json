@@ -8,6 +8,6 @@
   "r2Bucket": "krito-pdfs-dev",
   "vercelScope": "anton-personal-projects",
   "vercelProject": "krito",
-  "gcpProject": "",
+  "gcpProject": "gen-lang-client-0534719308",
   "gcpRegion": "europe-west1"
 }

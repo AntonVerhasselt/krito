@@ -136,6 +136,37 @@ describe("convertToPdf", () => {
       }).url,
     ).toBe("https://c.example");
   });
+  it.each(["CONVERTER_URL", "CONVERTER_USERNAME", "CONVERTER_PASSWORD"])(
+    "fails without %s instead of sending an unauthenticated request",
+    (name) => {
+      const env: Record<string, string | undefined> = {
+        CONVERTER_URL: config.url,
+        CONVERTER_USERNAME: config.username,
+        CONVERTER_PASSWORD: config.password,
+      };
+      delete env[name];
+      expect(() => converterConfig(env)).toThrow(ConverterUnavailable);
+      env[name] = "";
+      expect(() => converterConfig(env)).toThrow(ConverterUnavailable);
+    },
+  );
+  it.each([
+    [401, false], [403, false], [404, false], [429, true], [500, true], [502, true], [503, true],
+  ])("handles HTTP %i with retryable=%s", async (status, retryable) => {
+    const error = await convertToPdf(
+      Buffer.from("document"), fileTypeOf("a.docx")!, config,
+      fakeFetch(new Response("Provider response with sensitive details", { status })).impl,
+    ).catch((error: unknown) => error);
+    expect(error).toBeInstanceOf(ConverterUnavailable);
+    expect((error as ConverterUnavailable).retryable).toBe(retryable);
+    expect((error as Error).message).toBe("conversion_unavailable");
+  });
+  it("also enforces the PDF size limit when the response omits content-length", async () => {
+    await expect(convertToPdf(
+      Buffer.from("document"), fileTypeOf("a.docx")!, config,
+      fakeFetch(new Response(new Uint8Array(MAX_CONVERTED_BYTES + 1))).impl,
+    )).rejects.toThrow("converted_too_large");
+  });
 });
 
 describe("csv and text preparation", () => {
@@ -182,6 +213,12 @@ describe("csv and text preparation", () => {
     expect(Buffer.from(await file.arrayBuffer()).toString("utf8")).toBe(
       "\uFEFFa,b\n1,2",
     );
+  });
+  it("sends Windows-1252 text as UTF-8 with its accents intact", async () => {
+    const { impl, calls } = fakeFetch(new Response(pdfBytes));
+    await convertToPdf(Buffer.from([0x63, 0x61, 0x66, 0xe9]), fileTypeOf("a.txt")!, config, impl);
+    const file = (calls[0].init.body as FormData).get("files") as File;
+    expect(Buffer.from(await file.arrayBuffer()).equals(Buffer.from("\uFEFFcafé", "utf8"))).toBe(true);
   });
 });
 
