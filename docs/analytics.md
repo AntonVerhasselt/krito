@@ -137,8 +137,8 @@ remain minified.
 
 The public project token allows ingestion and identification, but cannot read
 ingested events, manage project settings, create dashboards, or upload source maps.
-No private management credentials were available during initial setup. Account
-configuration therefore remains reproducible rather than falsely marked complete.
+The selected EU project `199607` has been configured and verified through authenticated
+account access. The setup script remains available for reproducible configuration.
 
 To configure it, place `POSTHOG_PERSONAL_API_KEY` and numeric `POSTHOG_PROJECT_ID`
 in ignored `.secrets/posthog.env` with mode `600`, or provide them as process
@@ -240,9 +240,35 @@ regression tests cover privacy filtering, required public ingestion-token retent
 contact switching, opt-out, fail-open capture, generation deduplication and stale
 callbacks. Lint, TypeScript, tests and a production build passed.
 
-These checks verify triggers and ingestion acceptance. Authenticated PostHog event
-queries, person-profile inspection, replay playback, dashboard provisioning and
-source-map upload remain unverified without the private account credentials.
+Authenticated account queries also confirmed the linked browser journey and canonical
+backend events, one completed AI generation (1,213 input / 339 output tokens), and two
+sanitized browser exceptions. The fixture person has the exact submitted email,
+separate lowercase domain, unverified contact status, and linked anonymous history.
+Three test recordings are stored with 30-day retention; the restored session links
+to that person. Decompressed stored replay snapshots mask the tested inputs and
+contain no fixture email, filename, signed URL, capability hash, console payload, or
+network payload. The signed-in PostHog Replay UI successfully rendered masked playback. Counts and booleans were inspected without exporting raw replay data.
+
+Project recording and IP anonymization are enabled. Two Krito dashboards and six
+production-filtered insights were created. Three obsolete dashboards and fifteen
+news/archive insights were archived after checking their IDs/names and saving an
+owner-only local backup. Historical events and people were retained because they
+do not interfere with Krito reports. Local debug and temporary backend local capture
+were disabled after testing.
+
+Vercel Preview/Production have an encrypted, project-restricted build credential with
+only `error_tracking:write`, plus the project ID. The temporary broader setup key was
+revoked after verification, and its local credential file was removed. Source-map uploads use the supported
+`symbol-set` release mode: Next 16.4 generated server chunks lack some native debug
+IDs, so the default event-mode upload failed even on a clean build. This mode injects
+IDs before uploading and associates maps with the build release. The keyed clean
+production build passed and uploaded 69 symbol sets; uploaded application maps were
+removed. Next emits one public framework polyfill map after the upload hook; it
+contains only Next's standard `polyfill-nomodule.js`, with no application sources.
+A local build must
+start with a clean `.next` directory when enabling uploads; stale `.next/dev` chunks
+are otherwise included by the plugin. Production error deminification still needs
+a naturally occurring mapped exception after deployment.
 
 The first independent review's consent regrant and restored-results scenarios were
 also reproduced in the shared browser after fixes: withdraw, reload, clear the
