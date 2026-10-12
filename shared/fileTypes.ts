@@ -79,9 +79,14 @@ export function needsConversion(type: FileType) {
   return type.kind !== "pdf";
 }
 
-/** JPG and PNG become a one-page PDF inside Convex; no converter needed. */
+/**
+ * A JPG becomes a one-page PDF inside Convex: it's embedded as it is, never
+ * decoded. A PNG has to be decoded completely (all frames of an animated
+ * one), which can take more memory than a Convex action has, so PNGs go to
+ * the converter like the other images.
+ */
 export function convertsLocally(type: FileType) {
-  return ["jpg", "jpeg", "png"].includes(type.extension);
+  return ["jpg", "jpeg"].includes(type.extension);
 }
 
 /** Value for an `<input type="file" accept>` attribute. */

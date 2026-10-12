@@ -114,21 +114,28 @@ async function configureAccount() {
   }
   const project = await api<{ api_token: string }>(root);
   if (project.api_token !== token) throw new Error("The selected PostHog project does not match the configured ingestion token. No account changes made.");
-  // Hourly e-mail alerts to the account owner: any hosted failure of an
-  // upload, a conversion or an analysis. Uploads failed unnoticed for hours
-  // when the R2 CORS rule lacked the launch domain.
-  const me = await fetch(new URL("/api/users/@me/", managementHost), {
+  // Everything the script needs is checked before anything changes: the
+  // key's scopes, then every read.
+  const account = <T>(path: string) => fetch(new URL(path, managementHost), {
     redirect: "error", signal: AbortSignal.timeout(30_000), headers: { Authorization: `Bearer ${key}` },
-  }).then((response) => response.ok ? response.json() as Promise<{ id: number }> : Promise.reject(new Error("PostHog user lookup failed; response withheld.")));
-  // Read access to everything below is checked before anything changes.
+  }).then((response) => response.ok ? response.json() as Promise<T> : Promise.reject(new Error(`PostHog request failed (${response.status}); response withheld. No account changes made.`)));
+  const { scopes } = await account<{ scopes: string[] }>("/api/personal_api_keys/@current/");
+  const needed = ["project:write", "event_definition:write", "dashboard:write", "insight:write", "alert:write", "user:read"];
+  const missing = scopes.includes("*") ? [] : needed.filter((scope) =>
+    !scopes.includes(scope) && !(scope.endsWith(":read") && scopes.includes(scope.replace(":read", ":write"))));
+  if (missing.length) throw new Error(`The PostHog key lacks ${missing.join(", ")}. No account changes made.`);
+  // Hourly e-mail alerts go to the key's owner.
+  const me = await account<{ id: number }>("/api/users/@me/");
   const alerts = await all<{ name: string }>(`${root}alerts/?limit=100`);
+  const definitions = await all<Resource>(`${root}event_definitions/?limit=100`);
+  const dashboards = await all<Resource>(`${root}dashboards/?limit=100`);
+  const insights = await all<Resource>(`${root}insights/?limit=100&saved=true`);
 
   // Only enable requested functionality and anonymize network IPs. No billing,
   // retention-tier, notification, grouping, or historical-data changes.
   await api(root, "PATCH", { anonymize_ips: true, session_recording_opt_in: false });
   const configured = await api<{ session_recording_opt_in: boolean }>(root);
   if (configured.session_recording_opt_in !== false) throw new Error("PostHog session recording must remain disabled.");
-  const definitions = await all<Resource>(`${root}event_definitions/?limit=100`);
   const detail: Record<string, string> = {
     upload_completed: "Browser file transfer completed and backend acknowledged it; validation may still fail.",
     upload_failed: "Browser upload failed. stage says where; error_code upload_blocked means the browser blocked the PUT (CORS, offline, network filter); status is the HTTP status.",
@@ -155,8 +162,6 @@ async function configureAccount() {
     if (existing) await api(`${root}event_definitions/${existing.id}/`, "PATCH", { description });
     else await api(`${root}event_definitions/`, "POST", { name, description });
   }
-  const dashboards = await all<Resource>(`${root}dashboards/?limit=100`);
-  const insights = await all<Resource>(`${root}insights/?limit=100&saved=true`);
   const properties = [
     { type: "event", key: "environment", operator: "exact", value: "hosted" },
     { type: "event", key: "is_demo", operator: "is_not", value: true },
@@ -198,6 +203,8 @@ async function configureAccount() {
       await api(`${root}insights/`, "POST", { name: chart.name, saved: true, dashboards: [dashboard.id], query: { kind: "InsightVizNode", source } });
     }
   }
+  // Any hosted failure of an upload, a conversion or an analysis. Uploads
+  // failed unnoticed for hours when the R2 CORS rule lacked the launch domain.
   const failures = [
     { event: "upload_failed", label: "upload failed (browser to storage)", filters: [] },
     // The backend couldn't read an upload that did arrive (storage outage).

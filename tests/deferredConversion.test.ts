@@ -11,8 +11,8 @@ import {
 } from "../convex/workflow";
 import { submit } from "../convex/analyses";
 import { convertWithRetries } from "../convex/node/pdf";
-import { damagedArchive, pngPixels, warmConverter } from "../convex/node/convert";
-import { fileTypeOf, needsConversion } from "../shared/fileTypes";
+import { damagedArchive, warmConverter } from "../convex/node/convert";
+import { convertsLocally, fileTypeOf, needsConversion } from "../shared/fileTypes";
 import { emailModeAllows } from "../shared/emailPolicy";
 import { MAX_TOTAL_BYTES } from "../shared/analysisSchema";
 import { tokenHash } from "../convex/access";
@@ -311,18 +311,16 @@ describe("converter retries", () => {
 });
 
 describe("local conversion limits", () => {
-  it("recognises intact zip archives and measures PNGs from their header", async () => {
+  it("recognises intact zip archives", async () => {
     const { readFileSync } = await import("node:fs");
     const docx = readFileSync("tests/fixtures/converter/lesson.docx");
     expect(damagedArchive(docx, fileTypeOf("a.docx")!)).toBe(false);
     expect(damagedArchive(docx.subarray(0, docx.length - 30), fileTypeOf("a.docx")!)).toBe(true);
     expect(damagedArchive(Buffer.from("plain text"), fileTypeOf("a.csv")!)).toBe(false);
-    const png = Buffer.alloc(24);
-    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(png);
-    png.writeUInt32BE(6500, 16);
-    png.writeUInt32BE(6500, 20);
-    expect(pngPixels(png)).toBe(42_250_000);
-    expect(pngPixels(Buffer.from("not a png at all, really"))).toBe(0);
+  });
+  it("decodes no image inside Convex: PNGs go to the converter", () => {
+    expect(convertsLocally(fileTypeOf("a.png")!)).toBe(false);
+    expect(convertsLocally(fileTypeOf("a.jpg")!)).toBe(true);
   });
 });
 

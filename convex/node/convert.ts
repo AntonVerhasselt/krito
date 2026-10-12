@@ -221,19 +221,6 @@ export function damagedArchive(bytes: Uint8Array, type: FileType) {
   return true;
 }
 
-/** Width × height from a PNG header, or 0 when it isn't one. */
-export function pngPixels(bytes: Uint8Array) {
-  const signature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
-  if (bytes.length < 24 || signature.some((byte, i) => bytes[i] !== byte)) return 0;
-  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  return view.getUint32(16) * view.getUint32(20);
-}
-/**
- * pdf-lib decodes a PNG completely; above this many pixels that no longer fits
- * next to other work in a Convex action (512 MiB), so the converter does it.
- */
-export const MAX_LOCAL_PNG_PIXELS = 16_000_000;
-
 /**
  * Reads the EXIF orientation of a JPEG (1 when absent). Phones store photos
  * as shot and record how to turn them in this tag.

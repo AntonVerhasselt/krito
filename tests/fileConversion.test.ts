@@ -236,7 +236,7 @@ describe("images", () => {
   it("are accepted, with jpg and png converted without the converter", () => {
     expect(fileTypeOf("foto werkblad.JPG")?.kind).toBe("image");
     expect(convertsLocally(fileTypeOf("a.jpeg")!)).toBe(true);
-    expect(convertsLocally(fileTypeOf("a.png")!)).toBe(true);
+    expect(convertsLocally(fileTypeOf("a.png")!)).toBe(false);
     expect(convertsLocally(fileTypeOf("a.gif")!)).toBe(false);
     expect(fileTypeOf("a.heic")).toBeNull();
   });

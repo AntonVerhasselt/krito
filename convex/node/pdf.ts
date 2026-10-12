@@ -28,8 +28,6 @@ import {
   convertToPdf,
   imageToPdf,
   damagedArchive,
-  pngPixels,
-  MAX_LOCAL_PNG_PIXELS,
   warmConverter as wakeConverter,
   MAX_CONVERTED_BYTES,
 } from "./convert";
@@ -302,12 +300,8 @@ async function sealFile(
     MAX_FILE_BYTES,
     file.etag,
   );
-  // A small image can decode to hundreds of MiB; one at a time stays within
-  // the action's memory.
-  const local =
-    convertsLocally(type) &&
-    (type.extension !== "png" || pngPixels(bytes) <= MAX_LOCAL_PNG_PIXELS);
-  const pdf = local
+  // Local conversions hold the image twice; one at a time keeps that small.
+  const pdf = convertsLocally(type)
     ? await oneAtATime(() => imageToPdf(bytes, type))
     : await convertWithRetries(bytes, type, { lastRun });
   const info = await readPdf(pdf);
