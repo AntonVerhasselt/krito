@@ -109,11 +109,12 @@ export function sanitizedError(error: unknown, operation: string): Error {
   result.name = error instanceof Error && /^[A-Za-z]{1,40}$/.test(error.name) ? error.name : "Error";
   if (error instanceof Error && error.stack) {
     // Keep code locations for source maps, discard the original message and non-frame payloads.
-    const frames = error.stack.split("\n").slice(1).filter((line) => /^\s*at /.test(line))
+    const frames = error.stack.split("\n").filter((line) =>
+      /^\s*at /.test(line) || /^[\w.$<>/ ]*@(?:https?:\/\/|file:|\/|webpack|blob:)/.test(line))
       .map((line) => line.replace(/https?:\/\/[^\s)]+/g, (url) => {
         try { const u = new URL(url); return u.pathname.includes("/_next/static/") ? `${u.origin}${u.pathname}` : "[redacted-url]"; }
         catch { return "[redacted-url]"; }
-      }).replace(/[^\s@]+@[^\s)]+/g, "[redacted]").replace(/[a-f0-9]{64}/gi, "[redacted]"));
+      }).replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[redacted]").replace(/[a-f0-9]{64}/gi, "[redacted]"));
     result.stack = `${result.name}: ${result.message}\n${frames.slice(0, 30).join("\n")}`;
   }
   return result;

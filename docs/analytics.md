@@ -10,7 +10,7 @@ searching, uploading, submitting, or completing an analysis.
 
 Copy the public settings in `.env.example` to ignored `.env.local`, supply the
 project token, and set `NEXT_PUBLIC_POSTHOG_ENABLED=true` when deliberately testing
-or running the hosted site. Missing settings disable the integration. Restart the
+or running the hosted site. Missing browser settings disable browser tracking. Restart the
 Next.js process after changing public variables; production embeds them at build
 time.
 
@@ -32,6 +32,12 @@ is `local`, Preview is `preview`, and Production is `hosted`. That classificatio
 describes the frontend; all three still use the selected development backend.
 This does not launch a production backend or publish any code. New frontend
 deployments are needed to use changed public build variables.
+
+The registered Convex component requires `POSTHOG_PROJECT_TOKEN` and `POSTHOG_HOST`
+on the selected backend before Convex code generation or publication. Run
+`npm run env:posthog` first. Keep those backend installation prerequisites configured
+even when disabling browser collection. Once installed, capture helpers fail open
+on delivery failures; the component's deployment prerequisites are not optional.
 
 Convex receives `POSTHOG_PROJECT_TOKEN` and `POSTHOG_HOST` only. Never place OpenAI,
 R2, Convex deployment credentials, or PostHog private keys in public variables.
@@ -237,3 +243,11 @@ callbacks. Lint, TypeScript, tests and a production build passed.
 These checks verify triggers and ingestion acceptance. Authenticated PostHog event
 queries, person-profile inspection, replay playback, dashboard provisioning and
 source-map upload remain unverified without the private account credentials.
+
+The first independent review's consent regrant and restored-results scenarios were
+also reproduced in the shared browser after fixes: withdraw, reload, clear the
+active analysis via New analysis, reopen the retained authorized results URL, then
+grant. Recording resumed, event/replay ingestion returned HTTP 200, the displayed
+analysis's backend consent was restored, and browser identification used its
+contact ID even with no active draft. Regression tests also preserve release/debug
+IDs, unhandled classification and Firefox/Safari stack frames.

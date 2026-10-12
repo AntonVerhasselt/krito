@@ -43,6 +43,14 @@ describe("analytics boundaries", () => {
     expect(error.stack).not.toContain("private");
     expect(error.stack).toContain("/_next/static/chunk.js");
   });
+  it("preserves Firefox/Safari frames including a stack with no message line", () => {
+    const error = new Error("private quotation");
+    error.stack = "click@https://krito.example/_next/static/chunk.js:12:4\n@https://krito.example/_next/static/chunk.js:20:8";
+    const clean = sanitizedError(error, "upload");
+    expect(clean.stack).toContain("click@https://krito.example/_next/static/chunk.js:12:4");
+    expect(clean.stack).toContain("@https://krito.example/_next/static/chunk.js:20:8");
+    expect(clean.stack).not.toContain("private quotation");
+  });
   it("makes no SDK calls without opt-in and does not consume once keys", async () => {
     const analytics = await import("../src/lib/analytics");
     analytics.initializeAnalytics(); analytics.trackOnce("search", "search_opened");
@@ -60,6 +68,19 @@ describe("analytics boundaries", () => {
     analytics.track("search_clicked"); analytics.captureAnalyticsError(new Error("secret"), "upload");
     expect(analytics.analyticsContext()).toBeUndefined(); expect(sdk.capture).toHaveBeenCalledTimes(calls);
     expect(sdk.stopSessionRecording).toHaveBeenCalled(); expect(sdk.opt_out_capturing).toHaveBeenCalled();
+  });
+  it("overrides persisted SDK opt-out when consent is granted after a reload", async () => {
+    const first = await import("../src/lib/analytics");
+    first.setAnalyticsConsent("granted"); first.setAnalyticsConsent("denied");
+    vi.resetModules(); vi.clearAllMocks();
+    sdk.has_opted_out_capturing.mockReturnValueOnce(true);
+    const reloaded = await import("../src/lib/analytics");
+    reloaded.initializeAnalytics(); expect(sdk.init).not.toHaveBeenCalled();
+    reloaded.setAnalyticsConsent("granted");
+    expect(sdk.init).toHaveBeenCalledTimes(1);
+    expect(sdk.opt_in_capturing).toHaveBeenCalledWith({ captureEventName: false });
+    expect(sdk.startSessionRecording).toHaveBeenCalled();
+    expect(sdk.capture.mock.calls.filter(([event]) => event === "$pageview")).toHaveLength(0);
   });
   it("keeps the application usable when capture throws", async () => {
     const analytics = await import("../src/lib/analytics");
@@ -83,10 +104,15 @@ describe("analytics boundaries", () => {
     expect(config.session_recording.blockSelector).toContain('input[type="file"]');
     const event = config.before_send({ event: "$exception", properties: { distinct_id: "anonymous-test",
       $current_url: "https://krito.example/results/secret-id?token=secret", $exception_message: "private quotation",
-      $exception_list: [{ type: "Error", value: "teacher@school.be", stacktrace: { frames: [{ filename: "https://bucket.example?token=secret" }] } }] } });
+      $release_id: "krito:abc123",
+      $exception_list: [{ type: "Error", value: "teacher@school.be", mechanism: { type: "onerror", handled: false },
+        stacktrace: { frames: [{ filename: "https://bucket.example?token=secret", chunk_id: "0197e6db-9a73-7b91-9e80-4e1b7158db5c" }] } }] } });
     const serialized = JSON.stringify(event);
     expect(event.properties.token).toBe("phc_test");
     expect(event.properties.$process_person_profile).toBe(false);
+    expect(event.properties.$release_id).toBe("krito:abc123");
+    expect(event.properties.$exception_list[0].stacktrace.frames[0].chunk_id).toBe("0197e6db-9a73-7b91-9e80-4e1b7158db5c");
+    expect(event.properties.$exception_list[0].mechanism).toMatchObject({ type: "onerror", handled: false });
     expect(serialized).not.toContain("quotation"); expect(serialized).not.toContain("teacher@"); expect(serialized).not.toContain("token=");
     expect(serialized).toContain("/results/[analysisId]");
     analytics.setAnalyticsConsent("denied"); expect(config.before_send(event)).toBeNull();

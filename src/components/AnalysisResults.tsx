@@ -6,7 +6,7 @@ import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { saveSession, useAccessToken } from "../lib/analysisSession";
-import { analyticsContext, track, trackOnce, captureAnalyticsError } from "../lib/analytics";
+import { analyticsContext, identifyContact, track, trackOnce, captureAnalyticsError } from "../lib/analytics";
 import { analyticsErrorCode } from "../../shared/analytics";
 import { safeError } from "../lib/safeError";
 import { SiteHeader } from "./SiteHeader";
@@ -148,6 +148,7 @@ function LiveResults({ analysisId }: { analysisId: string }) {
   const unavailable = !accessToken || status === null;
   useEffect(() => {
     if (status) {
+      if (status.analyticsDistinctId) identifyContact(status.analyticsDistinctId);
       const properties = { analysis_id: analysisId, attempt: status.attempt, stage: status.status, is_demo: false };
       trackOnce(`results:${analysisId}`, "analysis_results_viewed", properties);
       if (status.status !== "draft" && status.status !== "failed" && status.status !== "completed")

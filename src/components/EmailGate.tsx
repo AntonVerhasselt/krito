@@ -1,10 +1,10 @@
 "use client";
 import { useRef, useState } from "react";
-import { useConvex, useMutation } from "convex/react";
+import { useMutation } from "convex/react";
 import { useRouter } from "next/navigation";
 import { api } from "../../convex/_generated/api";
 import type { AnalysisSession } from "../lib/analysisSession";
-import { analyticsContext, identifyContact, track, captureAnalyticsError } from "../lib/analytics";
+import { analyticsContext, track, captureAnalyticsError } from "../lib/analytics";
 import { analyticsErrorCode } from "../../shared/analytics";
 import { safeError } from "../lib/safeError";
 import { isPersonalEmail } from "../../shared/emailPolicy";
@@ -20,7 +20,6 @@ export function EmailGate({
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   const typingStarted = useRef(false);
-  const convex = useConvex();
   const submit = useMutation(api.analyses.submit);
   const router = useRouter();
   return (
@@ -39,12 +38,8 @@ export function EmailGate({
         setError("");
         try {
           const id = await submit({ ...session, email, analyticsContext: analyticsContext() });
-          // Identification comes from a capability-protected backend response.
-          // Analytics lookup failure must never obstruct the accepted submission.
-          try {
-            const accepted = await convex.query(api.analyses.getStatus, session);
-            if (accepted?.analyticsDistinctId) identifyContact(accepted.analyticsDistinctId);
-          } catch { /* The global lifecycle restores identity on the results route. */ }
+          // Results restore analytics identity from their protected status response.
+          // No extra analytics request may delay an already accepted submission.
           router.push(`/results/${id}`);
         } catch (e) {
           track("email_submit_failed", { analysis_id: session.analysisId, error_code: analyticsErrorCode(e) });

@@ -54,15 +54,20 @@ function scrubExceptionList(value: unknown) {
   return value.slice(0, 5).map((exception) => {
     const item = exception as Record<string, unknown>;
     const stack = item.stacktrace as { frames?: Record<string, unknown>[] } | undefined;
+    const mechanism = item.mechanism as { type?: unknown; handled?: unknown } | undefined;
     return {
       type: typeof item.type === "string" && /^[A-Za-z]{1,40}$/.test(item.type) ? item.type : "Error",
       value: "Unexpected application error",
-      mechanism: { type: "generic", handled: true },
+      mechanism: {
+        type: typeof mechanism?.type === "string" && /^[\w-]{1,60}$/.test(mechanism.type) ? mechanism.type : "generic",
+        ...(typeof mechanism?.handled === "boolean" ? { handled: mechanism.handled } : {}),
+      },
       stacktrace: { frames: (stack?.frames ?? []).slice(0, 40).map((frame) => {
         const safe: Record<string, unknown> = {};
         for (const key of ["lineno", "colno", "in_app"]) {
           if (typeof frame[key] === "number" || typeof frame[key] === "boolean") safe[key] = frame[key];
         }
+        if (typeof frame.chunk_id === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(frame.chunk_id)) safe.chunk_id = frame.chunk_id;
         for (const key of ["filename", "abs_path"]) {
           if (typeof frame[key] === "string") {
             const value = frame[key] as string;
@@ -112,6 +117,7 @@ function beforeSend(event: CaptureResult | null): CaptureResult | null {
     properties.$exception_list = scrubExceptionList(original.$exception_list);
     properties.$exception_message = "Unexpected application error";
     properties.$exception_type = typeof original.$exception_type === "string" && /^[A-Za-z]{1,40}$/.test(original.$exception_type) ? original.$exception_type : "Error";
+    if (typeof original.$release_id === "string" && /^[\w.:-]{1,160}$/.test(original.$release_id)) properties.$release_id = original.$release_id;
   }
   // Numeric vitals are useful; SDK nested performance payloads can contain element text/URLs.
   if (event.event === "$web_vitals") {
@@ -138,6 +144,7 @@ function remember(event: string, properties: Record<string, unknown>) {
 export function initializeAnalytics() {
   if (typeof window === "undefined" || !analyticsAvailable() || getAnalyticsConsent() !== "granted") return;
   try {
+    const fresh = !initialized;
     if (!initialized) {
       posthog.init(process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN!, {
         api_host: process.env.NEXT_PUBLIC_POSTHOG_HOST,
@@ -182,10 +189,13 @@ export function initializeAnalytics() {
         loaded: (client) => client.startSessionRecording(true),
       });
       initialized = true;
-    } else if (posthog.has_opted_out_capturing()) {
+    }
+    // A stored SDK opt-out survives reload even though our own choice was just granted.
+    if (posthog.has_opted_out_capturing()) {
       posthog.opt_in_capturing({ captureEventName: false });
       posthog.startSessionRecording(true);
-      posthog.capture("$pageview");
+      // Fresh initialization already schedules one initial pageview on the next tick.
+      if (!fresh) posthog.capture("$pageview");
     }
     if (process.env.NEXT_PUBLIC_POSTHOG_DEBUG === "true") {
       Object.assign(window, { __kritoAnalytics: {

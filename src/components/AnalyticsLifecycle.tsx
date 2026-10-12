@@ -1,15 +1,20 @@
 "use client";
 
-import { useEffect, useRef, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
+import { useParams } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { useAnalysisSession } from "../lib/analysisSession";
+import { useAccessToken, useAnalysisSession } from "../lib/analysisSession";
 import type { AnalysisSession } from "../lib/analysisSession";
 import { analyticsContext, getAnalyticsConsent, identifyContact, subscribeAnalyticsConsent } from "../lib/analytics";
 
 /** Consent changes also apply to background work after the browser leaves. */
 export function AnalyticsLifecycle() {
-  const session = useAnalysisSession();
+  const active = useAnalysisSession();
+  const { analysisId } = useParams<{ analysisId?: string }>();
+  const accessToken = useAccessToken(analysisId ?? "");
+  const session = useMemo(() => analysisId && /^[a-z0-9]{10,80}$/.test(analysisId) && accessToken
+    ? { analysisId, accessToken } : active, [analysisId, accessToken, active]);
   const status = useQuery(api.analyses.getStatus, session ?? "skip");
   const consent = useSyncExternalStore(subscribeAnalyticsConsent, getAnalyticsConsent, () => "unknown" as const);
   const setConsent = useMutation(api.analyses.setAnalyticsConsent);
