@@ -24,6 +24,21 @@ import {
 import { fileTypeOf } from "../shared/fileTypes";
 
 const analysisArgs = { analysisId: v.id("analyses"), attempt: v.number() };
+/** A preparation run; absent on runs scheduled before run numbers existed. */
+const preparationArgs = { ...analysisArgs, run: v.optional(v.number()) };
+function currentRun(a: Doc<"analyses">, args: { attempt: number; run?: number }) {
+  return (
+    a.status === "preparing" &&
+    a.attempt === args.attempt &&
+    (args.run === undefined || args.run === (a.preparationRun ?? 0))
+  );
+}
+/** Starts a new preparation run; any older run's late results are ignored. */
+async function schedulePreparation(ctx: MutationCtx, a: Doc<"analyses">, delay: number, patch: Partial<Doc<"analyses">> = {}) {
+  const run = (a.preparationRun ?? 0) + 1;
+  await ctx.db.patch(a._id, { ...patch, preparationRun: run, updatedAt: Date.now() });
+  await ctx.scheduler.runAfter(delay, internal.node.pdf.prepare, { analysisId: a._id, attempt: a.attempt, run });
+}
 export const runArgs = { runId: v.id("aiRuns"), generation: v.number() };
 async function active(
   ctx: MutationCtx,
@@ -80,17 +95,16 @@ export const begin = internalMutation({
     for (const f of await submittedFiles(ctx, a._id))
       if (f.status === "invalid")
         await ctx.db.patch(f._id, { status: "ready", safeError: undefined, updatedAt: Date.now() });
-    await ctx.db.patch(a._id, { status: "preparing", preparationStartedAt: Date.now(), updatedAt: Date.now() });
     await captureAnalysis(ctx, a, "analysis_started", { duration_ms: Date.now() - (a.attemptStartedAt ?? a.submittedAt ?? a.createdAt) });
     await captureAnalysis(ctx, a, "analysis_preparation_started");
-    await ctx.scheduler.runAfter(0, internal.node.pdf.prepare, args);
+    await schedulePreparation(ctx, a, 0, { status: "preparing", preparationStartedAt: Date.now() });
   },
 });
 export const preparationContext = internalQuery({
-  args: analysisArgs,
+  args: preparationArgs,
   handler: async (ctx, args) => {
     const a = await ctx.db.get(args.analysisId);
-    if (a?.status !== "preparing" || a.attempt !== args.attempt) return null;
+    if (!a || !currentRun(a, args)) return null;
     return {
       files: (await submittedFiles(ctx, a._id)).filter(
         (f) => f.status === "ready" && !f.sealedKey,
@@ -168,79 +182,87 @@ export const fileSkipped = internalMutation({
  */
 export const preparationRetry = internalMutation({
   args: {
-    ...analysisArgs,
+    ...preparationArgs,
     failures: v.array(v.object({ fileId: v.id("files"), code: v.string() })),
   },
   handler: async (ctx, args) => {
     const a = await ctx.db.get(args.analysisId);
-    if (a?.status !== "preparing" || a.attempt !== args.attempt) return;
+    if (!a || !currentRun(a, args)) return;
+    // Another run may have finished these files in the meantime.
+    const failures = [];
     for (const failure of args.failures) {
       const f = await ctx.db.get(failure.fileId);
-      const type = f && fileTypeOf(f.name);
+      if (f?.analysisId === a._id && f.status === "ready" && !f.sealedKey) failures.push({ ...failure, f });
+    }
+    if (!failures.length) {
+      await finishPreparation(ctx, a);
+      return;
+    }
+    for (const { fileId, code, f } of failures) {
+      const type = fileTypeOf(f.name);
       await captureAnalysis(ctx, a, "file_conversion_failed", {
-        file_id: failure.fileId, extension: type?.extension, file_kind: type?.kind,
-        error_code: analyticsErrorCode(failure.code), recovery_count: a.recoveryCount,
+        file_id: fileId, extension: type?.extension, file_kind: type?.kind,
+        error_code: analyticsErrorCode(code), recovery_count: a.recoveryCount,
       });
     }
-    const code = args.failures[0].code;
+    const code = failures[0].code;
     await captureAnalysisException(ctx, a, code, "analysis_preparation", {
-      file_count: args.failures.length, recovery_count: a.recoveryCount,
+      file_count: failures.length, recovery_count: a.recoveryCount,
     });
     if (a.recoveryCount >= 3) {
       await failPreparation(ctx, a, code);
       return;
     }
-    await ctx.db.patch(a._id, { recoveryCount: a.recoveryCount + 1, updatedAt: Date.now() });
     await captureAnalysis(ctx, a, "workflow_recovery_scheduled", {
       stage: "preparing", recovery_count: a.recoveryCount + 1, error_code: analyticsErrorCode(code),
     });
-    await ctx.scheduler.runAfter(10_000 * (a.recoveryCount + 1), internal.node.pdf.prepare, {
-      analysisId: args.analysisId,
-      attempt: args.attempt,
-    });
+    await schedulePreparation(ctx, a, 10_000 * (a.recoveryCount + 1), { recoveryCount: a.recoveryCount + 1 });
   },
 });
 export const prepared = internalMutation({
-  args: analysisArgs,
+  args: preparationArgs,
   handler: async (ctx, args) => {
     const a = await ctx.db.get(args.analysisId);
-    if (a?.status !== "preparing" || a.attempt !== args.attempt) return;
-    const files = await submittedFiles(ctx, a._id);
-    // Every file is sealed or left out; otherwise a later run finishes the job.
-    if (files.some((f) => f.status === "ready" && !f.sealedKey)) return;
-    // Converted PDFs can be larger than their sources: files beyond the
-    // total limit are left out, in upload order.
-    let total = 0;
-    const manifest = [];
-    for (const f of files) {
-      if (f.status !== "ready") continue;
-      if (total + f.actualBytes! > MAX_TOTAL_BYTES) {
-        await ctx.db.patch(f._id, { status: "invalid", safeError: "converted_total_too_large", updatedAt: Date.now() });
-        await captureAnalysis(ctx, a, "file_conversion_failed", {
-          file_id: f._id, error_code: "converted_total_too_large", converted_bytes: f.actualBytes,
-        });
-        continue;
-      }
-      total += f.actualBytes!;
-      manifest.push({ fileId: f._id, name: f.name, pageCount: f.pageCount!, bytes: f.actualBytes! });
-    }
-    if (!manifest.length) {
-      await failPreparation(ctx, a, "no_readable_files");
-      return;
-    }
-    await ctx.db.patch(a._id, { manifest, status: "checking", updatedAt: Date.now() });
-    await captureAnalysis(ctx, a, "analysis_preparation_completed", {
-      duration_ms: Date.now() - (a.preparationStartedAt ?? a.updatedAt),
-      file_count: manifest.length, failed_count: files.length - manifest.length,
-      page_count: manifest.reduce((sum, m) => sum + m.pageCount, 0),
-    });
-    const runId = await insertRun(ctx, a, "initial", 0);
-    await ctx.scheduler.runAfter(0, internal.node.openai.startInitialAnalysis, {
-      runId,
-      generation: 1,
-    });
+    if (!a || !currentRun(a, args)) return;
+    await finishPreparation(ctx, a);
   },
 });
+async function finishPreparation(ctx: MutationCtx, a: Doc<"analyses">) {
+  const files = await submittedFiles(ctx, a._id);
+  // Every file is sealed or left out; otherwise a later run finishes the job.
+  if (files.some((f) => f.status === "ready" && !f.sealedKey)) return;
+  // Converted PDFs can be larger than their sources: files beyond the
+  // total limit are left out, in upload order.
+  let total = 0;
+  const manifest = [];
+  for (const f of files) {
+    if (f.status !== "ready") continue;
+    if (total + f.actualBytes! > MAX_TOTAL_BYTES) {
+      await ctx.db.patch(f._id, { status: "invalid", safeError: "converted_total_too_large", updatedAt: Date.now() });
+      await captureAnalysis(ctx, a, "file_conversion_failed", {
+        file_id: f._id, error_code: "converted_total_too_large", converted_bytes: f.actualBytes,
+      });
+      continue;
+    }
+    total += f.actualBytes!;
+    manifest.push({ fileId: f._id, name: f.name, pageCount: f.pageCount!, bytes: f.actualBytes! });
+  }
+  if (!manifest.length) {
+    await failPreparation(ctx, a, "no_readable_files");
+    return;
+  }
+  await ctx.db.patch(a._id, { manifest, status: "checking", updatedAt: Date.now() });
+  await captureAnalysis(ctx, a, "analysis_preparation_completed", {
+    duration_ms: Date.now() - (a.preparationStartedAt ?? a.updatedAt),
+    file_count: manifest.length, failed_count: files.length - manifest.length,
+    page_count: manifest.reduce((sum, m) => sum + m.pageCount, 0),
+  });
+  const runId = await insertRun(ctx, a, "initial", 0);
+  await ctx.scheduler.runAfter(0, internal.node.openai.startInitialAnalysis, {
+    runId,
+    generation: 1,
+  });
+}
 async function failPreparation(ctx: MutationCtx, a: Doc<"analyses">, code: string) {
   await ctx.db.patch(a._id, { status: "failed", safeError: code, updatedAt: Date.now() });
   await captureAnalysis(ctx, a, "analysis_failed", { stage: "preparing", error_code: analyticsErrorCode(code) });
@@ -698,18 +720,16 @@ export const recover = internalMutation({
           await captureAnalysisException(ctx, a, "preparation_failed", "workflow_recovery");
           continue;
         }
+        await captureAnalysis(ctx, a, "workflow_recovery_scheduled", { stage: status, recovery_count: a.recoveryCount + 1 });
+        if (status === "preparing") {
+          await schedulePreparation(ctx, a, 0, { recoveryCount: a.recoveryCount + 1 });
+          continue;
+        }
         await ctx.db.patch(a._id, {
           recoveryCount: a.recoveryCount + 1,
           updatedAt: now,
         });
-        await captureAnalysis(ctx, a, "workflow_recovery_scheduled", { stage: status, recovery_count: a.recoveryCount + 1 });
-        await ctx.scheduler.runAfter(
-          0,
-          status === "queued"
-            ? internal.workflow.begin
-            : internal.node.pdf.prepare,
-          { analysisId: a._id, attempt: a.attempt },
-        );
+        await ctx.scheduler.runAfter(0, internal.workflow.begin, { analysisId: a._id, attempt: a.attempt });
       }
     }
     for (const status of ["pending", "creating", "polling"] as const) {

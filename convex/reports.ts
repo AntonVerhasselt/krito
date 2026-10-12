@@ -13,9 +13,16 @@ export async function reportInput(ctx: QueryCtx, a: Doc<"analyses">): Promise<Re
     .withIndex("by_analysis_order", (q) => q.eq("analysisId", a._id))
     .collect();
   if (rows.some((g) => !g.finalResult)) return null;
+  const skipped = (
+    await ctx.db
+      .query("files")
+      .withIndex("by_analysis", (q) => q.eq("analysisId", a._id))
+      .collect()
+  ).filter((f) => f.status === "invalid");
   return {
     topic: a.topic,
     files: a.manifest,
+    skippedFiles: skipped.map((f) => ({ name: f.name })),
     goals: rows.map((g) => ({
       snapshot: g.snapshot,
       result: g.finalResult!,

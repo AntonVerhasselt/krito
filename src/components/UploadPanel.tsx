@@ -97,11 +97,9 @@ export function UploadPanel({
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [dragging, setDragging] = useState(false),
-    [progress, setProgress] = useState<Record<string, number>>({});
-  const uploading = Object.values(progress);
-  const overall = uploading.length
-    ? uploading.reduce((a, b) => a + b, 0) / uploading.length
-    : 0;
+    [progress, setProgress] = useState<Record<string, number>>({}),
+    // Share of the whole batch's bytes sent; only ever grows.
+    [overall, setOverall] = useState(0);
   const disabled = !enabled || busy;
 
   async function upload(chosen: File[], method: "picker" | "drop") {
@@ -137,6 +135,12 @@ export function UploadPanel({
     let draftFailed = false;
     let analysisId = session?.analysisId;
     track("upload_batch_started", { batch_id: batchId, file_count: chosen.length, total_bytes: totalBytes });
+    const sent = chosen.map(() => 0);
+    const report = (position: number, bytes: number) => {
+      sent[position - 1] = bytes;
+      setOverall((sent.reduce((a, b) => a + b, 0) / totalBytes) * 100);
+    };
+    setOverall(0);
     setBusy(true);
     onBusy(true);
     try {
@@ -149,19 +153,29 @@ export function UploadPanel({
       }
       analysisId = credentials.analysisId;
       // Files go up side by side; after a failure no new file is started.
+      // Registration stays in selection order: it sets the order of the
+      // list, of the analysis and of the converted-size budget.
       let next = 0;
       let stopped = false;
+      let registered: Promise<unknown> = Promise.resolve();
       const uploadOne = async (file: File, position: number) => {
         let stage = "registration";
         let fileId: string | undefined;
         const type = fileTypeOf(file.name)!;
         try {
-          const upload = await requestUpload({
-            ...credentials,
-            clientFileId: crypto.randomUUID(),
-            name: file.name,
-            bytes: file.size,
-          });
+          const previous = registered;
+          const registration = previous.then(() =>
+            stopped
+              ? Promise.reject(new Error("upload_stopped"))
+              : requestUpload({
+                  ...credentials,
+                  clientFileId: crypto.randomUUID(),
+                  name: file.name,
+                  bytes: file.size,
+                }),
+          );
+          registered = registration.catch(() => {});
+          const upload = await registration;
           fileId = upload.fileId;
           stage = "transfer";
           const transferStarted = Date.now();
@@ -169,9 +183,10 @@ export function UploadPanel({
             extension: type.extension, file_kind: type.kind, bytes: file.size });
           setProgress((p) => ({ ...p, [upload.fileId]: 0 }));
           try {
-            await putFile(upload.uploadUrl, file, upload.contentType, (value) =>
-              setProgress((p) => ({ ...p, [upload.fileId]: value })),
-            );
+            await putFile(upload.uploadUrl, file, upload.contentType, (value) => {
+              setProgress((p) => ({ ...p, [upload.fileId]: value }));
+              report(position, (file.size * value) / 100);
+            });
             stage = "acknowledgement";
             await complete({ ...credentials, fileId: upload.fileId });
             completed++;
@@ -186,6 +201,7 @@ export function UploadPanel({
             });
           }
         } catch (error) {
+          if (error instanceof Error && error.message === "upload_stopped") throw error;
           failed++;
           const props = { analysis_id: analysisId, file_id: fileId, batch_id: batchId,
             stage, error_code: analyticsErrorCode(error), hostname: window.location.hostname,
@@ -204,7 +220,9 @@ export function UploadPanel({
             attempted++;
             await uploadOne(chosen[position - 1], position).catch((error) => {
               stopped = true;
-              errors.push(error);
+              // A file that never started because of an earlier failure isn't an error of its own.
+              if (!(error instanceof Error && error.message === "upload_stopped")) errors.push(error);
+              else attempted--;
             });
           }
         }),

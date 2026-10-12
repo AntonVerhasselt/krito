@@ -18,6 +18,8 @@ Krito legde {{files}} naast {{goals}}:
 {{/if}}{{#if uncertain}}- {{uncertain}} onzeker
 {{/if}}{{#if reviewGoals}}
 Bij {{reviewGoals}} twijfelde Krito. In het verslag staat daar "Kijk zelf na" bij.
+{{/if}}{{#if skippedFiles}}
+Deze bestanden kon Krito niet openen, dus ze zitten niet in de beoordeling: {{skippedFiles}}. Controleer of ze niet beveiligd of beschadigd zijn.
 {{/if}}
 Op de eerste pagina zie je alle doelen in één overzicht. Daarna volgt per doel de uitleg, wat nog ontbreekt en het citaat uit je eigen bestand, met de pagina erbij.
 

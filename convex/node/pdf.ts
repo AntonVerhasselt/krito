@@ -124,8 +124,8 @@ export async function inspectPdf(
  * teacher submits many files at once, so quick unavailable answers are retried
  * with growing pauses. A timeout or missing configuration fails at once.
  *
- * LibreOffice also answers 500 for a damaged file. When that repeats while the
- * converter reports itself healthy, the file is the problem.
+ * LibreOffice also answers 500 for a damaged file. When every attempt gets a
+ * 500 while the converter reports itself healthy, the file is the problem.
  */
 export async function convertWithRetries(
   bytes: Buffer,
@@ -134,23 +134,23 @@ export async function convertWithRetries(
   pauses = [2_000, 5_000, 15_000],
 ) {
   const config = converterConfig();
-  let serverErrors = 0;
-  for (const pause of pauses) {
+  let onlyServerErrors = true;
+  for (const pause of [...pauses, null]) {
     try {
       return await convertToPdf(bytes, type, config, fetchImpl);
     } catch (error) {
       if (!(error instanceof ConverterUnavailable) || !error.retryable)
         throw error;
-      if (
-        error.status === 500 &&
-        ++serverErrors >= 2 &&
-        (await wakeConverter(fetchImpl, config))
-      )
-        throw new Error("conversion_failed");
+      onlyServerErrors &&= error.status === 500;
+      if (pause === null) {
+        if (onlyServerErrors && (await wakeConverter(fetchImpl, config)))
+          throw new Error("conversion_failed");
+        throw error;
+      }
       await new Promise((resolve) => setTimeout(resolve, pause));
     }
   }
-  return convertToPdf(bytes, type, config, fetchImpl);
+  throw new ConverterUnavailable(true);
 }
 /**
  * Checks a finished upload. A PDF is read completely (damaged and encrypted
@@ -261,7 +261,11 @@ type PrepareFile = Doc<"files">;
  * other material is converted now and the PDF is written straight to its
  * sealed key.
  */
-async function sealFile(file: PrepareFile, key: string) {
+async function sealFile(
+  file: PrepareFile,
+  key: string,
+  oneAtATime: <T>(work: () => Promise<T>) => Promise<T>,
+) {
   const type = fileTypeOf(file.name);
   if (!type) throw new Error("unsupported_type");
   if (!needsConversion(type) || file.pdfKey) {
@@ -287,8 +291,10 @@ async function sealFile(file: PrepareFile, key: string) {
     MAX_FILE_BYTES,
     file.etag,
   );
+  // A small image can decode to hundreds of MiB; one at a time stays within
+  // the action's memory.
   const pdf = convertsLocally(type)
-    ? await imageToPdf(bytes, type)
+    ? await oneAtATime(() => imageToPdf(bytes, type))
     : await convertWithRetries(bytes, type);
   const info = await readPdf(pdf);
   await storage().send(
@@ -313,23 +319,38 @@ async function eachLimited<T>(
     }),
   );
 }
+/** Runs the given work one call at a time, in order. */
+function serial() {
+  let last: Promise<unknown> = Promise.resolve();
+  return <T>(work: () => Promise<T>) => {
+    const next = last.then(work, work);
+    last = next.catch(() => {});
+    return next;
+  };
+}
 export const prepare = internalAction({
-  args: { analysisId: v.id("analyses"), attempt: v.number() },
+  args: {
+    analysisId: v.id("analyses"),
+    attempt: v.number(),
+    run: v.optional(v.number()),
+  },
   handler: async (ctx, args) => {
     const context = await ctx.runQuery(
       internal.workflow.preparationContext,
       args,
     );
     if (!context) return;
+    const oneAtATime = serial();
     const failures: { fileId: Id<"files">; code: string }[] = [];
     // Conversions run side by side; a few at a time keeps memory bounded.
     await eachLimited(context.files, 4, async (file) => {
       const key = `sealed/${args.analysisId}/${args.attempt}/${file._id}-${randomUUID()}.pdf`;
       const started = Date.now();
       try {
-        const info = await sealFile(file, key);
+        const info = await sealFile(file, key, oneAtATime);
         const accepted = await ctx.runMutation(internal.workflow.sealed, {
-          ...args,
+          analysisId: args.analysisId,
+          attempt: args.attempt,
           fileId: file._id,
           key,
           info: info ?? undefined,
@@ -359,7 +380,8 @@ export const prepare = internalAction({
         );
         if (unreadable.has(code))
           await ctx.runMutation(internal.workflow.fileSkipped, {
-            ...args,
+            analysisId: args.analysisId,
+            attempt: args.attempt,
             fileId: file._id,
             code,
             durationMs: Date.now() - started,

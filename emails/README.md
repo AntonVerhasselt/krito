@@ -54,6 +54,7 @@ The body, in plain text, exactly as it's sent.
 | `goals` | `12 leerdoelen` / `1 leerdoel` | report |
 | `covered`, `partial`, `notFound`, `uncertain` | `7` (0 = false in `#if`) | report |
 | `reviewGoals` | `2 doelen` / `1 doel` (empty when 0) | report |
+| `skippedFiles` | `les.docx, toets.pptx`: files Krito couldn't read (empty when none) | report |
 | `materialLink` | `https://www.krito.be/materiaal?onderwerp=…` | reminder, welcome-2-no-analysis |
 | `siteLink` | `https://www.krito.be` | all welcome e-mails |
 | `email` | `juf.an@school.be` | all welcome e-mails |

@@ -156,14 +156,15 @@ async function topicOf(ctx: QueryCtx, goalSet: { catalogVersion: string; key: st
 
 /** Everything the delivery action needs, read in one consistent snapshot. */
 /**
- * Whether the finished report will land in the teacher's mailbox, so the
- * results page only promises an e-mail that is really sent.
+ * Whether Krito sends the finished report, so the results page only promises
+ * an e-mail that goes out. Suppression (bounces, complaints) is deliberately
+ * not considered: the address isn't verified, so this mustn't reveal the
+ * state of someone else's mailbox.
  */
 export async function reportWillBeMailed(ctx: QueryCtx, a: Doc<"analyses">) {
   if (!a.userId || a.testMode || a.fixture) return false;
   const user = await ctx.db.get(a.userId);
-  if (!user || !emailModeAllows(user.email, process.env)) return false;
-  return !(await mailbox(ctx, user)).some((u) => !!u.emailSuppressedAt);
+  return !!user && emailModeAllows(user.email, process.env);
 }
 
 export const loadDelivery = internalQuery({

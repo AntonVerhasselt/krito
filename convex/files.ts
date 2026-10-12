@@ -6,7 +6,8 @@ import {
   mutation,
 } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
-import { internal } from "./_generated/api";
+import { components, internal } from "./_generated/api";
+import { MINUTE, RateLimiter } from "@convex-dev/rate-limiter";
 import { requireAccess } from "./access";
 import { accessArgs } from "./analyses";
 import {
@@ -21,6 +22,11 @@ import {
 } from "../shared/fileTypes";
 import { captureAnalysis, captureAnalysisException } from "./analytics";
 import { analyticsErrorCode } from "../shared/analytics";
+
+// Cloud Run keeps an instance warm for minutes; more pings add nothing.
+const warmups = new RateLimiter(components.rateLimiter, {
+  converterWarmup: { kind: "fixed window", rate: 1, period: MINUTE },
+});
 
 /** Every stored object of a file: the upload and, if converted, its PDF. */
 export function fileKeys(f: {
@@ -154,9 +160,6 @@ export const completeUpload = mutation({
       fileId: f._id,
       generation,
     });
-    // Conversion waits for the analysis; a warm converter makes that quick.
-    if (type && needsConversion(type) && !convertsLocally(type))
-      await ctx.scheduler.runAfter(0, internal.node.pdf.warmConverter, {});
   },
 });
 export const remove = mutation({
@@ -227,6 +230,12 @@ export const validated = internalMutation({
       file_kind: type?.kind, duration_ms: Date.now() - f.updatedAt,
       page_count: args.info?.pageCount, bytes: f.declaredBytes,
     };
+    // Conversion waits for the analysis; a warm converter makes it quick.
+    // Only real uploads wake it, at most once a minute for everyone.
+    if (!safeError && type && needsConversion(type) && !convertsLocally(type)) {
+      const { ok } = await warmups.limit(ctx, "converterWarmup");
+      if (ok) await ctx.scheduler.runAfter(0, internal.node.pdf.warmConverter, {});
+    }
     await captureAnalysis(ctx, a, safeError ? "file_validation_failed" : "file_ready", {
       ...metadata, error_code: safeError ? analyticsErrorCode(safeError) : undefined,
     });

@@ -141,6 +141,8 @@ describe("preparation", () => {
     await handler(begin)(state.ctx, args);
     expect(state.tables.files[0]).toMatchObject({ status: "ready", safeError: undefined });
     expect(state.scheduled.map((s) => s.name)).toEqual(["node/pdf:prepare"]);
+    expect(state.scheduled[0].args).toEqual({ ...args, run: 1 });
+    expect(state.tables.analyses[0]).toMatchObject({ status: "preparing", preparationRun: 1 });
   });
 
   it("only hands out files that still need a sealed PDF", async () => {
@@ -214,13 +216,25 @@ describe("preparation", () => {
     state.tables.files.push(file("f1", "a.docx") as Row);
     const failures = [{ fileId: "f1", code: "conversion_unavailable" }];
     await handler(preparationRetry)(state.ctx, { ...args, failures });
-    expect(state.scheduled[0]).toMatchObject({ delay: 10_000, name: "node/pdf:prepare", args });
+    expect(state.scheduled[0]).toMatchObject({ delay: 10_000, name: "node/pdf:prepare", args: { ...args, run: 1 } });
     expect(state.tables.analyses[0].recoveryCount).toBe(1);
     expect(spies.captureException).toHaveBeenCalled();
 
+    // The run it replaced reports late: ignored.
     state.tables.analyses[0].recoveryCount = 3;
-    await handler(preparationRetry)(state.ctx, { ...args, failures });
+    await handler(preparationRetry)(state.ctx, { ...args, run: 0, failures });
+    expect(state.tables.analyses[0].status).toBe("preparing");
+
+    await handler(preparationRetry)(state.ctx, { ...args, run: 1, failures });
     expect(state.tables.analyses[0]).toMatchObject({ status: "failed", safeError: "conversion_unavailable" });
+  });
+
+  it("doesn't fail files another run has finished meanwhile", async () => {
+    const state = fakeCtx();
+    state.tables.analyses.push(analysis("preparing", { recoveryCount: 3 }) as Row);
+    state.tables.files.push(file("f1", "a.docx", { sealedKey: "s1", pageCount: 2, actualBytes: 10 }) as Row);
+    await handler(preparationRetry)(state.ctx, { ...args, failures: [{ fileId: "f1", code: "conversion_unavailable" }] });
+    expect(state.tables.analyses[0].status).toBe("checking");
   });
 });
 
@@ -242,10 +256,21 @@ describe("converter retries", () => {
     return { impl, calls };
   }
 
-  it("treats a repeated 500 from a healthy converter as a damaged file", async () => {
+  it("treats 500 on every attempt from a healthy converter as a damaged file", async () => {
     const { impl, calls } = converter([500, 500, 500, 500], true);
     await expect(convertWithRetries(Buffer.from("x"), docx, impl, [0, 0, 0])).rejects.toThrow("conversion_failed");
-    expect(calls).toEqual(["/forms/libreoffice/convert", "/forms/libreoffice/convert", "/health"]);
+    expect(calls).toEqual([...Array(4).fill("/forms/libreoffice/convert"), "/health"]);
+  });
+
+  it("retries passing 500s (LibreOffice out of resources)", async () => {
+    const { impl } = converter([500, 500], true);
+    const pdf = await convertWithRetries(Buffer.from("x"), docx, impl, [0, 0, 0]);
+    expect(pdf.toString()).toContain("%PDF");
+  });
+
+  it("keeps the file when the converter mixes 500s with other outages", async () => {
+    const { impl } = converter([500, 503, 500, 500], true);
+    await expect(convertWithRetries(Buffer.from("x"), docx, impl, [0, 0, 0])).rejects.toThrow("conversion_unavailable");
   });
 
   it("keeps the file when the converter itself is down", async () => {
@@ -275,5 +300,17 @@ describe("report e-mail promise", () => {
     expect(emailModeAllows("Juf@School.be ", { EMAIL_MODE: "allowlist", EMAIL_ALLOWLIST: "a@b.be, juf@school.be" })).toBe(true);
     expect(emailModeAllows("meester@school.be", { EMAIL_MODE: "allowlist", EMAIL_ALLOWLIST: "juf@school.be" })).toBe(false);
     expect(emailModeAllows("juf@school.be", {})).toBe(false);
+  });
+});
+
+describe("upload error messages", () => {
+  it("explains blocked, slow and refused uploads instead of a generic error", async () => {
+    const { safeError } = await import("../src/lib/safeError");
+    const generic = safeError(new Error("something else"));
+    for (const code of ["upload_blocked", "upload_timeout", "upload_rejected"]) {
+      const message = safeError(Object.assign(new Error(code), { status: 0 }));
+      expect(message).not.toBe(generic);
+      expect(message).toContain("kies de ontbrekende bestanden opnieuw");
+    }
   });
 });

@@ -197,9 +197,13 @@ async function configureAccount() {
   }).then((response) => response.ok ? response.json() as Promise<{ id: number }> : Promise.reject(new Error("PostHog user lookup failed; response withheld.")));
   const alerts = await all<{ name: string }>(`${root}alerts/?limit=100`);
   const failures = [
-    { event: "upload_failed", label: "upload failed (browser to storage)" },
-    { event: "file_conversion_failed", label: "file could not be converted" },
-    { event: "analysis_failed", label: "analysis failed" },
+    { event: "upload_failed", label: "upload failed (browser to storage)", filters: [] },
+    // The backend couldn't read an upload that did arrive (storage outage).
+    { event: "file_validation_failed", label: "upload could not be checked", filters: [
+      { type: "event", key: "error_code", operator: "exact", value: "upload_validation_failed" },
+    ] },
+    { event: "file_conversion_failed", label: "file could not be converted", filters: [] },
+    { event: "analysis_failed", label: "analysis failed", filters: [] },
   ];
   for (const failure of failures) {
     const name = `Krito · Alert: ${failure.label}`;
@@ -209,7 +213,7 @@ async function configureAccount() {
       name, saved: true,
       description: "Source of an hourly alert. Managed by npm run env:posthog -- --account.",
       query: { kind: "InsightVizNode", source: {
-        kind: "TrendsQuery", dateRange: { date_from: "-24h" }, interval: "hour", properties,
+        kind: "TrendsQuery", dateRange: { date_from: "-24h" }, interval: "hour", properties: [...properties, ...failure.filters],
         series: [{ kind: "EventsNode", event: failure.event, name: failure.event, math: "total" }],
         trendsFilter: { display: "ActionsLineGraph" },
       } },

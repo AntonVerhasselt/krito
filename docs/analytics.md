@@ -179,9 +179,9 @@ browser checks and preview runs deliberately do not contribute to these totals.
 Use PostHog's built-in Web Analytics, Error Tracking, and AI
 Observability views for their specialized metrics.
 
-Three hourly alerts (2026-10-12) e-mail the account owner when any hosted
-`upload_failed`, `file_conversion_failed` or `analysis_failed` occurs in the
-past hour; each has a "Krito · Alert: …" source insight. They exist because
+Four hourly alerts (2026-10-12) e-mail the account owner when any hosted
+`upload_failed`, `file_validation_failed` with `upload_validation_failed`,
+`file_conversion_failed` or `analysis_failed` occurs in the past hour; each has a "Krito · Alert: …" source insight. They exist because
 uploads from www.krito.be failed unnoticed while the R2 CORS rule lacked the
 launch domain. `upload_failed` carries `stage`, `status` (HTTP status, 0 when
 the browser blocked the request) and `hostname`; `error_code` `upload_blocked`
@@ -197,7 +197,8 @@ recordings are not removed by changing the SDK or project setting.
 Two personal API keys exist, each with only the scopes it needs:
 
 - **Account setup** (`.secrets/posthog.env`, local only): project, event_definition,
-  dashboard and insight read/write. Used by `npm run env:posthog -- --account`.
+  dashboard, insight and alert read/write, plus user read (the alerts are sent to
+  the key's owner). Used by `npm run env:posthog -- --account`.
   Create it under PostHog EU → Settings → Personal API keys if it was revoked.
 - **Build source maps** (`.secrets/posthog-build.env` and Vercel
   `POSTHOG_PERSONAL_API_KEY`): `error_tracking:write` only.

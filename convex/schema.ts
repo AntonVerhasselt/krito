@@ -142,6 +142,8 @@ export default defineSchema({
     analyticsContext: v.optional(analyticsContextValidator),
     attemptStartedAt: v.optional(v.number()),
     preparationStartedAt: v.optional(v.number()),
+    /** Which scheduled preparation run is current; older runs are ignored. */
+    preparationRun: v.optional(v.number()),
     recheckTotal: v.number(),
     recheckCompleted: v.number(),
     recoveryCount: v.number(),

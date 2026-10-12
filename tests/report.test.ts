@@ -29,6 +29,17 @@ describe("report model", () => {
     );
   });
 
+  it("lists files that were left out", async () => {
+    const input = { ...demoReportInput(), skippedFiles: [{ name: "kapot-werkblad.docx" }] };
+    expect(reportVariables(buildReportModel(input)).skippedFiles).toBe("kapot-werkblad.docx");
+    const { bytes } = await renderReport(input);
+    const dir = mkdtempSync(join(tmpdir(), "krito-report-"));
+    writeFileSync(join(dir, "r.pdf"), bytes);
+    const text = execFileSync("pdftotext", ["-layout", join(dir, "r.pdf"), "-"]).toString();
+    expect(text).toContain("kapot-werkblad.docx");
+    expect(text).toContain("Kon Krito niet lezen");
+  });
+
   it("feeds the report e-mail", () => {
     expect(reportVariables(buildReportModel(demoReportInput()))).toMatchObject({
       files: "3 bestanden",
