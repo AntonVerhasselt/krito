@@ -1,5 +1,5 @@
 "use node";
-import { PDFDocument } from "pdf-lib";
+import { degrees, PDFDocument } from "pdf-lib";
 import type { FileType } from "../../shared/fileTypes";
 
 /** A converted PDF may be larger than its source (slides become images). */
@@ -31,26 +31,38 @@ export function decodeText(bytes: Uint8Array) {
   return text.replace(/^\uFEFF/, "");
 }
 
-function splitCsvLine(line: string, delimiter: string) {
-  const fields: string[] = [];
+/**
+ * Parses CSV text into rows. Quoted cells may contain the delimiter, doubled
+ * quotes and line breaks (Alt+Enter in Excel).
+ */
+function parseCsv(text: string, delimiter: string) {
+  const rows: string[][] = [];
+  let row: string[] = [];
   let field = "";
   let quoted = false;
-  for (let i = 0; i < line.length; i++) {
-    const char = line[i];
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
     if (quoted) {
-      if (char === '"' && line[i + 1] === '"') {
+      if (char === '"' && text[i + 1] === '"') {
         field += '"';
         i++;
       } else if (char === '"') quoted = false;
       else field += char;
     } else if (char === '"') quoted = true;
     else if (char === delimiter) {
-      fields.push(field);
+      row.push(field);
+      field = "";
+    } else if (char === "\n" || char === "\r") {
+      if (char === "\r" && text[i + 1] === "\n") i++;
+      row.push(field);
+      rows.push(row);
+      row = [];
       field = "";
     } else field += char;
   }
-  fields.push(field);
-  return fields;
+  row.push(field);
+  rows.push(row);
+  return rows;
 }
 
 /**
@@ -58,15 +70,18 @@ function splitCsvLine(line: string, delimiter: string) {
  * semicolon- and tab-separated files are rewritten with commas.
  */
 export function normalizeCsv(text: string) {
-  const first = text.split(/\r?\n/).find((line) => line.trim()) ?? "";
-  const counts = [",", ";", "\t"].map((d) => splitCsvLine(first, d).length - 1);
-  const delimiter = [",", ";", "\t"][counts.indexOf(Math.max(...counts))];
-  if (delimiter === "," || !Math.max(...counts)) return text;
-  return text
-    .split(/\r?\n/)
-    .map((line) =>
-      splitCsvLine(line, delimiter)
-        .map((f) => (/[",\n]/.test(f) ? `"${f.replace(/"/g, '""')}"` : f))
+  const delimiters = [",", ";", "\t"];
+  const counts = delimiters.map((d) => {
+    const first = parseCsv(text, d).find((r) => r.join("").trim());
+    return first ? first.length - 1 : 0;
+  });
+  const most = Math.max(...counts);
+  const delimiter = delimiters[counts.indexOf(most)];
+  if (delimiter === "," || !most) return text;
+  return parseCsv(text, delimiter)
+    .map((row) =>
+      row
+        .map((f) => (/[",\r\n]/.test(f) ? `"${f.replace(/"/g, '""')}"` : f))
         .join(","),
     )
     .join("\n");
@@ -131,6 +146,63 @@ export function convertsLocally(type: FileType) {
   return ["jpg", "jpeg", "png"].includes(type.extension);
 }
 
+/**
+ * Reads the EXIF orientation of a JPEG (1 when absent). Phones store photos
+ * as shot and record how to turn them in this tag.
+ */
+export function jpegOrientation(bytes: Uint8Array) {
+  if (bytes[0] !== 0xff || bytes[1] !== 0xd8) return 1;
+  let offset = 2;
+  while (offset + 4 <= bytes.length && bytes[offset] === 0xff) {
+    const marker = bytes[offset + 1];
+    const length = (bytes[offset + 2] << 8) | bytes[offset + 3];
+    if (marker === 0xda) break; // image data starts; no EXIF before it
+    const start = offset + 4;
+    if (
+      marker === 0xe1 &&
+      String.fromCharCode(...bytes.subarray(start, start + 4)) === "Exif"
+    ) {
+      const tiff = start + 6;
+      const little = bytes[tiff] === 0x49;
+      const u16 = (at: number) =>
+        little
+          ? bytes[at] | (bytes[at + 1] << 8)
+          : (bytes[at] << 8) | bytes[at + 1];
+      const u32 = (at: number) =>
+        little
+          ? (bytes[at] | (bytes[at + 1] << 8) | (bytes[at + 2] << 16)) +
+            bytes[at + 3] * 0x1000000
+          : bytes[at] * 0x1000000 +
+            ((bytes[at + 1] << 16) | (bytes[at + 2] << 8) | bytes[at + 3]);
+      const ifd = tiff + u32(tiff + 4);
+      const entries = u16(ifd);
+      for (let n = 0; n < entries; n++) {
+        const entry = ifd + 2 + n * 12;
+        if (entry + 10 > bytes.length) break;
+        if (u16(entry) === 0x0112) {
+          const value = u16(entry + 8);
+          return value >= 1 && value <= 8 ? value : 1;
+        }
+      }
+      return 1;
+    }
+    offset += 2 + length;
+  }
+  return 1;
+}
+
+/** Clockwise turn needed to show the photo upright (mirroring is ignored). */
+const turnFor: Record<number, 0 | 90 | 180 | 270> = {
+  1: 0,
+  2: 0,
+  3: 180,
+  4: 180,
+  5: 90,
+  6: 90,
+  7: 270,
+  8: 270,
+};
+
 export async function imageToPdf(bytes: Buffer, type: FileType) {
   // A pooled Buffer can start mid-way its ArrayBuffer, which pdf-lib misreads.
   const data = new Uint8Array(bytes);
@@ -144,15 +216,32 @@ export async function imageToPdf(bytes: Buffer, type: FileType) {
   } catch {
     throw new Error("conversion_failed");
   }
-  // Fit on an A4 page in the photo's own orientation.
-  const [width, height] = image.width > image.height ? [842, 595] : [595, 842];
-  const scale = Math.min(width / image.width, height / image.height);
+  // Fit on an A4 page in the photo's own orientation, turned upright.
+  const turn = type.extension === "png" ? 0 : turnFor[jpegOrientation(data)];
+  const sideways = turn === 90 || turn === 270;
+  const [shownW, shownH] = sideways
+    ? [image.height, image.width]
+    : [image.width, image.height];
+  const [width, height] = shownW > shownH ? [842, 595] : [595, 842];
+  const scale = Math.min(width / shownW, height / shownH);
+  const w = image.width * scale;
+  const h = image.height * scale;
+  // Bottom-left corner of the upright picture on the page.
+  const bx = (width - shownW * scale) / 2;
+  const by = (height - shownH * scale) / 2;
+  // pdf-lib turns counter-clockwise around the anchor point (x, y).
+  const anchor = {
+    0: { x: bx, y: by },
+    90: { x: bx, y: by + w },
+    180: { x: bx + w, y: by + h },
+    270: { x: bx + h, y: by },
+  }[turn];
   const page = pdf.addPage([width, height]);
   page.drawImage(image, {
-    x: (width - image.width * scale) / 2,
-    y: (height - image.height * scale) / 2,
-    width: image.width * scale,
-    height: image.height * scale,
+    ...anchor,
+    width: w,
+    height: h,
+    rotate: degrees(-turn),
   });
   const out = Buffer.from(await pdf.save());
   if (out.length > MAX_CONVERTED_BYTES) throw new Error("converted_too_large");

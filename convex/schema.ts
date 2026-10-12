@@ -153,6 +153,8 @@ export default defineSchema({
     modelUsed: v.optional(v.string()),
     needsReview: v.boolean(),
     reviewReason: v.optional(v.string()),
+    /** Set by the workflow: the saved result waits for its independent recheck. */
+    awaitingRecheck: v.optional(v.boolean()),
   })
     .index("by_analysis_order", ["analysisId", "order"])
     .index("by_analysis_goal", ["analysisId", "goalId"]),

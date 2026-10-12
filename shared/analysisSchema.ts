@@ -42,3 +42,10 @@ export const RECHECK_BELOW_CONFIDENCE = 60;
 export const MAX_FILE_BYTES = 10 * 1024 * 1024;
 export const MAX_TOTAL_BYTES = 40 * 1024 * 1024;
 export const MAX_FILES = 20;
+/**
+ * A file that is still validating after this long is restarted by the
+ * recovery job. Validation runs in one Node action, which Convex stops after
+ * 10 minutes, so a running validation (including document conversion with its
+ * retries) is never restarted while it can still finish.
+ */
+export const VALIDATION_TIMEOUT_MS = 11 * 60_000;

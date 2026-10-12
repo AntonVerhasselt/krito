@@ -2,11 +2,7 @@ import { ConvexError, v } from "convex/values";
 import { mutation, query, type MutationCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { authorized, requireAccess } from "./access";
-import {
-  MAX_TOTAL_BYTES,
-  RECHECK_BELOW_CONFIDENCE,
-  RECHECK_MODEL,
-} from "../shared/analysisSchema";
+import { MAX_TOTAL_BYTES } from "../shared/analysisSchema";
 import { getOrCreateUser } from "./users";
 import { PROMPT_VERSION } from "../shared/prompts";
 import { isPersonalEmail } from "../shared/emailPolicy";
@@ -113,7 +109,9 @@ export const getStatus = query({
         .map((f) => ({
           fileId: f._id,
           name: f.name,
-          bytes: f.actualBytes ?? f.declaredBytes,
+          // The uploaded size: the browser checks it against the same limit
+          // as registerUpload. Converted sizes are checked in files.validated.
+          bytes: f.declaredBytes,
           pageCount: f.pageCount ?? null,
           status: f.status,
           safeError: f.safeError ?? null,
@@ -147,6 +145,8 @@ export const submit = mutation({
           !f.sha256 ||
           !f.etag,
       ) ||
+      // files.validated keeps the converted total under the limit; this
+      // only guards against files that changed underneath.
       files.reduce((sum, f) => sum + (f.actualBytes ?? 0), 0) > MAX_TOTAL_BYTES
     )
       throw new ConvexError("files_not_ready");
@@ -235,11 +235,7 @@ export const getResults = query({
       files: a.manifest ?? [],
       goals: rows.map((g) => {
         const settled =
-          a.status === "completed" ||
-          (!!g.finalResult &&
-            (g.modelUsed === RECHECK_MODEL ||
-              g.reviewReason === "recheck_failed" ||
-              g.finalResult.confidence >= RECHECK_BELOW_CONFIDENCE));
+          a.status === "completed" || (!!g.finalResult && !g.awaitingRecheck);
         return {
           snapshot: g.snapshot,
           result: settled ? g.finalResult! : null,

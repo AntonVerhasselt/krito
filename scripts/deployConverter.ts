@@ -51,9 +51,11 @@ try {
     "--allow-unauthenticated",
     "--memory", "2Gi",
     "--cpu", "2",
-    "--concurrency", "4",
+    // LibreOffice converts one document at a time per instance, so keep few
+    // requests per instance and enough instances for a full upload (20 files).
+    "--concurrency", "2",
     "--min-instances", "0",
-    "--max-instances", "3",
+    "--max-instances", "10",
     "--timeout", "120",
     "--env-vars-file", envFile,
     "--quiet",

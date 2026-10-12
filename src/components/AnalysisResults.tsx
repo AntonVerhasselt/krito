@@ -125,7 +125,10 @@ function LiveResults({ analysisId }: { analysisId: string }) {
   // Until the first results are saved, list the topic's goals as pending.
   const pending = useQuery(
     api.goals.listGoals,
-    status && submitted && !results?.goals.length
+    status &&
+      submitted &&
+      status.status !== "completed" &&
+      !results?.goals.length
       ? {
           catalogVersion: status.topic.catalogVersion,
           goalSetKey: status.topic.key,
@@ -169,9 +172,11 @@ function LiveResults({ analysisId }: { analysisId: string }) {
   const phase: Phase | undefined = !status
     ? undefined
     : status.status === "completed"
-      ? results?.goals.length
+      ? // A finished analysis waits for its results instead of showing a
+        // recheck that isn't happening.
+        results
         ? "completed"
-        : "rechecking"
+        : undefined
       : status.status === "draft" || status.status === "failed"
         ? undefined
         : status.status;

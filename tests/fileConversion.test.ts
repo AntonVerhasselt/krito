@@ -8,8 +8,10 @@ import {
   decodeText,
   imageToPdf,
   MAX_CONVERTED_BYTES,
+  jpegOrientation,
   normalizeCsv,
 } from "../convex/node/convert";
+import sharp from "sharp";
 
 const config = { url: "https://convert.example", username: "u", password: "p" };
 const pdfBytes = Buffer.from("%PDF-1.7\n");
@@ -124,6 +126,13 @@ describe("csv and text preparation", () => {
     );
     expect(normalizeCsv("a\tb\n1\t2")).toBe("a,b\n1,2");
   });
+  it("keeps line breaks inside quoted cells", () => {
+    expect(
+      normalizeCsv(
+        'Les;Inhoud\r\n"Les 1\nMagneten";"polen; kracht"\r\nLes 2;kompas',
+      ),
+    ).toBe('Les,Inhoud\n"Les 1\nMagneten",polen; kracht\nLes 2,kompas');
+  });
   it("leaves comma CSV and single columns alone", () => {
     expect(normalizeCsv("a,b\n1,2")).toBe("a,b\n1,2");
     expect(normalizeCsv("alleen\néén")).toBe("alleen\néén");
@@ -175,6 +184,21 @@ describe("images", () => {
       await imageToPdf(png, fileTypeOf("a.png")!),
     );
     expect(tall.getPage(0).getSize()).toEqual({ width: 595, height: 842 });
+  });
+  it("turns phone photos upright using their EXIF orientation", async () => {
+    // A landscape-stored 40x20 photo that the phone marks "turn 90° clockwise".
+    const stored = await sharp({
+      create: { width: 40, height: 20, channels: 3, background: "#ff0000" },
+    })
+      .jpeg()
+      .withMetadata({ orientation: 6 })
+      .toBuffer();
+    expect(jpegOrientation(stored)).toBe(6);
+    expect(jpegOrientation(jpg)).toBe(1);
+    const page = (
+      await PDFDocument.load(await imageToPdf(stored, fileTypeOf("a.jpg")!))
+    ).getPage(0);
+    expect(page.getSize()).toEqual({ width: 595, height: 842 });
   });
   it("reports a damaged image as unreadable", async () => {
     await expect(

@@ -16,7 +16,7 @@ import { internal } from "../_generated/api";
 import { accessArgs } from "../analyses";
 import { storage, object, signedGet } from "./storage";
 import { MAX_FILE_BYTES } from "../../shared/analysisSchema";
-import { fileTypeOf } from "../../shared/fileTypes";
+import { fileTypeOf, type FileType } from "../../shared/fileTypes";
 import {
   convertsLocally,
   convertToPdf,
@@ -108,6 +108,27 @@ export async function inspectPdf(
   };
 }
 /**
+ * The converter may be starting (Cloud Run scales to zero) or busy when a
+ * teacher drops many files at once, so unavailable answers are retried with
+ * growing pauses. Worst case (every attempt timing out) stays well within the
+ * 10-minute action limit; see VALIDATION_TIMEOUT_MS.
+ */
+async function convertWithRetries(bytes: Buffer, type: FileType) {
+  for (const pause of [5_000, 15_000, 30_000]) {
+    try {
+      return await convertToPdf(bytes, type);
+    } catch (error) {
+      if (
+        !(error instanceof Error) ||
+        error.message !== "conversion_unavailable"
+      )
+        throw error;
+      await new Promise((resolve) => setTimeout(resolve, pause));
+    }
+  }
+  return convertToPdf(bytes, type);
+}
+/**
  * Validates an upload. Non-PDF material is converted first and stored next to
  * the upload as `<file>.pdf`; everything downstream only ever sees that PDF.
  */
@@ -116,21 +137,9 @@ async function prepareUpload(stagingKey: string, declaredBytes: number) {
   if (!type) throw new Error("unsupported_type");
   if (type.kind === "pdf") return inspectPdf(stagingKey, declaredBytes);
   const { bytes } = await readObject(stagingKey, declaredBytes);
-  let pdf: Buffer;
-  if (convertsLocally(type)) pdf = await imageToPdf(bytes, type);
-  else
-    try {
-      pdf = await convertToPdf(bytes, type);
-    } catch (error) {
-      // Cloud Run may still be starting; one more try covers a cold start.
-      if (
-        !(error instanceof Error) ||
-        error.message !== "conversion_unavailable"
-      )
-        throw error;
-      await new Promise((resolve) => setTimeout(resolve, 5_000));
-      pdf = await convertToPdf(bytes, type);
-    }
+  const pdf = convertsLocally(type)
+    ? await imageToPdf(bytes, type)
+    : await convertWithRetries(bytes, type);
   const pdfKey = stagingKey.replace(/\.[a-z0-9]+$/, ".pdf");
   await storage().send(
     new PutObjectCommand({

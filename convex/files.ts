@@ -194,10 +194,24 @@ export const validated = internalMutation({
       return;
     const a = await ctx.db.get(f.analysisId);
     if (a?.status !== "draft") return;
+    // Converted PDFs can be larger than their source. Uploads are limited on
+    // their own size, so the analysed total is checked here, where the teacher
+    // can see which file pushes it over the limit and remove it.
+    let safeError = args.safeError;
+    if (args.info) {
+      const others = await ctx.db
+        .query("files")
+        .withIndex("by_analysis", (q) => q.eq("analysisId", a._id))
+        .collect();
+      const total = others
+        .filter((o) => o._id !== f._id && o.status === "ready")
+        .reduce((sum, o) => sum + (o.actualBytes ?? 0), args.info.actualBytes);
+      if (total > MAX_TOTAL_BYTES) safeError = "converted_total_too_large";
+    }
     await ctx.db.patch(f._id, {
-      ...args.info,
-      status: args.info ? "ready" : "invalid",
-      safeError: args.safeError,
+      ...(safeError ? {} : args.info),
+      status: safeError ? "invalid" : "ready",
+      safeError,
       updatedAt: Date.now(),
     });
     await ctx.db.patch(a._id, { updatedAt: Date.now() });

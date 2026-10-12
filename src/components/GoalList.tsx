@@ -1,7 +1,8 @@
 "use client";
 import type { CSSProperties } from "react";
 import { SourceMarkup } from "./SourceMarkup";
-import { StatusIcon } from "./brand";
+import { Chevron, ExternalIcon, StatusIcon } from "./brand";
+import { RECHECK_MODEL } from "../../shared/analysisSchema";
 
 export type Verdict = "covered" | "partial" | "not_found" | "uncertain";
 export type ListGoal = {
@@ -38,26 +39,6 @@ export const verdicts: Record<Verdict, string> = {
   uncertain: "Onzeker",
 };
 const order = Object.keys(verdicts) as Verdict[];
-
-function ExternalIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      width="13"
-      height="13"
-      viewBox="0 0 16 16"
-      fill="none"
-    >
-      <path
-        d="M9 2.5h4.5V7M13.5 2.5 7.5 8.5M6 3.5H3.5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V10"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
 
 function Summary({
   goals,
@@ -217,22 +198,7 @@ export function GoalList({
               <details className={`result-card note-${r.status}`}>
                 <summary className="goal-row-head">
                   {head}
-                  <svg
-                    className="chevron"
-                    aria-hidden="true"
-                    width="18"
-                    height="18"
-                    viewBox="0 0 20 20"
-                    fill="none"
-                  >
-                    <path
-                      d="m5 8 5 5 5-5"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
+                  <Chevron />
                 </summary>
                 <div className="result-detail">
                   <div className="detail-col">
@@ -313,7 +279,7 @@ export function GoalList({
                   </div>
                   <div className="result-source">
                     <span>
-                      {g.modelUsed === "gpt-6.1-sol"
+                      {g.modelUsed === RECHECK_MODEL
                         ? "Onafhankelijk opnieuw gecontroleerd met Sol"
                         : "Beoordeling met Luna"}
                     </span>

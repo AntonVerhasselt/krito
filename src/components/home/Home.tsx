@@ -1,7 +1,12 @@
 import Image from "next/image";
 import { SiteHeader } from "@/components/SiteHeader";
 import anton from "../../../public/anton.webp";
-import { StatusIcon, type Status } from "@/components/brand";
+import {
+  Chevron,
+  ExternalIcon,
+  StatusIcon,
+  type Status,
+} from "@/components/brand";
 import { TopicPicker } from "@/components/TopicPicker";
 import { ResultsDemo } from "@/components/ResultsDemo";
 import { BackToSearch } from "@/components/BackToSearch";
@@ -117,47 +122,6 @@ function Struck() {
       fill="none"
     >
       <path d="M4.5 12.6c5-.9 10-1.2 15-.7" />
-    </svg>
-  );
-}
-
-function ExternalIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      width="13"
-      height="13"
-      viewBox="0 0 16 16"
-      fill="none"
-    >
-      <path
-        d="M9 2.5h4.5V7M13.5 2.5 7.5 8.5M6 3.5H3.5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V10"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function Chevron() {
-  return (
-    <svg
-      className="chevron"
-      aria-hidden="true"
-      width="18"
-      height="18"
-      viewBox="0 0 20 20"
-      fill="none"
-    >
-      <path
-        d="m5 8 5 5 5-5"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
     </svg>
   );
 }

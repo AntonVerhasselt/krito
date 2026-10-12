@@ -13,6 +13,7 @@ import {
   PRIMARY_MODEL,
   RECHECK_BELOW_CONFIDENCE,
   RECHECK_MODEL,
+  VALIDATION_TIMEOUT_MS,
 } from "../shared/analysisSchema";
 
 const analysisArgs = { analysisId: v.id("analyses"), attempt: v.number() };
@@ -353,6 +354,7 @@ async function finishFailure(
       modelUsed: PRIMARY_MODEL,
       needsReview: true,
       reviewReason: "recheck_failed",
+      awaitingRecheck: false,
     });
     await ctx.db.patch(a._id, {
       recheckCompleted: a.recheckCompleted + 1,
@@ -431,6 +433,7 @@ export const accepted = internalMutation({
           modelUsed: PRIMARY_MODEL,
           needsReview: false,
           reviewReason: undefined,
+          awaitingRecheck: r.confidence < RECHECK_BELOW_CONFIDENCE,
         });
       else
         await ctx.db.patch(goal._id, {
@@ -438,7 +441,10 @@ export const accepted = internalMutation({
           modelUsed: RECHECK_MODEL,
           needsReview: r.confidence < RECHECK_BELOW_CONFIDENCE,
           reviewReason:
-            r.confidence < RECHECK_BELOW_CONFIDENCE ? "low_confidence" : undefined,
+            r.confidence < RECHECK_BELOW_CONFIDENCE
+              ? "low_confidence"
+              : undefined,
+          awaitingRecheck: false,
         });
     }
     if (run.stage === "initial") {
@@ -549,10 +555,14 @@ export const recover = internalMutation({
         );
       }
     }
+    // Validation can include a document conversion with retries
+    // (see VALIDATION_TIMEOUT_MS); only restart files that outlived it.
     const files = await ctx.db
       .query("files")
       .withIndex("by_status_updated", (q) =>
-        q.eq("status", "validating").lt("updatedAt", now - 120_000),
+        q
+          .eq("status", "validating")
+          .lt("updatedAt", now - VALIDATION_TIMEOUT_MS),
       )
       .take(40);
     for (const f of files) {

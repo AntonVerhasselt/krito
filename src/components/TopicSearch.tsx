@@ -201,7 +201,10 @@ export function TopicSearch({
               }
             } else if (e.key === "Enter" && open && topics.length) {
               e.preventDefault();
-              choose(topics[Math.max(active, 0)]);
+              // Without a highlighted option, Enter takes the first result,
+              // but only once the results match what was typed.
+              if (active >= 0) choose(topics[active]);
+              else if (debounced === query) choose(topics[0]);
             } else if (e.key === "Escape") {
               e.preventDefault();
               setOpen(false);
