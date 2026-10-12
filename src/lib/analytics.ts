@@ -12,6 +12,7 @@ const listeners = new Set<() => void>();
 const captured = new Set<string>();
 let initialized = false;
 let memoryConsent: AnalyticsConsent = "unknown";
+let consentOverride: AnalyticsConsent | undefined;
 const diagnostics: { event: string; properties: Record<string, unknown> }[] = [];
 const enabled = process.env.NEXT_PUBLIC_POSTHOG_ENABLED === "true";
 const environment = process.env.NEXT_PUBLIC_KRITO_ENVIRONMENT === "preview" ? "preview" :
@@ -22,6 +23,7 @@ export function analyticsAvailable() {
 }
 export function getAnalyticsConsent(): AnalyticsConsent {
   if (typeof window === "undefined") return "unknown";
+  if (consentOverride !== undefined) return consentOverride;
   try {
     const stored = localStorage.getItem(consentKey);
     return stored === "granted" || stored === "denied" ? stored : memoryConsent;
@@ -86,11 +88,8 @@ function scrubExceptionList(value: unknown) {
 
 function beforeSend(event: CaptureResult | null): CaptureResult | null {
   if (!event || getAnalyticsConsent() !== "granted") return null;
-  // Recorder payloads have their own pre-serialization masking below. Never retain them in diagnostics.
-  if (event.event === "$snapshot") {
-    remember(event.event, { recording: true });
-    return event;
-  }
+  // Session recordings are disabled; reject snapshots even if an SDK sends one.
+  if (event.event === "$snapshot") return null;
   const original = event.properties;
   const properties: Record<string, unknown> = {
     ...safeAnalyticsProperties(original),
@@ -160,40 +159,16 @@ export function initializeAnalytics() {
         capture_performance: { web_vitals: true, network_timing: false },
         capture_exceptions: { capture_unhandled_errors: true, capture_unhandled_rejections: true, capture_console_errors: false },
         disable_surveys: true,
+        disable_session_recording: true,
         enable_recording_console_log: false,
         ip: false,
         before_send: beforeSend,
-        session_recording: {
-          maskAllInputs: true,
-          maskTextSelector: "*",
-          maskTextFn: (text, element) => element?.dataset.analyticsPublic === "true" ? text : "*".repeat(text.length),
-          blockSelector: '[data-private], input[type="file"], input[type="hidden"], iframe, canvas',
-          maskAttributeFn: (name, value) => {
-            if (["class", "id", "style", "type", "role", "open", "disabled", "width", "height"].includes(name)) return value;
-            if (name === "src" && value.startsWith("/_next/static/")) return value;
-            return "[redacted]";
-          },
-          recordHeaders: false,
-          recordBody: false,
-          streamNetworkBody: false,
-          captureJsonLd: false,
-          maskCapturedNetworkRequestFn: (request) => {
-            if (request.name && /^https?:/.test(request.name)) {
-              const url = new URL(request.name);
-              if (url.origin !== window.location.origin) return null;
-              request.name = `${url.origin}${routePattern(url.pathname)}`;
-            }
-            return request;
-          },
-        },
-        loaded: (client) => client.startSessionRecording(true),
       });
       initialized = true;
     }
     // A stored SDK opt-out survives reload even though our own choice was just granted.
     if (posthog.has_opted_out_capturing()) {
       posthog.opt_in_capturing({ captureEventName: false });
-      posthog.startSessionRecording(true);
       // Fresh initialization already schedules one initial pageview on the next tick.
       if (!fresh) posthog.capture("$pageview");
     }
@@ -208,14 +183,21 @@ export function initializeAnalytics() {
 
 export function setAnalyticsConsent(consent: "granted" | "denied") {
   memoryConsent = consent;
-  try { localStorage.setItem(consentKey, consent); } catch { /* In-memory choice for this visit. */ }
+  // A readable old choice must not override a new choice when storage rejects writes.
+  consentOverride = consent;
+  try {
+    localStorage.setItem(consentKey, consent);
+    consentOverride = undefined;
+  } catch { /* The explicit choice remains authoritative for this visit. */ }
   // The server needs the same explicit opt-in before reporting request errors.
-  document.cookie = `krito_analytics_consent=${consent}; Path=/; SameSite=Lax; Max-Age=15552000${location.protocol === "https:" ? "; Secure" : ""}`;
+  try {
+    document.cookie = `krito_analytics_consent=${consent}; Path=/; SameSite=Lax; Max-Age=15552000${location.protocol === "https:" ? "; Secure" : ""}`;
+  } catch { /* Browser privacy settings must not prevent choosing. */ }
   if (consent === "granted") {
     initializeAnalytics();
     track("analytics_consent_granted", { consent_version: 1 });
   } else if (initialized) {
-    try { posthog.stopSessionRecording(); posthog.opt_out_capturing(); } catch { /* fail closed */ }
+    try { posthog.opt_out_capturing(); } catch { /* fail closed */ }
     captured.clear();
     diagnostics.length = 0;
   }
@@ -260,9 +242,14 @@ export function captureAnalyticsError(error: unknown, operation: string, propert
 
 if (typeof window !== "undefined") {
   window.addEventListener("storage", (event) => {
-    if (event.key === consentKey) {
+    if (event.key === consentKey || event.key === null) {
+      // Another tab changed or cleared consent. Re-read its persisted decision.
+      memoryConsent = "unknown";
+      consentOverride = undefined;
       if (getAnalyticsConsent() === "granted") initializeAnalytics();
-      else if (initialized) { posthog.stopSessionRecording(); posthog.opt_out_capturing(); }
+      else if (initialized) {
+        try { posthog.opt_out_capturing(); } catch { /* fail closed */ }
+      }
       listeners.forEach((listener) => listener());
     }
   });

@@ -1,15 +1,15 @@
 "use client";
-import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
-import { saveSession, useAccessToken } from "../lib/analysisSession";
+import { useAccessToken } from "../lib/analysisSession";
 import { analyticsContext, identifyContact, track, trackOnce, captureAnalyticsError } from "../lib/analytics";
 import { analyticsErrorCode } from "../../shared/analytics";
 import { safeError } from "../lib/safeError";
-import { SiteHeader } from "./SiteHeader";
+import { ResultsPending } from "./ResultsPending";
 import { GoalList, type ListGoal, type Phase } from "./GoalList";
 import {
   demoFiles,
@@ -74,24 +74,11 @@ function ResultsNote() {
   );
 }
 
-function ResultsShell({ children, isDemo = false }: { children: ReactNode; isDemo?: boolean }) {
-  return (
-    <div className="site-shell results-shell">
-      <SiteHeader>
-        <Link href="/" className="back-link" onClick={() => { track("analysis_new_clicked", { is_demo: isDemo }); saveSession(null); }}>
-          Nieuwe analyse
-        </Link>
-      </SiteHeader>
-      <main className="results">{children}</main>
-    </div>
-  );
-}
-
 /** /results/demo and /results/demo-loopt: a fixed example to preview the results page without running an analysis. */
-function DemoResults({ running }: { running: boolean }) {
+export function DemoResults({ running }: { running: boolean }) {
   const goals = running ? demoGoalsRunning : demoGoals;
   return (
-    <ResultsShell isDemo>
+    <>
       <ResultsHeading topic={demoTopic} fileCount={demoFiles.length} />
       <GoalList
         goals={goals}
@@ -103,14 +90,12 @@ function DemoResults({ running }: { running: boolean }) {
         onOpenPdf={() => {}}
       />
       <ResultsNote />
-    </ResultsShell>
+    </>
   );
 }
 
 export function AnalysisResults() {
   const { analysisId } = useParams<{ analysisId: string }>();
-  if (analysisId === "demo" || analysisId === "demo-loopt")
-    return <DemoResults running={analysisId === "demo-loopt"} />;
   return <LiveResults analysisId={analysisId} />;
 }
 
@@ -214,8 +199,10 @@ function LiveResults({ analysisId }: { analysisId: string }) {
   const fileCount = results?.files.length || status?.files.length || 0;
 
   return (
-    <ResultsShell>
-      {unavailable ? (
+    <>
+      {!hydrated || (accessToken && status === undefined) ? (
+        <ResultsPending />
+      ) : unavailable ? (
         <div className="result-state">
           <h1>Analyse niet beschikbaar</h1>
           <p>Open de analyse in het tabblad waarin je ze gestart hebt.</p>
@@ -223,11 +210,7 @@ function LiveResults({ analysisId }: { analysisId: string }) {
             Start een nieuwe analyse
           </Link>
         </div>
-      ) : status === undefined ? (
-        <p className="page-loading" role="status">
-          Analyse laden…
-        </p>
-      ) : (
+      ) : status ? (
         <>
           <ResultsHeading topic={status.topic} fileCount={fileCount} />
           {status.status === "failed" ? (
@@ -291,12 +274,12 @@ function LiveResults({ analysisId }: { analysisId: string }) {
             </>
           )}
         </>
-      )}
+      ) : null}
       {error && (
         <p className="form-error" role="alert">
           {error}
         </p>
       )}
-    </ResultsShell>
+    </>
   );
 }

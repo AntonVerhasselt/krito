@@ -9,6 +9,7 @@
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
+    "test:prerender": "npm run build && tsx scripts/checkPrerender.ts",
     "test:converter": "tsx scripts/converterSmoke.ts",
     "env:check": "tsx scripts/checkEnvironment.ts",
     "env:backend": "tsx scripts/setBackendEnvironment.ts",

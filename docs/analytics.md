@@ -1,7 +1,9 @@
 # PostHog analytics
 
-Krito uses the EU PostHog project for explicit product events, masked session
-recordings, error tracking, and metadata-only AI observability. The shared event
+Krito uses the EU PostHog project for explicit product events, error tracking,
+and metadata-only AI observability. Session recording is disabled at the user’s
+request on 2026-10-12: the SDK cannot start replay, snapshot events are rejected,
+and the account setup script enforces recording off. The shared event
 registry and property allowlist live in `shared/analytics.ts`. Analytics is best
 effort: disabled tracking, network failures, and delivery retries must not prevent
 searching, uploading, submitting, or completing an analysis.
@@ -53,11 +55,11 @@ mistaken for real provider usage or successful account-side ingestion.
 
 ## Consent and privacy
 
-Tracking and replay require opt-in. The browser SDK starts after consent, and
+Usage tracking requires opt-in. The browser SDK starts after consent, and
 backend analytics context only accompanies consenting operations. Refusal and
 withdrawal suppress new browser collection; withdrawal is also communicated to
 the authorized analysis so later workflow telemetry is suppressed. Previously
-sent events and completed recordings remain in PostHog until removed there.
+sent events remain in PostHog until removed there.
 
 Explicit events collect interaction methods, stable catalog/goal identifiers,
 counts, formats, sizes, safe error codes, and durations. Raw search text, partial
@@ -66,13 +68,13 @@ URLs, and provider response bodies are excluded. The shared helper drops unknown
 property names and unsafe property values. Arbitrary objects must never be spread
 into event properties.
 
-Autocapture is disabled in favor of explicit events. Replay masks all inputs and
-document-derived text, with private content blocked. Console recording and network
-payload recording are disabled. Default SDK URL and error properties are sanitized
-before capture. Review recordings whenever a new upload/results component is
-introduced; an ordinary text node can contain private information even when inputs
-are masked. Document tabs and signed storage payloads are outside the recording
-scope.
+Autocapture is disabled in favor of explicit events. Session recordings are
+explicitly disabled with `disable_session_recording: true`; initialization,
+consent regrant and contact changes never start recording. The ingestion filter
+also rejects `$snapshot` events. Default SDK URL and error properties are
+sanitized before capture. The privacy prompt describes the purpose of usage
+measurement, the school-email link and the ability to change the choice, with
+matching accept and decline buttons.
 
 ## Identity
 
@@ -108,7 +110,7 @@ different meanings and must remain separate:
 Browser event properties include a schema version, safe route pattern, environment,
 release, and journey context. Workflow events also carry analysis/attempt/run/file
 identifiers as appropriate. Originating session IDs connect backend activity with
-replays without exposing access capabilities. Use analysis IDs to examine one
+browser events without exposing access capabilities. Use analysis IDs to examine one
 workflow; use person IDs for contact activation and returning usage.
 
 Canonical backend outcomes are emitted from guarded state transitions. The
@@ -150,7 +152,7 @@ npm run env:posthog -- --account
 ```
 
 The script checks the project's ingestion token before any account mutation,
-anonymizes IP addresses, enables project session recording, adds descriptions to
+anonymizes IP addresses, disables project session recording, adds descriptions to
 the registered events, and creates missing named dashboards/insights. Its management
 requests stay on the EU project host. Reruns preserve existing insight edits.
 It does not modify billing, retention tiers, notification destinations, historical
@@ -167,15 +169,15 @@ Their insights include only `environment=hosted` and exclude demo/test events.
 The funnel measures person progression within seven days; use event context and
 SQL when investigating a single analysis attempt or concurrent journeys. Local
 browser checks and preview runs deliberately do not contribute to these totals.
-Use PostHog's built-in Web Analytics, Error Tracking, Session Replay, and AI
+Use PostHog's built-in Web Analytics, Error Tracking, and AI
 Observability views for their specialized metrics. Start alerts after establishing
 a traffic baseline and choosing explicit recipients; none are silently sent.
 
-In the account UI, confirm session replay is enabled, review masking, choose the
-available retention target (30 days recommended), and check the spending limit.
-Keep network payloads and console capture disabled. Browser SDK settings cannot
-enable a product that is disabled at the project level. Some account controls and
-retention choices depend on the subscription.
+The SDK disables replay independently of the account settings. After obtaining
+project-management credentials, rerun account setup to disable recording at the
+project level too. The earlier setup key was revoked, and the remaining build
+credential only has source-map permissions. Historical recordings are not
+removed by changing the SDK or project setting.
 
 Feature flags, experiments, surveys, organization grouping, support, outbound
 workflows, warehouse/CDP integrations and replay AI are deferred. They add value
@@ -189,12 +191,13 @@ network delivery and local sanitized diagnostics for search open/type/results,
 subject selection, upload selection/transfer/readiness, accepted identity,
 analysis start/completion, and result interactions. Verify refusal/withdrawal,
 refresh restoration, shared-browser identity changes, failed uploads, retries,
-and demo exclusion. Inspect event properties and recording masks for private data.
-Do not print signed URLs, emails, raw exception bodies, or captured recording data
+and demo exclusion. Verify no recorder script or snapshot requests appear after
+consent or regrant. Inspect event properties for private data.
+Do not print signed URLs, emails or raw exception bodies
 into test reports.
 
 HTTP ingestion acceptance shows requests reached PostHog; event visibility in the
-account, person profiles, replay playback, and deminified production errors require
+account, person profiles, and deminified production errors require
 authenticated account access. Record those limits separately from browser trigger
 verification. Local diagnostics must not be presented as proof of server ingestion.
 
@@ -204,7 +207,6 @@ verification. Local diagnostics must not be presented as proof of server ingesti
 - [Convex integration](https://posthog.com/docs/libraries/convex)
 - [Identification](https://posthog.com/docs/getting-started/identify-users)
 - [Data collection controls](https://posthog.com/docs/privacy/data-collection)
-- [Replay privacy](https://posthog.com/docs/session-replay/privacy)
 - [Next.js error tracking](https://posthog.com/docs/error-tracking/installation/nextjs)
 - [Source maps](https://posthog.com/docs/error-tracking/upload-source-maps/nextjs)
 - [Manual AI capture](https://posthog.com/docs/ai-observability/manual-capture)
@@ -214,7 +216,10 @@ verification. Local diagnostics must not be presented as proof of server ingesti
 - [Insights API](https://posthog.com/docs/api/insights)
 - [Event definitions API](https://posthog.com/docs/api/event-definitions)
 
-## Verification performed (2026-10-12)
+## Historical verification (2026-10-12, before recording removal)
+
+The recording checks below document the earlier implementation. They are
+superseded by the disabled-recording policy above.
 
 The shared T3 browser exercised the actual local application against the selected
 Convex development deployment and EU PostHog ingestion. Before opt-in, no PostHog

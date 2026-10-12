@@ -60,14 +60,15 @@ describe("analytics boundaries", () => {
     expect(sdk.init).toHaveBeenCalledTimes(1);
     expect(sdk.capture.mock.calls.filter(([event]) => event === "search_opened")).toHaveLength(1);
   });
-  it("stops recording and suppresses context/events after withdrawal", async () => {
+  it("suppresses context/events after withdrawal", async () => {
     const analytics = await import("../src/lib/analytics");
     analytics.setAnalyticsConsent("granted");
     expect(analytics.analyticsContext()).toMatchObject({ consent: true, anonymous: true });
     analytics.setAnalyticsConsent("denied"); const calls = sdk.capture.mock.calls.length;
     analytics.track("search_clicked"); analytics.captureAnalyticsError(new Error("secret"), "upload");
     expect(analytics.analyticsContext()).toBeUndefined(); expect(sdk.capture).toHaveBeenCalledTimes(calls);
-    expect(sdk.stopSessionRecording).toHaveBeenCalled(); expect(sdk.opt_out_capturing).toHaveBeenCalled();
+    expect(sdk.opt_out_capturing).toHaveBeenCalled();
+    expect(sdk.startSessionRecording).not.toHaveBeenCalled();
   });
   it("overrides persisted SDK opt-out when consent is granted after a reload", async () => {
     const first = await import("../src/lib/analytics");
@@ -79,7 +80,7 @@ describe("analytics boundaries", () => {
     reloaded.setAnalyticsConsent("granted");
     expect(sdk.init).toHaveBeenCalledTimes(1);
     expect(sdk.opt_in_capturing).toHaveBeenCalledWith({ captureEventName: false });
-    expect(sdk.startSessionRecording).toHaveBeenCalled();
+    expect(sdk.startSessionRecording).not.toHaveBeenCalled();
     expect(sdk.capture.mock.calls.filter(([event]) => event === "$pageview")).toHaveLength(0);
   });
   it("keeps the application usable when capture throws", async () => {
@@ -87,6 +88,68 @@ describe("analytics boundaries", () => {
     analytics.setAnalyticsConsent("granted");
     sdk.capture.mockImplementationOnce(() => { throw new Error("Network failure"); });
     expect(() => analytics.track("upload_started", { bytes: 123 })).not.toThrow();
+  });
+  it.each(["granted", "denied"] as const)("accepts %s even when browser storage and cookies are blocked", async (choice) => {
+    const blocked = () => { throw new Error("Storage blocked"); };
+    vi.stubGlobal("localStorage", { getItem: blocked, setItem: blocked });
+    vi.stubGlobal("document", Object.defineProperty({}, "cookie", { set: blocked }));
+    const analytics = await import("../src/lib/analytics");
+    const listener = vi.fn();
+    analytics.subscribeAnalyticsConsent(listener);
+    expect(() => analytics.setAnalyticsConsent(choice)).not.toThrow();
+    expect(analytics.getAnalyticsConsent()).toBe(choice);
+    expect(listener).toHaveBeenCalledOnce();
+  });
+  it.each([
+    ["granted", "denied"],
+    ["denied", "granted"],
+  ] as const)("honors a change from %s to %s when storage is readable but rejects writes", async (stored, choice) => {
+    vi.stubGlobal("localStorage", {
+      getItem: () => stored,
+      setItem: () => { throw new Error("Storage write blocked"); },
+    });
+    const analytics = await import("../src/lib/analytics");
+    analytics.initializeAnalytics();
+    const listener = vi.fn();
+    analytics.subscribeAnalyticsConsent(listener);
+    analytics.setAnalyticsConsent(choice);
+    expect(analytics.getAnalyticsConsent()).toBe(choice);
+    expect(listener).toHaveBeenCalledOnce();
+    if (choice === "denied") {
+      expect(analytics.analyticsContext()).toBeUndefined();
+      expect(sdk.opt_out_capturing).toHaveBeenCalledOnce();
+      const captureCount = sdk.capture.mock.calls.length;
+      analytics.track("search_clicked");
+      expect(sdk.capture).toHaveBeenCalledTimes(captureCount);
+      expect(sdk.init.mock.calls[0][1].before_send({ event: "$pageview", properties: {} })).toBeNull();
+    } else {
+      expect(sdk.init).toHaveBeenCalledOnce();
+      expect(analytics.analyticsContext()).toMatchObject({ consent: true });
+    }
+  });
+  it("reconciles a failed-write override when another tab changes or clears consent", async () => {
+    let stored: string | null = "granted";
+    vi.stubGlobal("localStorage", {
+      getItem: () => stored,
+      setItem: () => { throw new Error("Storage write blocked"); },
+    });
+    const analytics = await import("../src/lib/analytics");
+    analytics.setAnalyticsConsent("denied");
+    expect(analytics.getAnalyticsConsent()).toBe("denied");
+    const onStorage = vi.mocked(window.addEventListener).mock.calls
+      .find(([event]) => event === "storage")![1] as (event: Partial<StorageEvent>) => void;
+    stored = null;
+    onStorage({ key: "krito-analytics-consent-v1", newValue: null });
+    expect(analytics.getAnalyticsConsent()).toBe("unknown");
+    expect(analytics.analyticsContext()).toBeUndefined();
+    stored = "granted";
+    onStorage({ key: "krito-analytics-consent-v1", newValue: stored });
+    expect(analytics.getAnalyticsConsent()).toBe("granted");
+    expect(analytics.analyticsContext()).toMatchObject({ consent: true });
+    stored = null;
+    onStorage({ key: null });
+    expect(analytics.getAnalyticsConsent()).toBe("unknown");
+    expect(analytics.analyticsContext()).toBeUndefined();
   });
   it("resets before switching known contacts and identifies only valid opaque IDs", async () => {
     const analytics = await import("../src/lib/analytics");
@@ -100,8 +163,10 @@ describe("analytics boundaries", () => {
     analytics.setAnalyticsConsent("granted");
     const config = sdk.init.mock.calls[0][1];
     expect(config).toMatchObject({ autocapture: false, enable_recording_console_log: false,
-      session_recording: { maskAllInputs: true, recordHeaders: false, recordBody: false, streamNetworkBody: false } });
-    expect(config.session_recording.blockSelector).toContain('input[type="file"]');
+      disable_session_recording: true });
+    expect(config.session_recording).toBeUndefined();
+    expect(config.loaded).toBeUndefined();
+    expect(config.before_send({ event: "$snapshot", properties: { snapshot_data: "private content" } })).toBeNull();
     const event = config.before_send({ event: "$exception", properties: { distinct_id: "anonymous-test",
       $current_url: "https://krito.example/results/secret-id?token=secret", $exception_message: "private quotation",
       $release_id: "krito:abc123",

@@ -9,10 +9,10 @@ export default function PrivacyPage() {
       <p>Je bestanden zijn privé. Je analyse is alleen toegankelijk met de toegangssleutel in het tabblad waarin je ze startte. OpenAI verwerkt je materiaal om de leerdoelen na te kijken. Je schoolmail wordt bij de analyse bewaard; dat is geen geverifieerd account.</p>
       <h2>Met jouw toestemming</h2>
       <p>We gebruiken PostHog in de EU om te zien welke stappen werken en waar mensen vastlopen. We meten klikken, zoeken, uploads, de voortgang van analyses en fouten. We bewaren technische gegevens zoals bestandstype, grootte, aantallen en tijdsduur.</p>
-      <p>We nemen ook je sessie op. Invoer, bestandsnamen en inhoud uit je lesmateriaal worden afgeschermd voordat ze naar PostHog gaan. We sturen geen bestanden, documentcitaten, toegangssleutels of volledige zoekopdrachten naar PostHog.</p>
+      <p>Zo ontdekken we wat goed werkt en waar mensen vastlopen, en kunnen we Krito eenvoudiger en betrouwbaarder maken. We maken geen sessieopnames. We sturen geen bestanden, bestandsnamen, documentcitaten, toegangssleutels of zoekopdrachten naar PostHog.</p>
       <p>Als je een analyse start, koppelen we je gebruik aan je schoolmail. PostHog bewaart je e-mailadres en het domein apart. Dat helpt ons terugkerend gebruik te begrijpen. Het geeft je school geen toegang tot je materiaal.</p>
       <h2>Je kiest zelf</h2>
-      <p>Met ‘Nee, bedankt’ kun je Krito blijven gebruiken zonder deze metingen en opnames. Met ‘Privacykeuze’ onderaan kun je je keuze later aanpassen. Intrekken stopt nieuwe metingen; gegevens die al verstuurd zijn worden daarmee niet automatisch verwijderd.</p>
+      <p>Met ‘Nee, bedankt’ kun je Krito blijven gebruiken zonder deze metingen. Met ‘Privacykeuze’ onderaan kun je je keuze later aanpassen. Intrekken stopt nieuwe metingen; gegevens die al verstuurd zijn worden daarmee niet automatisch verwijderd.</p>
       <p>We bewaren je privacykeuze in je browser. Na toestemming bewaart PostHog ook een gebruiks-ID en sessie-ID in je browser om bezoeken te verbinden.</p>
     </main>
   </div>;

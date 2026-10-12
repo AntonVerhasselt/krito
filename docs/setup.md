@@ -92,7 +92,47 @@ and six build-isolation tests pass. The Vercel hosted builder uses CLI 62.1.0
 - Setup-only probe and automation capabilities are revoked after testing;
   scheduled fixture cleanup remains available, and all-deployment protection stays on.
 
-PRs #1, #2 and #3 are merged. The development catalog and private analysis workflow are now active. Production backend, bucket and launch domain remain deferred.
+PRs #1, #2 and #3 are merged. The development catalog and private analysis workflow are now active. Production backend and bucket remain deferred.
+
+## Public frontend domain
+
+On 2026-10-12, the user requested public access to `krito.be`. Both `krito.be`
+and `www.krito.be` are verified production domains; the apex redirects to `www`.
+Cloudflare's zone is active and forwards requests to Vercel.
+
+Vercel Authentication previously used `ssoProtection.deploymentType=all`, which
+redirected unauthenticated visitors to Vercel login. It now uses Standard Protection
+(`all_except_custom_domains`): production domains are public, while previews and
+generated deployment URLs remain protected. `npm run infra:vercel` reconciles and
+verifies this setting so it cannot restore the old login requirement.
+
+This changes frontend access only; the existing development backend and bucket
+remain selected.
+
+## Static page rendering
+
+The homepage, privacy page, material page and both result demos are generated as
+complete static HTML. The material form renders immediately; uploads become
+available after the browser restores the selected topic and Convex validates it.
+Private `/results/[analysisId]` URLs use a pre-rendered shell with navigation and
+a neutral heading; access checks and results use the current tab's credentials
+after hydration. Missing access is shown only after browser storage is checked.
+
+Keep Suspense boundaries around URL-dependent content and background analytics,
+rather than around the whole application. Convex uses an explicit logger because
+its default logger creates a random ID during construction, preventing Next.js
+Cache Components from pre-rendering the provider's children.
+
+Run `npm test` and `npm run test:prerender` after changing routes, providers or
+loading boundaries. The latter builds the frontend and verifies visible HTML and
+the production pre-render manifest for all six page variants, without publishing
+the frontend or backend. Search, uploads and private results still need JavaScript
+and the selected development backend.
+
+For local iteration, use `npm run dev` on port 3000. A production `next start`
+process must be stopped before rebuilding its `.next` output and restarted after
+the build. The prior localhost process returned HTTP 500 for a JavaScript chunk
+while serving rebuilt output; a fresh development server avoids those mismatches.
 
 ## Document converter
 

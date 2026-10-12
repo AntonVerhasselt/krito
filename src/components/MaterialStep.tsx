@@ -124,13 +124,9 @@ export function MaterialStep() {
         </Link>
       </SiteHeader>
       <main className="material">
-        {!selected ? (
-          <p className="page-loading" role="status">
-            Onderwerp ophalen…
-          </p>
-        ) : (
-          <>
-            <div className="material-heading">
+        <div className="material-heading">
+          {selected ? (
+            <>
               <span className="group-tag">
                 {selected.group.title}
                 <b title={selected.group.routeTitle}>
@@ -154,63 +150,68 @@ export function MaterialStep() {
                   Bekijk de doelen
                 </button>
               </p>
+            </>
+          ) : (
+            <>
+              <h1>Voeg je lesmateriaal toe</h1>
+              <p>Krito legt de leerdoelen van je onderwerp naast je materiaal.</p>
+            </>
+          )}
+        </div>
+        {submitted && session ? (
+          <div className="started-note">
+            <h2>Je analyse is gestart</h2>
+            <p>Je kunt de voortgang en de resultaten volgen.</p>
+            <div className="started-actions">
+              <Link
+                className="primary-button"
+                href={`/results/${session.analysisId}`}
+                onClick={() => track("analysis_resume_clicked", { analysis_id: session.analysisId })}
+              >
+                Bekijk mijn analyse
+              </Link>
+              <button
+                className="text-button"
+                onClick={() => {
+                  track("analysis_new_clicked", { analysis_id: session.analysisId });
+                  saveSession(null);
+                  router.push("/");
+                }}
+              >
+                Nieuwe analyse
+              </button>
             </div>
-            {submitted && session ? (
-              <div className="started-note">
-                <h2>Je analyse is gestart</h2>
-                <p>Je kunt de voortgang en de resultaten volgen.</p>
-                <div className="started-actions">
-                  <Link
-                    className="primary-button"
-                    href={`/results/${session.analysisId}`}
-                    onClick={() => track("analysis_resume_clicked", { analysis_id: session.analysisId })}
-                  >
-                    Bekijk mijn analyse
-                  </Link>
+          </div>
+        ) : (
+          <>
+            <UploadPanel
+              ensureDraft={ensureDraft}
+              session={session}
+              files={files}
+              enabled={!!selected && !busy && (!session || status !== undefined)}
+              onBusy={setBusy}
+              footer={
+                <>
                   <button
-                    className="text-button"
-                    onClick={() => {
-                      track("analysis_new_clicked", { analysis_id: session.analysisId });
-                      saveSession(null);
-                      router.push("/");
-                    }}
+                    type="button"
+                    className="primary-button start-button"
+                    disabled={!selected || !ready || busy || !session}
+                    onClick={() => { track("analysis_start_clicked", { analysis_id: session?.analysisId, file_count: files.length }); track("email_gate_opened", { analysis_id: session?.analysisId }); setAskEmail(true); }}
                   >
-                    Nieuwe analyse
+                    Start de analyse
                   </button>
-                </div>
-              </div>
-            ) : (
-              <>
-                <UploadPanel
-                  ensureDraft={ensureDraft}
-                  session={session}
-                  files={files}
-                  enabled={!busy && (!session || status !== undefined)}
-                  onBusy={setBusy}
-                  footer={
-                    <>
-                      <button
-                        type="button"
-                        className="primary-button start-button"
-                        disabled={!ready || busy || !session}
-                        onClick={() => { track("analysis_start_clicked", { analysis_id: session?.analysisId, file_count: files.length }); track("email_gate_opened", { analysis_id: session?.analysisId }); setAskEmail(true); }}
-                      >
-                        Start de analyse
-                      </button>
-                      <p className="field-hint">
-                        {!files.length
-                          ? "Voeg minstens één bestand toe om te starten."
-                          : ready && !busy
-                            ? `Krito legt ${selected.goalCount === 1 ? "het leerdoel" : `alle ${selected.goalCount} leerdoelen`} naast je materiaal.`
-                            : files.some((f) => f.status === "invalid")
-                              ? "Verwijder de bestanden die niet lukten om te starten."
-                              : "Even wachten tot elk bestand gecontroleerd is."}
-                      </p>
-                    </>
-                  }
-                />
-              </>
-            )}
+                  <p className="field-hint">
+                    {!files.length
+                      ? "Voeg minstens één bestand toe om te starten."
+                      : selected && ready && !busy
+                        ? `Krito legt ${selected.goalCount === 1 ? "het leerdoel" : `alle ${selected.goalCount} leerdoelen`} naast je materiaal.`
+                        : files.some((f) => f.status === "invalid")
+                          ? "Verwijder de bestanden die niet lukten om te starten."
+                          : "Even wachten tot elk bestand gecontroleerd is."}
+                  </p>
+                </>
+              }
+            />
           </>
         )}
       </main>

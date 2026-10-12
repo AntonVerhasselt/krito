@@ -19,10 +19,13 @@ export function AnalyticsConsent() {
   }
   return (
     <aside className="analytics-consent" aria-label="Privacykeuze">
-      <h2 data-analytics-public="true">Help Krito verbeteren</h2>
-      <p data-analytics-public="true">
-        Mogen we meten hoe je Krito gebruikt en je sessie opnemen? Je invoer en lesmateriaal
-        worden afgeschermd. Bij een analyse koppelen we je schoolmail aan je gebruik.
+      <h2>Help Krito verbeteren</h2>
+      <p>
+        Met jouw toestemming zien we wat goed werkt en waar mensen vastlopen.
+        Zo help je Krito beter te maken voor jou en andere leerkrachten.
+        We meten gebruik en technische gegevens, geen zoekopdrachten of lesmateriaal.
+        Bij een analyse koppelen we je schoolmail aan je gebruik.
+        Je kunt je keuze altijd aanpassen.
       </p>
       <div className="analytics-consent-actions">
         <button className="secondary-button" type="button" onClick={() => choose("denied")}>Nee, bedankt</button>
