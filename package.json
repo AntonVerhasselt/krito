@@ -9,6 +9,7 @@
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
+    "test:converter": "tsx scripts/converterSmoke.ts",
     "env:check": "tsx scripts/checkEnvironment.ts",
     "env:backend": "tsx scripts/setBackendEnvironment.ts",
     "env:posthog": "tsx scripts/configurePosthog.ts",

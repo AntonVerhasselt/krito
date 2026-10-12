@@ -102,7 +102,91 @@ Word, PowerPoint, spreadsheet and text uploads are converted to PDF by Gotenberg
 2. Put its ID in `gcpProject` in `infra/development.json` (`gcpRegion` defaults to `europe-west1`).
 3. Run `npm run infra:converter`. It generates basic-auth credentials in `.secrets/development.env` if missing, deploys `gotenberg/gotenberg:8-libreoffice-cloudrun` as `krito-converter-dev` (scales to zero, 2 GiB), and sets `CONVERTER_URL`, `CONVERTER_USERNAME` and `CONVERTER_PASSWORD` on Convex development.
 
+The configured project is `gen-lang-client-0534719308` (`personal-dev-projects`).
+Its linked paid billing account and the user's project Owner role were verified
+in the Google Cloud console on 2026-10-12. The CLI is installed and authenticated
+as `anton.verhasselt@gmail.com`. The user is handling the €10 monthly budget.
+
+| Variable | Runtime location | Where the value comes from |
+| --- | --- | --- |
+| `CONVERTER_URL` | Convex development (`majestic-sturgeon-687`) | Cloud Run's service URL, retrieved by the deployment script after deployment. |
+| `CONVERTER_USERNAME` | Convex development and local `.secrets/development.env` | The deployment script defaults to `krito`. |
+| `CONVERTER_PASSWORD` | Convex development and local `.secrets/development.env` | The deployment script generates a random password if missing. |
+
+On Cloud Run, the same credentials are installed as
+`GOTENBERG_API_BASIC_AUTH_USERNAME` and `GOTENBERG_API_BASIC_AUTH_PASSWORD`,
+alongside `API_ENABLE_BASIC_AUTH=true` and `API_TIMEOUT=110s`.
+No Google API key or service-account JSON key is needed for this workflow.
+Converter variables belong on Convex, not Vercel or `NEXT_PUBLIC_*` variables.
+New worktrees need the existing ignored `.env.local` and owner-only
+`.secrets/development.env` before running the deployment script.
+
 Without these variables PDFs still work; other files are marked "Het omzetten naar pdf lukt even niet".
+
+### Verified deployment (2026-10-12)
+
+- Service: `krito-converter-dev`, `europe-west1`, project `gen-lang-client-0534719308`.
+- Endpoint: `https://krito-converter-dev-v3elxbdhoa-ew.a.run.app`.
+- Ready revision: `krito-converter-dev-00001-dsb`; 2 CPUs, 2 GiB, minimum 0 instances, maximum 10, concurrency 2, request timeout 120 seconds.
+- All three converter variables are installed on Convex `majestic-sturgeon-687`; the username/password were read back and matched the protected local input without printing their values.
+- Conversion requests without credentials and with an incorrect password returned HTTP 401. Correct credentials produced valid PDFs for DOCX, PPTX, XLSX, semicolon CSV, Windows-1252 text, Pages, Keynote and Numbers.
+- The same eight fixtures passed the full private upload → Convex conversion → private PDF storage flow. Word pages, presentation slides and spreadsheet sheets had the expected counts; CSV/text accents survived conversion. Authorized sealed-PDF downloads and page links worked; unsigned downloads and wrong analysis capabilities were denied.
+- The results page displayed converted source names and citations. Analysis-provider output was deterministic fixture data for this validation; conversions and storage used the real services.
+- All 46 unit tests, lint and TypeScript checks passed. Desktop and mobile end-to-end flows passed. The first mobile run was blocked by the analytics prompt in the separately running frontend; the mobile rerun used a fresh test context with analytics consent declined.
+- Apple fixtures came from [LibreOffice's libetonyek tests](https://github.com/LibreOffice/libetonyek/tree/master/src/test/data). This verifies representative supported files, not every iWork format/version.
+
+The CLI is a setup tool only. During an upload, Convex calls the converter's
+HTTP API directly with server-side basic authentication. Its generated password
+does not expire when a browser or CLI Google login expires. Keep the protected
+credential file for repeat deployments; changing the pair is a credential
+rotation and must update Cloud Run and Convex together. No additional frontend
+deployment or Google login is required for normal conversions.
+
+The converter is connected to the existing development backend used by this
+project. A separate production Convex backend and its converter credentials
+remain part of the deferred production release.
+
+### Repeatable converter tests
+
+After changing conversion, upload validation, file types or converter settings:
+
+```bash
+npm test
+npm run test:converter
+```
+
+`npm test` runs fast tests without external services. They cover missing
+configuration, basic-auth request headers, 401/403 failures, retryable 429/5xx
+responses, timeouts, converted-file size limits, CSV normalization, legacy text
+encoding and local image conversion.
+
+`npm run test:converter` takes roughly two to four minutes and checks the actual
+development service and backend. It reads the installed converter variables
+from Convex, verifies that missing/incorrect credentials return 401, and converts
+the eight [checked-in fixtures](../tests/fixtures/converter/README.md). It checks
+PDF parsing, expected page counts, Office/text content, accents and rejection of
+a truncated DOCX archive. It then uploads all eight sources through the public
+Convex API, waits for conversion, checks that drafts are not exposed, submits a
+deterministic analysis, and verifies sealed PDF contents, citation page bounds,
+page links, and denial of unsigned downloads and wrong capabilities.
+
+Run it from this repository with its selected development `.env.local`, an
+authenticated Convex CLI and `pdftotext` on PATH (provided by Poppler; already
+installed on this machine). GCP CLI authentication and a running frontend are
+not required. Missing prerequisites or failed checks return a nonzero exit code;
+credentials, signed URLs and provider responses are not printed. It creates only
+its own marked test draft and schedules cleanup even when a later check fails.
+Upload polling allows the backend's full validation budget. The development
+cleanup mutation retains rows while conversion or analysis is still running,
+then retries cleanup after settlement so late PDF writes remain tracked.
+
+The command does not deploy, publish backend code, rotate credentials, call the
+real AI models or alter normal teacher analyses. It is an explicit test command;
+no CI workflow or scheduled test run was added. Use the existing
+`npm run test:e2e:dev` separately when changing the browser upload/results flow.
+
+Validated on 2026-10-12: the unit suite, the complete live converter test,
+lint and TypeScript checks passed. The live test's marked draft was cleaned up.
 
 ## Daily workflow
 
