@@ -64,12 +64,13 @@ export function SendToSelf({ topic }: { topic: Topic }) {
         Stuur dit naar mezelf
       </button>
       <p className="send-self-alt">Of neem hieronder een foto van een blad op papier.</p>
-      {/* Always mounted, so screen readers announce the change when the link is sent. */}
-      <p className="visually-hidden" role="status">
-        {sent ? "Verstuurd. Open de mail op je computer." : ""}
-      </p>
       {open && (
         <Modal label="Stuur dit naar jezelf" narrow dismissible={!pending} onClose={() => close("dismiss")}>
+          {/* Inside the dialog (everything outside it is inert) and mounted
+              before sending, so screen readers announce the confirmation. */}
+          <p className="visually-hidden" role="status">
+            {sent ? "Verstuurd. Open de mail op je computer." : ""}
+          </p>
           {sent ? (
             <div className="email-gate send-self-done">
               <div className="modal-heading">

@@ -291,11 +291,13 @@ async function retry(ctx: MutationCtx, m: Doc<"emailMessages">, errorCode: strin
   let sendAt: number;
   if (errorCode === "quota_exceeded" || errorCode === "monthly_quota_exceeded") {
     // Waiting for a full Resend quota (daily: midnight UTC; monthly: a plan
-    // upgrade) doesn't use up a retry. A report three days late is no longer
-    // useful, so give up then.
-    if (now - m.createdAt > 3 * DAY) return await fail(ctx, m, errorCode);
+    // upgrade) doesn't use up a retry. Three days after the first wait the
+    // e-mail is no longer useful, so give up then. Counted from the first wait,
+    // not creation: welcome steps are queued days before they are due.
+    const since = m.firstDeferredAt ?? now;
+    if (now - since > 3 * DAY) return await fail(ctx, m, errorCode);
     sendAt = afterQuotaReset(now);
-    await ctx.db.patch(m._id, { deferrals: deferrals + 1 });
+    await ctx.db.patch(m._id, { deferrals: deferrals + 1, firstDeferredAt: since });
   } else {
     // `attempts` only grows (it is the ownership token); the budget excludes quota waits.
     const failures = m.attempts - deferrals;

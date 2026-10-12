@@ -181,6 +181,24 @@ describe("delivery attempts", () => {
     expect(m).toMatchObject({ status: "failed", errorCode: "quota_exceeded" });
   });
 
+  it("counts the quota grace from the first wait, not from when a welcome step was queued", async () => {
+    const { t, m } = await queued();
+    const retry = handler<{ messageId: string; attempt: number; errorCode: string }>(markRetry);
+    // Step 3 is queued days before it is due; its first quota rejection must not fail it.
+    vi.setSystemTime(NOW + 5 * DAY);
+    const first = (await claimIt(t.ctx, { messageId: m._id }))!;
+    await retry(t.ctx, { messageId: m._id, attempt: first, errorCode: "monthly_quota_exceeded" });
+    expect(m).toMatchObject({ status: "scheduled", firstDeferredAt: NOW + 5 * DAY });
+    vi.setSystemTime(NOW + 7 * DAY);
+    const second = (await claimIt(t.ctx, { messageId: m._id }))!;
+    await retry(t.ctx, { messageId: m._id, attempt: second, errorCode: "monthly_quota_exceeded" });
+    expect(m).toMatchObject({ status: "scheduled", firstDeferredAt: NOW + 5 * DAY, deferrals: 2 });
+    vi.setSystemTime(NOW + 8.5 * DAY);
+    const third = (await claimIt(t.ctx, { messageId: m._id }))!;
+    await retry(t.ctx, { messageId: m._id, attempt: third, errorCode: "monthly_quota_exceeded" });
+    expect(m).toMatchObject({ status: "failed", errorCode: "monthly_quota_exceeded" });
+  });
+
   it("fails after five transient retries", async () => {
     const { t, m } = await queued();
     const retry = handler<{ messageId: string; attempt: number; errorCode: string }>(markRetry);
