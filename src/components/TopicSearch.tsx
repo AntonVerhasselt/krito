@@ -1,11 +1,34 @@
 "use client";
-import { useEffect, useId, useState } from "react";
-import { useQuery } from "convex/react";
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
+import { useConvex, useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
 import { api } from "../../convex/_generated/api";
+import { StatusIcon } from "./brand";
+import { OptionMark } from "./brand";
 export type Topic = FunctionReturnType<
   typeof api.goals.listGoalSets
 >["topics"][number];
+const suggestions = ["breuken", "magnetisme", "sociale aandacht"];
+// Show a few results at a time instead of a scrolling list.
+const STEP = 5;
+function highlight(text: string, query: string): ReactNode {
+  const words = query
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((w) => w.length > 1)
+    .map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  if (!words.length) return text;
+  return text
+    .split(new RegExp(`(${words.join("|")})`, "gi"))
+    .map((part, i) => (i % 2 ? <mark key={i}>{part}</mark> : part));
+}
 export function TopicSearch({
   selected,
   catalogVersion,
@@ -13,17 +36,23 @@ export function TopicSearch({
   disabled = false,
 }: {
   selected: Topic | null | undefined;
-  catalogVersion: string;
+  /** Optional: without it the search uses the published catalog. */
+  catalogVersion?: string;
   onSelect: (topic: Topic) => void;
   disabled?: boolean;
 }) {
   const id = useId();
+  const convex = useConvex();
+  const choosing = useRef(false);
+  const input = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [debounced, setDebounced] = useState("");
   const [cursor, setCursor] = useState<string | null>(null);
   const [previous, setPrevious] = useState<(string | null)[]>([]);
   const [active, setActive] = useState(-1);
+  const [chosen, setChosen] = useState<string | null>(null);
+  const [visible, setVisible] = useState(STEP);
   useEffect(() => {
     const timer = setTimeout(() => setDebounced(query), 180);
     return () => clearTimeout(timer);
@@ -33,40 +62,105 @@ export function TopicSearch({
     open ? { search: debounced, catalogVersion, cursor } : "skip",
   );
   const topics = result?.topics ?? [];
+  const shown = topics.slice(0, visible);
   useEffect(() => {
     if (open && active >= 0)
       document
         .getElementById(`${id}-option-${active}`)
         ?.scrollIntoView({ block: "nearest" });
   }, [active, open, id]);
+  useEffect(() => {
+    document.documentElement.classList.toggle("search-open", open);
+    return () => document.documentElement.classList.remove("search-open");
+  }, [open]);
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const target = e.target as HTMLElement | null;
+      if (
+        e.key === "/" &&
+        !e.metaKey &&
+        !e.ctrlKey &&
+        !target?.closest("input, textarea, [contenteditable]")
+      ) {
+        e.preventDefault();
+        input.current?.focus();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+  /** Enter before the results for the typed text arrived: fetch them now. */
+  async function chooseFirstFor(text: string) {
+    try {
+      const fresh = await convex.query(api.goals.listGoalSets, {
+        search: text,
+        catalogVersion,
+        cursor: null,
+      });
+      if (fresh.topics[0]) choose(fresh.topics[0]);
+    } catch {
+      // The list stays open; the teacher can pick a result once it loads.
+    }
+  }
   function choose(topic: Topic) {
-    onSelect(topic);
-    setOpen(false);
-    setActive(-1);
+    // A ref, not state: Enter can resolve after an await in an older render.
+    if (choosing.current) return;
+    choosing.current = true;
+    setChosen(topic.key);
+    // Let the pen tick land before the page changes.
+    const delay = matchMedia("(prefers-reduced-motion: reduce)").matches
+      ? 0
+      : 420;
+    setTimeout(() => {
+      onSelect(topic);
+      setOpen(false);
+      setActive(-1);
+      setChosen(null);
+      choosing.current = false;
+    }, delay);
   }
   function search(value: string) {
     setQuery(value);
     setCursor(null);
     setPrevious([]);
+    setVisible(STEP);
     setActive(-1);
     setOpen(true);
   }
   return (
     <div
-      className="topic-combobox"
+      className={`topic-combobox${open ? " is-open" : ""}`}
       onBlur={(e) => {
         if (!e.currentTarget.contains(e.relatedTarget as Node | null))
           setOpen(false);
       }}
     >
-      <label htmlFor={`${id}-input`} className="field-label">
+      <label htmlFor={`${id}-input`} className="visually-hidden">
         Onderwerp
       </label>
-      <div className={`search-box${open ? " expanded" : ""}`}>
+      <div className="search-box">
+        <button
+          type="button"
+          className="search-back"
+          aria-label="Sluit zoeken"
+          onClick={() => setOpen(false)}
+        >
+          <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24">
+            <path
+              d="M15 5 8 12l7 7"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </button>
         <svg
+          className="search-glass"
           aria-hidden="true"
-          width="20"
-          height="20"
+          width="24"
+          height="24"
           viewBox="0 0 24 24"
           fill="none"
         >
@@ -75,11 +169,17 @@ export function TopicSearch({
             cy="10.5"
             r="6.5"
             stroke="currentColor"
-            strokeWidth="1.6"
+            strokeWidth="2.6"
           />
-          <path d="m16 16 5 5" stroke="currentColor" strokeWidth="1.6" />
+          <path
+            d="m15.5 15.5 5 5"
+            stroke="currentColor"
+            strokeWidth="2.6"
+            strokeLinecap="round"
+          />
         </svg>
         <input
+          ref={input}
           id={`${id}-input`}
           role="combobox"
           aria-expanded={open}
@@ -92,7 +192,8 @@ export function TopicSearch({
           }
           aria-label="Zoek onderwerpen"
           autoComplete="off"
-          placeholder="Zoek een onderwerp of leerjaar…"
+          spellCheck={false}
+          placeholder="Zoek een onderwerp, bv. breuken"
           disabled={disabled}
           value={open ? query : (selected?.title ?? query)}
           onFocus={(e) => {
@@ -108,50 +209,54 @@ export function TopicSearch({
             if (e.key === "ArrowDown" || e.key === "ArrowUp") {
               e.preventDefault();
               setOpen(true);
-              if (topics.length)
-                setActive(
+              if (topics.length) {
+                const next =
                   e.key === "ArrowDown"
                     ? (active + 1) % topics.length
-                    : (active - 1 + topics.length) % topics.length,
-                );
-            } else if (
-              e.key === "Enter" &&
-              open &&
-              active >= 0 &&
-              topics[active]
-            ) {
+                    : (active - 1 + topics.length) % topics.length;
+                if (next >= visible) setVisible(next + 1);
+                setActive(next);
+              }
+            } else if (e.key === "Enter" && open && (topics.length || query)) {
               e.preventDefault();
-              choose(topics[active]);
+              // Without a highlighted option, Enter takes the first result
+              // for what was typed, fetching it if the list is still loading.
+              if (active >= 0 && topics[active]) choose(topics[active]);
+              else if (debounced === query && result) {
+                if (topics[0]) choose(topics[0]);
+              } else void chooseFirstFor(query);
             } else if (e.key === "Escape") {
               e.preventDefault();
               setOpen(false);
             }
           }}
         />
-        <button
-          type="button"
-          className="combobox-toggle"
-          aria-label={open ? "Sluit zoekresultaten" : "Open zoekresultaten"}
-          disabled={disabled}
-          onClick={() => setOpen(!open)}
-        >
-          <svg
-            aria-hidden="true"
-            width="16"
-            height="16"
-            viewBox="0 0 20 20"
-            fill="none"
-          >
-            <path
-              d={open ? "m5 12 5-5 5 5" : "m5 8 5 5 5-5"}
-              stroke="currentColor"
-              strokeWidth="1.5"
-            />
-          </svg>
-        </button>
+        {!open && !query && !selected && (
+          <kbd className="search-shortcut" aria-hidden="true">
+            /
+          </kbd>
+        )}
       </div>
       {open && (
         <div className="search-dropdown">
+          {!query && (
+            <div className="search-suggestions">
+              <span>Probeer</span>
+              {suggestions.map((s) => (
+                <button
+                  type="button"
+                  key={s}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => {
+                    search(s);
+                    input.current?.focus();
+                  }}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          )}
           <div
             id={`${id}-results`}
             role="listbox"
@@ -160,27 +265,35 @@ export function TopicSearch({
           >
             {!result && (
               <p className="dropdown-message" role="status">
-                Onderwerpen zoeken…
+                <StatusIcon status="loading" size={22} /> Onderwerpen zoeken…
               </p>
             )}
-            {topics.map((topic, index) => (
+            {shown.map((topic, index) => (
               <button
                 type="button"
                 role="option"
                 aria-selected={selected?.key === topic.key}
                 id={`${id}-option-${index}`}
                 key={topic.key}
-                className={`search-option${active === index ? " keyboard-active" : ""}`}
+                style={{ "--i": index } as CSSProperties}
+                className={`search-option${active === index ? " keyboard-active" : ""}${chosen === topic.key ? " is-chosen" : ""}`}
                 onMouseDown={(e) => e.preventDefault()}
                 onMouseEnter={() => setActive(index)}
                 onClick={() => choose(topic)}
               >
-                <span className="search-option-title">{topic.title}</span>
-                <span className="search-option-context">
-                  {topic.path
-                    .slice(0, -1)
-                    .map((p) => p.title)
-                    .join(" / ")}
+                <span className="option-tick" aria-hidden="true">
+                  <OptionMark />
+                </span>
+                <span className="search-option-body">
+                  <span className="search-option-title">
+                    {highlight(topic.title, debounced)}
+                  </span>
+                  <span className="search-option-context">
+                    {topic.path
+                      .slice(0, -1)
+                      .map((p) => p.title)
+                      .join(" / ")}
+                  </span>
                 </span>
                 <span className="search-option-meta">
                   <span className="group-tag">
@@ -189,7 +302,7 @@ export function TopicSearch({
                       {topic.group.routeCode}
                     </b>
                   </span>
-                  <span>
+                  <span className="goal-count">
                     {topic.goalCount}{" "}
                     {topic.goalCount === 1 ? "doel" : "doelen"}
                   </span>
@@ -203,34 +316,49 @@ export function TopicSearch({
               </p>
             )}
           </div>
-          {result && (result.more || previous.length > 0) && (
-            <div className="dropdown-pages">
-              {previous.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCursor(previous.at(-1) ?? null);
-                    setPrevious(previous.slice(0, -1));
-                    setActive(-1);
-                  }}
-                >
-                  ← Vorige
-                </button>
-              )}
-              {result.more && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPrevious([...previous, cursor]);
-                    setCursor(result.cursor);
-                    setActive(-1);
-                  }}
-                >
-                  Meer resultaten →
-                </button>
-              )}
-            </div>
+          {topics.length > visible && (
+            <button
+              type="button"
+              className="show-more"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => setVisible(visible + STEP)}
+            >
+              Toon meer onderwerpen
+              <span>{topics.length - visible}</span>
+            </button>
           )}
+          {result &&
+            topics.length <= visible &&
+            (result.more || previous.length > 0) && (
+              <div className="dropdown-pages">
+                {previous.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCursor(previous.at(-1) ?? null);
+                      setPrevious(previous.slice(0, -1));
+                      setVisible(STEP);
+                      setActive(-1);
+                    }}
+                  >
+                    Vorige
+                  </button>
+                )}
+                {result.more && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPrevious([...previous, cursor]);
+                      setCursor(result.cursor);
+                      setVisible(STEP);
+                      setActive(-1);
+                    }}
+                  >
+                    Meer resultaten
+                  </button>
+                )}
+              </div>
+            )}
         </div>
       )}
     </div>

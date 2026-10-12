@@ -16,14 +16,31 @@ import { internal } from "../_generated/api";
 import { accessArgs } from "../analyses";
 import { storage, object, signedGet } from "./storage";
 import { MAX_FILE_BYTES } from "../../shared/analysisSchema";
+import {
+  convertsLocally,
+  fileTypeOf,
+  type FileType,
+} from "../../shared/fileTypes";
+import {
+  ConverterUnavailable,
+  converterConfig,
+  convertToPdf,
+  imageToPdf,
+  MAX_CONVERTED_BYTES,
+} from "./convert";
 
-export async function inspectPdf(key: string, declaredBytes: number) {
+/** Reads a stored object whose exact size is known, never more than `limit` bytes. */
+async function readObject(
+  key: string,
+  declaredBytes: number,
+  limit = MAX_FILE_BYTES,
+) {
   const s3 = storage();
   const head = await s3.send(new HeadObjectCommand(object(key)));
   if (
     !head.ContentLength ||
     head.ContentLength !== declaredBytes ||
-    head.ContentLength > MAX_FILE_BYTES
+    head.ContentLength > limit
   )
     throw new Error("file_size_mismatch");
   const response = await s3.send(
@@ -38,7 +55,7 @@ export async function inspectPdf(key: string, declaredBytes: number) {
       const { done, value } = await reader.read();
       if (done) break;
       length += value.length;
-      if (length > MAX_FILE_BYTES || length > declaredBytes) {
+      if (length > limit || length > declaredBytes) {
         await reader.cancel();
         throw new Error("file_too_large");
       }
@@ -48,7 +65,17 @@ export async function inspectPdf(key: string, declaredBytes: number) {
     reader.releaseLock();
   }
   if (length !== declaredBytes) throw new Error("file_size_mismatch");
-  const bytes = Buffer.concat(chunks);
+  return {
+    bytes: Buffer.concat(chunks),
+    etag: (response.ETag ?? head.ETag)!,
+  };
+}
+export async function inspectPdf(
+  key: string,
+  declaredBytes: number,
+  limit = MAX_FILE_BYTES,
+) {
+  const { bytes, etag } = await readObject(key, declaredBytes, limit);
   if (!bytes.subarray(0, 1024).includes(Buffer.from("%PDF-")))
     throw new Error("invalid_pdf");
   let pageCount: number;
@@ -82,8 +109,60 @@ export async function inspectPdf(key: string, declaredBytes: number) {
     actualBytes: bytes.length,
     pageCount,
     sha256: createHash("sha256").update(bytes).digest("hex"),
-    etag: response.ETag ?? head.ETag!,
+    etag,
   };
+}
+/**
+ * The converter may be starting (Cloud Run scales to zero) or busy when a
+ * teacher drops many files at once, so quick unavailable answers are retried
+ * with growing pauses. A timeout or missing configuration fails at once; see
+ * CONVERSION_TIMEOUT_MS for the worst case.
+ */
+async function convertWithRetries(bytes: Buffer, type: FileType) {
+  const config = converterConfig();
+  for (const pause of [5_000, 15_000, 30_000]) {
+    try {
+      return await convertToPdf(bytes, type, config);
+    } catch (error) {
+      if (!(error instanceof ConverterUnavailable) || !error.retryable)
+        throw error;
+      await new Promise((resolve) => setTimeout(resolve, pause));
+    }
+  }
+  return convertToPdf(bytes, type, config);
+}
+/**
+ * Validates an upload. Non-PDF material is converted first and stored next to
+ * the upload as `<file>.pdf`; everything downstream only ever sees that PDF.
+ */
+async function prepareUpload(stagingKey: string, declaredBytes: number) {
+  const type = fileTypeOf(stagingKey);
+  if (!type) throw new Error("unsupported_type");
+  if (type.kind === "pdf") return inspectPdf(stagingKey, declaredBytes);
+  const { bytes } = await readObject(stagingKey, declaredBytes);
+  const pdf = convertsLocally(type)
+    ? await imageToPdf(bytes, type)
+    : await convertWithRetries(bytes, type);
+  const pdfKey = stagingKey.replace(/\.[a-z0-9]+$/, ".pdf");
+  await storage().send(
+    new PutObjectCommand({
+      ...object(pdfKey),
+      Body: pdf,
+      ContentType: "application/pdf",
+    }),
+  );
+  try {
+    return {
+      ...(await inspectPdf(pdfKey, pdf.length, MAX_CONVERTED_BYTES)),
+      pdfKey,
+    };
+  } catch (error) {
+    // A rejected file never records its pdfKey, so remove the PDF here.
+    await storage()
+      .send(new DeleteObjectCommand(object(pdfKey)))
+      .catch(() => {});
+    throw error;
+  }
 }
 export const signUpload = internalAction({
   args: {
@@ -95,17 +174,25 @@ export const signUpload = internalAction({
   handler: async (
     ctx,
     args,
-  ): Promise<{ fileId: Id<"files">; uploadUrl: string }> => {
+  ): Promise<{
+    fileId: Id<"files">;
+    uploadUrl: string;
+    contentType: string;
+  }> => {
     const registered = await ctx.runMutation(internal.files.register, args);
     const uploadUrl = await getSignedUrl(
       storage(),
       new PutObjectCommand({
         ...object(registered.key),
-        ContentType: "application/pdf",
+        ContentType: registered.contentType,
       }),
       { expiresIn: 300, signableHeaders: new Set(["content-type"]) },
     );
-    return { fileId: registered.fileId, uploadUrl };
+    return {
+      fileId: registered.fileId,
+      uploadUrl,
+      contentType: registered.contentType,
+    };
   },
 });
 export const signView = internalAction({
@@ -125,7 +212,7 @@ export const signView = internalAction({
     return `${await signedGet(f.key, 120)}#page=${args.page}`;
   },
 });
-export const validatePdf = internalAction({
+export const validateFile = internalAction({
   args: { fileId: v.id("files"), generation: v.number() },
   handler: async (ctx, args) => {
     const file = await ctx.runQuery(internal.files.validationContext, args);
@@ -133,7 +220,7 @@ export const validatePdf = internalAction({
     try {
       await ctx.runMutation(internal.files.validated, {
         ...args,
-        info: await inspectPdf(file.stagingKey, file.declaredBytes),
+        info: await prepareUpload(file.stagingKey, file.declaredBytes),
       });
     } catch (error) {
       const code =
@@ -141,6 +228,10 @@ export const validatePdf = internalAction({
         [
           "invalid_pdf",
           "encrypted_pdf",
+          "unsupported_type",
+          "conversion_failed",
+          "conversion_unavailable",
+          "converted_too_large",
           "file_size_mismatch",
           "file_too_large",
         ].includes(error.message)
@@ -168,14 +259,18 @@ export const prepare = internalAction({
         await storage().send(
           new CopyObjectCommand({
             ...object(key),
-            CopySource: `${process.env.R2_BUCKET_NAME}/${file.stagingKey}`,
+            CopySource: `${process.env.R2_BUCKET_NAME}/${file.pdfKey ?? file.stagingKey}`,
             CopySourceIfMatch: file.etag,
             MetadataDirective: "REPLACE",
             ContentType: "application/pdf",
           }),
         );
         try {
-          const info = await inspectPdf(key, file.actualBytes!);
+          const info = await inspectPdf(
+            key,
+            file.actualBytes!,
+            MAX_CONVERTED_BYTES,
+          );
           if (info.sha256 !== file.sha256 || info.pageCount !== file.pageCount)
             throw new Error("file_changed");
           const accepted = await ctx.runMutation(internal.workflow.sealed, {

@@ -12,6 +12,9 @@ export const development = JSON.parse(readFileSync("infra/development.json", "ut
   r2Bucket: string;
   vercelScope: string;
   vercelProject: string;
+  /** Google Cloud project that hosts the document converter on Cloud Run. */
+  gcpProject: string;
+  gcpRegion: string;
 };
 
 export function readEnv(path = ".env.local"): Record<string, string> {

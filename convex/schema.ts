@@ -124,6 +124,8 @@ export default defineSchema({
     sha256: v.optional(v.string()),
     etag: v.optional(v.string()),
     stagingKey: v.string(),
+    /** The PDF used for analysis; absent means stagingKey already is that PDF. */
+    pdfKey: v.optional(v.string()),
     sealedKey: v.optional(v.string()),
     status: v.union(
       v.literal("uploading"),
@@ -151,6 +153,8 @@ export default defineSchema({
     modelUsed: v.optional(v.string()),
     needsReview: v.boolean(),
     reviewReason: v.optional(v.string()),
+    /** Set by the workflow: the saved result waits for its independent recheck. */
+    awaitingRecheck: v.optional(v.boolean()),
   })
     .index("by_analysis_order", ["analysisId", "order"])
     .index("by_analysis_goal", ["analysisId", "goalId"]),

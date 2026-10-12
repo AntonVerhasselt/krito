@@ -7,13 +7,7 @@ export type GoalResult = FunctionReturnType<
 export function GoalPreview({ goal }: { goal: GoalResult }) {
   return (
     <article className="goal-card">
-      <div className="goal-meta">
-        <span className="goal-code">{goal.goalId}</span>
-        <span className="group-tag">
-          {goal.group.title}{" "}
-          <b title={goal.group.routeTitle}>{goal.group.routeCode}</b>
-        </span>
-      </div>
+      <span className="goal-code">{goal.goalId}</span>
       <div className="goal-wording">
         <SourceMarkup html={goal.wording} />
       </div>

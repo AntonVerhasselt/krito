@@ -16,12 +16,37 @@ This replaces individual-goal checkbox selection in original step 3 and the sele
 ## Hero and integration workflow
 
 - The topic search is an autocomplete dropdown that expands with matching subdomains and closes after a choice.
-- Topic choice, PDF upload and the start/email steps belong in a compact panel in the hero.
+- ~~Topic choice, PDF upload and the start/email steps belong in a compact panel in the hero.~~ Superseded by the chalkboard flow below.
 - Merge completed PRs into main once checks pass; avoid leaving a growing stack of open feature branches. The setup and catalog PRs were merged on 2026-10-09.
+
+## Chalkboard flow and visual identity (2026-10-09)
+
+- The start page has one hero: title, intro and topic search on the left, the thinking-Krito illustration on the right. On small screens the illustration sits on top and the open search becomes fullscreen.
+- Choosing a topic moves to `/materiaal`: one centred column with the green dotted chalkboard as the PDF drop zone and Krito standing in front of it. The email field and start button appear under the board once files are added.
+- The results page is deliberately calmer than the rest of the site: a summary bar and one list row per goal, with the verdict icon on the left and the reasoning and evidence folded out per row. No filters. During rechecking, goals whose initial confidence was below 60 keep the loading icon until their independent Sol result is saved; all other results are shown as soon as the initial analysis finishes.
+- ~~Brand assets live in `public/brand` and `public/illustrations`.~~ Superseded by the Groene pen identity below.
+
+## Groene pen identity (2026-10-12)
+
+- The mascot illustrations felt made for children rather than teachers. After comparing five directions, the owner chose **Groene pen**: a cool grey desk, white paper sheets and Krito's voice in green pen (many Flemish schools correct in green). The homepage hero is a realistic lesson document annotated in the margin with Op.stap goal codes; there are no mascots or stock images.
+- Type: Schibsted Grotesk for the interface, Carlito for anything quoted from a teacher's own document, Reenie Beanie only for short margin notes.
+- The homepage combines the strongest sections of five refinements (2026-10-12): the annotated lesson hero; the context beside the two sourced quotes on one sheet; how it works as three before/after pairs; the example report with a key to the verdict marks; two cards for what Krito does and what it does not do (struck in red, with a pen note "jij beslist"); a price section on one punched notepad sheet: "Krito is gratis" first, then a personal note from the maker, Anton, with a photo placeholder. Don't claim "no account" (accounts are planned) or mention the school e-mail there; an FAQ accordion where one question is open at a time; a punched closing sheet. Every section is 128px apart on desktop (96px tablet, 72px phone).
+- Verdict marks: a green tick (gedekt), a half-filled circle (gedeeltelijk gedekt), a red cross (niet gevonden) and a pencil question mark (onzeker). A goal still being checked shows a pen writing a short line. Hovering a result row circles its mark and tints the row.
+- The homepage header is sticky and has a menu (Hoe werkt het?, Voorbeeld, Prijs and a button that opens the search). On small screens the links fold into a menu button; the search button stays visible beside it.
+- The topic search never shows a loading state: it is usable immediately and the catalog loads in the background.
+- Brand marks live in `src/components/brand.tsx`; all styles in `src/app/globals.css`. The chalk illustrations and old brand icons were removed. The favicon is a green pen tick (`src/app/icon.svg`).
+- `/results/demo` and `/results/demo-loopt` show a fixed example of the results page, so the design can be checked without running an analysis.
+
+## Homepage messaging (2026-10-09)
+
+- Below the hero: why (minimumdoelen context with sourced quotes from Klasse and GO!), how it works, a live example of the results list with real Op.stap goals, what Krito does and does not do, FAQ and a closing call to action.
+- Claims to avoid: anything about pupils reaching goals; "inspectieklaar" or proof for the inspectie (it asks for no extra documents); any affiliation with or endorsement by Katholiek Onderwijs Vlaanderen; calling per-year leerplandoelen "minimumdoelen" (those exist only at the end of the 3de kleuterklas, 4de and 6de leerjaar); "always up to date" or "approved" claims; unsourced time-saving numbers.
+- Only school email addresses may start an analysis; consumer mailboxes are refused (`shared/emailPolicy.ts`).
 
 ## Uploads and future accounts
 
-- Accept multiple PDFs, at most **20 files**, 10 MiB each and 40 MiB combined. Enforce all limits in the browser and backend.
+- Accept multiple files, at most **20 files**, 10 MiB each and 40 MiB combined. Enforce all limits in the browser and backend.
+- Accepted material (2026-10-09): PDF, Word (docx, doc, odt, rtf), PowerPoint (pptx, ppt, odp), spreadsheets (xlsx, xls, ods, csv) and plain text. Everything that is not a PDF is converted to PDF during upload validation by a self-hosted Gotenberg/LibreOffice service on Cloud Run in `europe-west1`, so citations, page links and slide images work the same for every file. Spreadsheets render one sheet per page; semicolon CSV and Windows-1252 text are normalised first. OpenAI could read docx/pptx directly, but only as text without images or page numbers, so it is not used for this.
 - Store submitted email addresses in an application `users` table, with analyses referencing `userId`. Preserve the exact trimmed address, including plus tags and dots. Migration removes existing stored emails from analyses.
 - These records remain `emailVerified: false` until verified authentication is implemented. An optional `authId` is reserved for the future Better Auth component identity. The current MVP still requires the private capability for every analysis/file operation; an email/profile link is not authorization.
 - Better Auth and OTP are a later feature. The recommended application-table reference is documented by [Convex + Better Auth](https://labs.convex.dev/better-auth/migrations/migrate-to-0-9/migrate-userid/userid-in-app-table); verification requires the real [OTP flow](https://better-auth.com/docs/plugins/email-otp). Future account claiming must verify identity and the existing analysis capability rather than granting access from an unverified submitted address.

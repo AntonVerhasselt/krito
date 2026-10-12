@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { internalMutation, internalQuery } from "./_generated/server";
 import { internal } from "./_generated/api";
+import { fileKeys } from "./files";
 function developmentOnly() {
   if (process.env.APP_ENV !== "development")
     throw new Error("Development fixtures only");
@@ -81,9 +82,7 @@ export const cleanup = internalMutation({
       .withIndex("by_analysis", (q) => q.eq("analysisId", a._id))
       .collect();
     await ctx.scheduler.runAfter(0, internal.node.pdf.deleteObjects, {
-      keys: files.flatMap((f) =>
-        f.sealedKey ? [f.stagingKey, f.sealedKey] : [f.stagingKey],
-      ),
+      keys: files.flatMap(fileKeys),
     });
     for (const table of ["analysisGoals", "aiRuns"] as const) {
       const children =
