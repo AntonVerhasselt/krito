@@ -86,8 +86,8 @@ export default defineSchema({
     email: v.string(),
     emailVerified: v.boolean(),
     authId: v.optional(v.string()),
-    /** Lowercased address: the welcome sequence is sent once per mailbox. */
-    emailKey: v.optional(v.string()),
+    /** Lowercased address: suppression, unsubscribing and the welcome sequence apply per mailbox. */
+    emailKey: v.string(),
     welcome: v.optional(
       v.object({
         status: v.union(v.literal("active"), v.literal("completed"), v.literal("stopped")),
@@ -112,10 +112,21 @@ export default defineSchema({
     .index("by_user", ["userId", "createdAt"])
     .index("by_status_updated", ["status", "updatedAt"])
     .index("by_journey", ["analyticsContext.journeyId"]),
-  /** Resend webhook event ids already applied, so retries and replays count once. */
-  webhookEvents: defineTable({ eventId: v.string(), receivedAt: v.number() })
+  /**
+   * Resend webhook events by id, so retries and replays count once. An event
+   * for a message whose send isn't recorded yet waits here (applied: false)
+   * until markSent stores the provider id.
+   */
+  webhookEvents: defineTable({
+    eventId: v.string(),
+    receivedAt: v.number(),
+    providerId: v.optional(v.string()),
+    applied: v.optional(v.boolean()),
+    event: v.optional(v.object({ type: v.string(), at: v.number(), bounceType: v.optional(v.string()) })),
+  })
     .index("by_event", ["eventId"])
-    .index("by_received", ["receivedAt"]),
+    .index("by_received", ["receivedAt"])
+    .index("by_provider_applied", ["providerId", "applied"]),
   analyses: defineTable({
     capabilityHash: v.string(),
     status: analysisStatus,

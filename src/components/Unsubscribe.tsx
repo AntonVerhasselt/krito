@@ -17,17 +17,25 @@ export function Unsubscribe() {
   useEffect(() => {
     if (state === "done") confirmation.current?.focus();
   }, [state]);
+  // Always mounted, so screen readers announce the confirmation.
+  const status = (
+    <p className="visually-hidden" role="status">
+      {state === "done" ? "Je bent uitgeschreven." : ""}
+    </p>
+  );
   if (state === "done")
     return (
-      <div role="status">
+      <>
+        {status}
         <h1 ref={confirmation} tabIndex={-1}>
           Je bent uitgeschreven
         </h1>
         <p>Bedankt dat je Krito wilde proberen.</p>
-      </div>
+      </>
     );
   return (
     <>
+      {status}
       <h1>Uitschrijven</h1>
       <p>Wil je geen mails meer van Anton over Krito? Verslagen die je zelf aanvraagt, krijg je nog wel.</p>
       <button

@@ -4,6 +4,7 @@ import type { Id } from "../convex/_generated/dataModel";
 import {
   afterQuotaReset,
   claim,
+  loadDelivery,
   markRetry,
   markSent,
   recordEvent,
@@ -12,6 +13,8 @@ import {
   unsubscribe,
   welcomeDelay,
   withdrawEmailAnalytics,
+  withdrawJourneyAnalytics,
+  withdrawJourneyRest,
 } from "../convex/emails";
 import { unsubscribeToken } from "../shared/email/signing";
 
@@ -23,7 +26,7 @@ const field = (row: Row, path: string) => path.split(".").reduce<unknown>((v, k)
 
 /** Just enough of Convex's database for the e-mail bookkeeping: eq/lt index queries. */
 function fakeCtx() {
-  const tables: Record<string, Row[]> = { users: [], emailMessages: [], analyses: [], webhookEvents: [] };
+  const tables: Record<string, Row[]> = { users: [], emailMessages: [], analyses: [], webhookEvents: [], goalSets: [] };
   let n = 0;
   const scheduled: { at: number; args: unknown }[] = [];
   const query = (table: string) => {
@@ -66,6 +69,7 @@ function fakeCtx() {
     },
     scheduler: {
       runAt: async (at: number, _fn: unknown, args: unknown) => (scheduled.push({ at, args }), `sched${scheduled.length}`),
+      runAfter: async (delay: number, _fn: unknown, args: unknown) => (scheduled.push({ at: Date.now() + delay, args }), `sched${scheduled.length}`),
       cancel: vi.fn(async () => {}),
     },
   } as unknown as MutationCtx;
@@ -156,12 +160,20 @@ describe("delivery attempts", () => {
     expect(m).toMatchObject({ status: "sending", attempts: second });
   });
 
-  it("waits for the daily quota reset without using up a retry, and gives up after three days", async () => {
+  it("waits for the quota reset without using up a retry, keeps attempt numbers unique, and gives up after three days", async () => {
     const { t, m } = await queued();
     const retry = handler<{ messageId: string; attempt: number; errorCode: string }>(markRetry);
     const attempt = (await claimIt(t.ctx, { messageId: m._id }))!;
     await retry(t.ctx, { messageId: m._id, attempt, errorCode: "quota_exceeded" });
-    expect(m).toMatchObject({ status: "scheduled", attempts: 0, sendAt: afterQuotaReset(NOW) });
+    expect(m).toMatchObject({ status: "scheduled", attempts: 1, deferrals: 1, sendAt: afterQuotaReset(NOW) });
+    // The next attempt gets a new number, so the first run can't complete it.
+    const next = (await claimIt(t.ctx, { messageId: m._id }))!;
+    expect(next).toBe(2);
+    await sent(t.ctx, { messageId: m._id, attempt, providerId: "stale", template: "welcome-1-analysis" });
+    expect(m.status).toBe("sending");
+    // A transient error after a quota wait still has its full retry budget: 30 s.
+    await retry(t.ctx, { messageId: m._id, attempt: next, errorCode: "email_provider_error" });
+    expect(m).toMatchObject({ status: "scheduled", sendAt: NOW + 30_000 });
     expect(new Date(afterQuotaReset(NOW)).toISOString()).toBe("2026-10-13T00:05:00.000Z");
     vi.setSystemTime(NOW + 4 * DAY);
     const late = (await claimIt(t.ctx, { messageId: m._id }))!;
@@ -234,10 +246,15 @@ describe("webhook events", () => {
     });
   });
 
-  it("reports events for unknown messages so recent ones are retried", async () => {
+  it("keeps a bounce that arrives before the send is recorded and applies it then", async () => {
     const { t } = await welcomeInFlight();
-    expect(await event(t.ctx, { type: "email.delivered", providerId: "not-yet-stored", at: NOW })).toBe("unknown");
-    expect(t.tables.webhookEvents).toHaveLength(0);
+    const next = t.tables.emailMessages[1];
+    expect(await event(t.ctx, { type: "email.bounced", providerId: "p2", at: NOW, bounceType: "Permanent" })).toBe("pending");
+    const attempt = (await claimIt(t.ctx, { messageId: next._id }))!;
+    await sent(t.ctx, { messageId: next._id, attempt, providerId: "p2", template: "welcome-2-analysis" });
+    expect(next.status).toBe("bounced");
+    expect(t.tables.users[0].emailSuppressedReason).toBe("bounced");
+    expect(t.tables.webhookEvents[0].applied).toBe(true);
   });
 });
 
@@ -256,6 +273,18 @@ describe("unsubscribe and consent", () => {
     expect(t.tables.emailMessages[0].status).toBe("cancelled");
   });
 
+  it("withdraws a browser journey's e-mail analytics in batches until none are left", async () => {
+    const t = fakeCtx();
+    const user = await newUser(t, "juf@school.be");
+    for (let i = 0; i < 201; i++)
+      t.tables.emailMessages.push({ _id: `jrny${String(i).padStart(28, "0")}`, userId: user, kind: "reminder", analyticsContext: context });
+    await handler<{ journeyId: string }>(withdrawJourneyAnalytics)(t.ctx, { journeyId: "j1" });
+    expect(t.tables.emailMessages.filter((m) => m.analyticsContext)).toHaveLength(1);
+    expect(t.scheduled.at(-1)!.args).toEqual({ journeyId: "j1" });
+    await handler<{ journeyId: string }>(withdrawJourneyRest)(t.ctx, { journeyId: "j1" });
+    expect(t.tables.emailMessages.filter((m) => m.analyticsContext)).toHaveLength(0);
+  });
+
   it("forgets the analytics context of a contact's e-mails when consent is withdrawn", async () => {
     const t = fakeCtx();
     const user = await newUser(t, "juf@school.be");
@@ -269,3 +298,19 @@ describe("unsubscribe and consent", () => {
     expect(t.tables.emailMessages[1].analyticsContext).toBeUndefined();
   });
 });
+
+describe("delivery data", () => {
+  it("uses the reminder from before the e-mail was queued, so a retry renders the same e-mail", async () => {
+    const t = fakeCtx();
+    const user = await newUser(t, "juf@school.be");
+    const reminder = (key: string, createdAt: number) =>
+      t.tables.emailMessages.push({ _id: `emai${key.padStart(28, "8")}`, userId: user, kind: "reminder", goalSet: { catalogVersion: "1.3", key }, createdAt });
+    reminder("first", NOW - 1000);
+    await startWelcome(t.ctx, user, "reminder", context);
+    const welcome = t.tables.emailMessages.find((m) => m.kind === "welcome")!;
+    reminder("later", NOW + 5000);
+    const load = handler<{ messageId: string }>(loadDelivery) as (ctx: MutationCtx, a: { messageId: string }) => Promise<{ reminder: { goalSet: { key: string } } | null }>;
+    expect((await load(t.ctx, { messageId: welcome._id }))!.reminder!.goalSet.key).toBe("first");
+  });
+});
+

@@ -241,8 +241,10 @@ renders and sends, retrying transient failures with the same idempotency key
 (the pdf is byte-identical on every render, and a welcome variant is fixed at
 the first attempt). Each attempt carries a number, so a run that outlived its
 lease can't overwrite a newer one; a cron retries deliveries stuck in "sending"
-for more than 15 minutes. A full daily Resend quota waits until just after
-midnight UTC (for up to three days); a full monthly quota fails the message.
+for more than 15 minutes. A full Resend quota (daily or monthly) is waited out:
+the message tries again just after midnight UTC, for up to three days, without
+using up its retries. A webhook event that arrives before its send is recorded
+is kept and applied once it is; events are applied once per svix-id.
 Suppression (hard bounce, complaint) and unsubscribing apply to the whole
 mailbox, whatever capitalisation the address was typed with. Withdrawing
 analytics consent also removes the analytics context from that contact's

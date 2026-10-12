@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getFunctionName } from "convex/server";
-import { deliver } from "../convex/node/email";
+import { deliver, sendSamples } from "../convex/node/email";
 import { demoReportInput } from "./fixtures/report";
 
 const resend = vi.hoisted(() => ({ send: vi.fn() }));
@@ -96,12 +96,13 @@ describe("delivery action", () => {
     expect(pdf.content.subarray(0, 5).toString()).toBe("%PDF-");
   }, 30_000);
 
-  it("retries transient errors and the daily quota, fails on rejected requests and the monthly quota", async () => {
+  it("retries transient errors and full quotas, fails on rejected requests and idempotency conflicts", async () => {
     const cases = [
       [{ name: "rate_limit_exceeded", statusCode: 429 }, "emails:markRetry", "email_provider_error"],
       [{ name: "internal_server_error", statusCode: 500 }, "emails:markRetry", "email_provider_error"],
       [{ name: "daily_quota_exceeded", statusCode: 429 }, "emails:markRetry", "quota_exceeded"],
-      [{ name: "monthly_quota_exceeded", statusCode: 429 }, "emails:markFailed", "monthly_quota_exceeded"],
+      [{ name: "monthly_quota_exceeded", statusCode: 429 }, "emails:markRetry", "monthly_quota_exceeded"],
+      [{ name: "invalid_idempotent_request", statusCode: 409 }, "emails:markFailed", "idempotency_conflict"],
       [{ name: "validation_error", statusCode: 422 }, "emails:markFailed", "email_provider_error"],
     ] as const;
     for (const [error, name, errorCode] of cases) {
@@ -112,6 +113,14 @@ describe("delivery action", () => {
     resend.send.mockRejectedValueOnce(new Error("network down"));
     expect((await run(delivery({ message: { template: "welcome-1-analysis" } }))).at(-1)!.name).toBe("emails:markRetry");
   });
+
+  it("sends the sample report e-mail with a real pdf attached", async () => {
+    vi.stubEnv("EMAIL_ALLOWLIST", "anton@school.be");
+    await (sendSamples as unknown as { _handler: (c: unknown, a: unknown) => Promise<unknown> })._handler({}, { to: "anton@school.be", only: "report" });
+    const [pdf] = resend.send.mock.calls[0][0].attachments;
+    expect(pdf).toMatchObject({ contentType: "application/pdf", filename: "Krito - Magnetisme 3de leerjaar - 2026-10-12.pdf" });
+    expect(pdf.content.subarray(0, 5).toString()).toBe("%PDF-");
+  }, 30_000);
 
   it("retries instead of getting stuck when loading the data fails", async () => {
     const calls = await run(new Error("query failed") as unknown as Delivery);

@@ -64,6 +64,10 @@ export function SendToSelf({ topic }: { topic: Topic }) {
         Stuur dit naar mezelf
       </button>
       <p className="send-self-alt">Of neem hieronder een foto van een blad op papier.</p>
+      {/* Always mounted, so screen readers announce the change when the link is sent. */}
+      <p className="visually-hidden" role="status">
+        {sent ? "Verstuurd. Open de mail op je computer." : ""}
+      </p>
       {open && (
         <Modal label="Stuur dit naar jezelf" narrow dismissible={!pending} onClose={() => close("dismiss")}>
           {sent ? (
@@ -71,7 +75,7 @@ export function SendToSelf({ topic }: { topic: Topic }) {
               <div className="modal-heading">
                 <h2>Verstuurd</h2>
               </div>
-              <p className="email-gate-lead" role="status">
+              <p className="email-gate-lead">
                 Open de mail op je computer. Niets gekregen? Kijk dan even bij je ongewenste mail.
               </p>
               <div className="email-actions">

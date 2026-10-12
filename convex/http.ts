@@ -33,7 +33,7 @@ http.route({
     const parsed = typeof event.created_at === "string" ? Date.parse(event.created_at) : NaN;
     const at = Number.isFinite(parsed) ? parsed : Date.now();
     const bounceType = event.data?.bounce?.type;
-    const result = await ctx.runMutation(internal.emails.recordEvent, {
+    await ctx.runMutation(internal.emails.recordEvent, {
       // The signature check above guarantees the svix-id header is present.
       eventId: request.headers.get("svix-id")!,
       type: event.type,
@@ -41,9 +41,6 @@ http.route({
       at,
       ...(typeof bounceType === "string" ? { bounceType } : {}),
     });
-    // An event can arrive before the send result is stored: ask Resend to retry
-    // it for a while. Older unknown events belong to samples or other deployments.
-    if (result === "unknown" && Date.now() - at < 10 * 60 * 1000) return new Response("Unknown email", { status: 409 });
     return new Response(null, { status: 204 });
   }),
 });

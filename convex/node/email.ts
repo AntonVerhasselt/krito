@@ -127,9 +127,11 @@ async function send(
       { idempotencyKey },
     );
     if (data) return { ok: true, id: data.id };
-    // The daily quota resets at midnight UTC; the monthly one needs a plan change.
+    // A full quota is waited out: daily resets at midnight UTC, monthly needs a plan upgrade.
     if (error.name === "daily_quota_exceeded") return { ok: false, code: "quota_exceeded", retry: true };
-    if (error.name === "monthly_quota_exceeded") return { ok: false, code: "monthly_quota_exceeded", retry: false };
+    if (error.name === "monthly_quota_exceeded") return { ok: false, code: "monthly_quota_exceeded", retry: true };
+    // Same key, different body: an earlier attempt was probably accepted, so never resend.
+    if (error.name === "invalid_idempotent_request") return { ok: false, code: "idempotency_conflict", retry: false };
     const transient =
       error.name === "rate_limit_exceeded" || error.name === "concurrent_idempotent_requests" ||
       error.statusCode === null || error.statusCode === 429 || error.statusCode >= 500;

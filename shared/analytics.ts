@@ -105,7 +105,7 @@ const safeCodes = new Set([
   "provider_response_unavailable", "provider_transient", "session_storage_unavailable", "upload_failed",
   "popup_blocked", "missing_access", "invalid_capability", "rate_limited", "email_disabled",
   "email_suppressed", "quota_exceeded", "email_provider_error", "report_failed", "invalid_link",
-  "monthly_quota_exceeded", "delivery_interrupted",
+  "monthly_quota_exceeded", "delivery_interrupted", "idempotency_conflict",
 ]);
 export function analyticsErrorCode(error: unknown): string {
   const candidate = typeof error === "string" ? error :

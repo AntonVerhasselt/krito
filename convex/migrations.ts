@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { internalMutation, internalQuery } from "./_generated/server";
-import { emailKey, getOrCreateUser } from "./users";
+import { getOrCreateUser } from "./users";
 export const extractEmails = internalMutation({
   args: { cursor: v.union(v.string(), v.null()) },
   handler: async (ctx, args) => {
@@ -33,19 +33,5 @@ export const emailAudit = internalQuery({
       legacyEmails: analyses.filter((a) => !!a.email).length,
       missingProfiles,
     };
-  },
-});
-/** Lowercased addresses for contacts created before the welcome sequence existed. */
-export const emailKeys = internalMutation({
-  args: { cursor: v.union(v.string(), v.null()) },
-  handler: async (ctx, args) => {
-    const page = await ctx.db.query("users").paginate({ cursor: args.cursor, numItems: 200 });
-    let updated = 0;
-    for (const u of page.page) {
-      if (u.emailKey) continue;
-      await ctx.db.patch(u._id, { emailKey: emailKey(u.email) });
-      updated++;
-    }
-    return { updated, cursor: page.continueCursor, done: page.isDone };
   },
 });

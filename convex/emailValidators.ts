@@ -34,6 +34,8 @@ export const emailMessageFields = {
   attempts: v.number(),
   /** When the current attempt was claimed; a stale claim is recovered by a cron. */
   claimedAt: v.optional(v.number()),
+  /** Attempts that only waited for a full Resend quota; they don't use up the retry budget. */
+  deferrals: v.optional(v.number()),
   errorCode: v.optional(v.string()),
   openedAt: v.optional(v.number()),
   openCount: v.optional(v.number()),

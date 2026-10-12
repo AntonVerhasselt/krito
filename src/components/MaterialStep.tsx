@@ -108,18 +108,20 @@ export function MaterialStep() {
   // Until that topic is the selection, the page must not redirect home.
   const link = useSyncExternalStore(subscribeLink, linkSnapshot, () => "");
   const [linkError, setLinkError] = useState("");
+  const [linkTry, setLinkTry] = useState(0);
   const handledLink = useRef("");
   useEffect(() => {
     // After hydration, so a draft from this browser's session is known.
-    if (!hydrated || !link || handledLink.current === link) return;
-    handledLink.current = link;
+    const attempt = `${link}#${linkTry}`;
+    if (!hydrated || !link || handledLink.current === attempt) return;
+    handledLink.current = attempt;
     const [catalogVersion, key] = link.split("|");
-    chooseTopic(convex, session, status, { catalogVersion, key }, setSelection).catch((e) => {
-      // The current draft and selection stay as they were.
-      setLinkError(safeError(e));
-      dropLinkParams();
-    });
-  }, [hydrated, link, convex, session, status, setSelection]);
+    chooseTopic(convex, session, status, { catalogVersion, key }, setSelection).then(
+      () => setLinkError(""),
+      // The current draft and selection stay as they were; the link stays for a retry.
+      (e) => setLinkError(safeError(e)),
+    );
+  }, [hydrated, link, linkTry, convex, session, status, setSelection]);
   useEffect(() => {
     if (link && link === `${selection.catalogVersion}|${selection.goalSetKey}`) dropLinkParams();
   }, [link, selection.catalogVersion, selection.goalSetKey]);
@@ -207,7 +209,10 @@ export function MaterialStep() {
         </div>
         {linkError && (
           <p className="form-error" role="alert">
-            {linkError}
+            {linkError}{" "}
+            <button type="button" className="text-button" onClick={() => setLinkTry((n) => n + 1)}>
+              Probeer opnieuw
+            </button>
           </p>
         )}
         {submitted && session ? (
