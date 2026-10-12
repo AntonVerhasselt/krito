@@ -1,14 +1,14 @@
 /** Sourced quotes and the footer disclaimer. See docs/product-decisions.md for claims to avoid. */
 export const quotes = [
   {
-    text: "Scholen en leraren moeten zelf nagaan of een methode de nieuwe minimumdoelen dekt.",
-    source: "Klasse, april 2026",
-    href: "https://www.klasse.be/775114/nieuwe-minimumdoelen-basisonderwijs-2/",
+    text: "Ik wil bezig zijn met mijn kinderen, niet bewijzen dat ik ermee bezig ben geweest",
+    source: "HLN, maart 2026",
+    href: "https://www.hln.be/binnenland/demir-wil-papierwerk-schrappen-in-het-onderwijs-maar-hoe-groot-is-de-planlast-echt-juffen-tamara-en-natalie-getuigen-het-houdt-gewoon-nooit-op~a2c75b6f/",
   },
   {
-    text: "Lesmateriaal maken voor volledig nieuwe minimumdoelen vraagt in ideale omstandigheden makkelijk twee jaar zwoegen.",
-    source: "GO! onderwijs, mei 2025",
-    href: "https://g-o.be/nieuwe-minimumdoelen-basisonderwijs-wat-nu/",
+    text: "Meer dan vier op de vijf leerkrachten en directies worstelen met veel planlast in hun job.",
+    source: "VRT NWS, maart 2024",
+    href: "https://www.vrt.be/vrtnws/nl/2024/03/20/ruim-vier-op-vijf-leerkrachten-klagen-over-onnodige-administrati/",
   },
 ];
 

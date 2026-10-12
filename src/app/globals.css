@@ -470,9 +470,9 @@ html {
   }
 
   /* ---------- Hero ---------- */
-  /* The sheet is sized from the viewport height so headline, sheet and caption share the first screen. */
+  /* The sheet is sized from the viewport height so headline and sheet share the first screen. */
   .hero {
-    --sheet-w: clamp(420px, calc((100svh - 262px) / 1.25), 540px);
+    --sheet-w: clamp(420px, calc((100svh - 214px) / 1.25), 560px);
     position: relative;
     display: grid;
     grid-template-columns: repeat(12, minmax(0, 1fr));
@@ -756,38 +756,6 @@ html {
     color: #b03a2b;
     transform: rotate(-2deg);
   }
-  /* The caption doubles as a key to the two inks. */
-  /* The caption hangs under the sheet and doubles as a key to the two inks. */
-  .desk-demo figcaption {
-    margin: var(--s-4) 0 0;
-    font-size: 14.5px;
-    line-height: 1.6;
-    color: var(--ink-soft);
-  }
-  .caption-key {
-    display: block;
-  }
-  .caption-key {
-    font-weight: 600;
-    color: var(--ink);
-  }
-  .caption-key span {
-    white-space: nowrap;
-  }
-  .caption-key span + span {
-    margin-left: 0.8em;
-  }
-  .caption-key span {
-    padding-bottom: 3px;
-    background: linear-gradient(var(--pen-stroke), var(--pen-stroke)) 0 100% /
-      100% 2px no-repeat;
-  }
-  .caption-key .key-red {
-    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 6'%3E%3Cpath d='M1 3.5c3-3 4 2.2 7-.2s4 2.6 7 .2' fill='none' stroke='%23b03a2b' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E")
-      0 100% / 16px 5px repeat-x;
-    padding-bottom: 5px;
-  }
-
   /* Pointing at a margin note shows the passage it is about (and the other way round). */
   .mk-note {
     cursor: default;
@@ -1460,7 +1428,7 @@ html {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--gutter);
-    align-items: stretch;
+    align-items: start;
   }
   .scope-card {
     padding: 28px 32px 20px;
@@ -1521,13 +1489,54 @@ html {
   .price-head {
     grid-column: 1;
   }
-  .home-section .price-head h2 {
-    font-size: clamp(2.4rem, 3.6vw, 3.1rem);
-    line-height: 1.02;
-    letter-spacing: -0.03em;
+  /* "gratis" is the headline on its own line, circled in pen when it comes into view. */
+  .price-kicker {
+    display: block;
+    font-size: clamp(1.5rem, 2vw, 1.75rem);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: var(--ink-soft);
+  }
+  .price-word {
+    position: relative;
+    display: inline-block;
+    margin-top: 0.2em;
+    padding: 0 0.04em;
+    font-size: clamp(4.75rem, 9.4vw, 8.5rem);
+    font-weight: 650;
+    line-height: 1;
+    letter-spacing: -0.045em;
+    color: var(--ink);
+  }
+  .price-word svg {
+    position: absolute;
+    left: -8%;
+    top: -16%;
+    width: 123%;
+    height: 136%;
+    overflow: visible;
+    pointer-events: none;
+  }
+  .price-word path {
+    fill: none;
+    stroke: var(--pen-stroke);
+    stroke-width: 2.4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  /* The two loops are about 1000 units long; pathLength misdraws on a stretched svg. */
+  @media (prefers-reduced-motion: no-preference) {
+    .price-word path {
+      stroke-dasharray: 1080 1200;
+      stroke-dashoffset: 1080;
+      opacity: 0;
+    }
+    .price-word.is-drawn path {
+      animation: pen-circle 1.5s cubic-bezier(0.4, 0.1, 0.35, 1) 0.15s both;
+    }
   }
   .price-head p {
-    margin: var(--s-4) 0 0;
+    margin: var(--s-7) 0 0;
     max-width: 22em;
     font-size: 18px;
     line-height: 1.55;
@@ -3504,6 +3513,19 @@ html {
 @keyframes pen-draw {
   0% {
     stroke-dashoffset: 1;
+    opacity: 0;
+  }
+  1% {
+    opacity: 1;
+  }
+  100% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+}
+@keyframes pen-circle {
+  0% {
+    stroke-dashoffset: 1080;
     opacity: 0;
   }
   1% {
