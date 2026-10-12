@@ -204,11 +204,6 @@ Two personal API keys exist, each with only the scopes it needs:
   Create it under PostHog EU → Settings → Personal API keys if it was revoked.
 - **Build source maps** (`.secrets/posthog-build.env` and Vercel
   `POSTHOG_PERSONAL_API_KEY`): `error_tracking:write` only.
-  When PostHog rejects this key (401), `scripts/buildVercel.ts` builds without
-  uploading source maps and prints a warning, so a revoked key never blocks a
-  release. On 2026-10-12 the key was rejected and every Vercel build failed until
-  this check existed; create a new `error_tracking:write` key and set it on Vercel
-  to restore readable stack traces.
 
 Neither belongs on Convex, which only needs the public `POSTHOG_PROJECT_TOKEN` and
 `POSTHOG_HOST`.
