@@ -71,6 +71,16 @@ export function fileTypeOf(name: string): FileType | null {
   return { extension, ...types[extension] };
 }
 
+/** JPG and PNG become a one-page PDF inside Convex; no converter needed. */
+export function convertsLocally(type: FileType) {
+  return ["jpg", "jpeg", "png"].includes(type.extension);
+}
+
+/** Everything except PDF, JPG and PNG goes through the document converter. */
+export function usesConverter(type: FileType) {
+  return type.kind !== "pdf" && !convertsLocally(type);
+}
+
 /** Value for an `<input type="file" accept>` attribute. */
 export const ACCEPTED_FILES = Object.entries(types)
   .flatMap(([extension, t]) => [`.${extension}`, t.contentType])

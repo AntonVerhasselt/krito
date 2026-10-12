@@ -209,7 +209,8 @@ export const validated = internalMutation({
       if (total > MAX_TOTAL_BYTES) safeError = "converted_total_too_large";
     }
     await ctx.db.patch(f._id, {
-      ...(safeError ? {} : args.info),
+      // A rejected file keeps its pdfKey so cleanup also deletes the PDF.
+      ...(safeError ? { pdfKey: args.info?.pdfKey } : args.info),
       status: safeError ? "invalid" : "ready",
       safeError,
       updatedAt: Date.now(),

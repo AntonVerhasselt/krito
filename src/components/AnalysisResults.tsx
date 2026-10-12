@@ -157,18 +157,21 @@ function LiveResults({ analysisId }: { analysisId: string }) {
       setError(safeError(e));
     }
   }
-  const goals: ListGoal[] | undefined = results?.goals.length
-    ? results.goals.map((g) => ({
-        goalId: g.snapshot.goalId,
-        wording: g.snapshot.wording,
-        clarification: g.snapshot.clarification,
-        sourceUrl: g.snapshot.sourceUrl,
-        result: g.result,
-        modelUsed: g.modelUsed,
-        needsReview: g.needsReview,
-        reviewReason: g.reviewReason,
-      }))
-    : pending?.goals.map((g) => ({ goalId: g.goalId, wording: g.wording }));
+  // Saved results once there are any (or once the analysis is finished);
+  // until then the topic's goals are listed as pending.
+  const goals: ListGoal[] | undefined =
+    results && (results.goals.length || status?.status === "completed")
+      ? results.goals.map((g) => ({
+          goalId: g.snapshot.goalId,
+          wording: g.snapshot.wording,
+          clarification: g.snapshot.clarification,
+          sourceUrl: g.snapshot.sourceUrl,
+          result: g.result,
+          modelUsed: g.modelUsed,
+          needsReview: g.needsReview,
+          reviewReason: g.reviewReason,
+        }))
+      : pending?.goals.map((g) => ({ goalId: g.goalId, wording: g.wording }));
   const phase: Phase | undefined = !status
     ? undefined
     : status.status === "completed"

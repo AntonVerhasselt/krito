@@ -13,8 +13,10 @@ import {
   PRIMARY_MODEL,
   RECHECK_BELOW_CONFIDENCE,
   RECHECK_MODEL,
+  CONVERSION_TIMEOUT_MS,
   VALIDATION_TIMEOUT_MS,
 } from "../shared/analysisSchema";
+import { fileTypeOf, usesConverter } from "../shared/fileTypes";
 
 const analysisArgs = { analysisId: v.id("analyses"), attempt: v.number() };
 export const runArgs = { runId: v.id("aiRuns"), generation: v.number() };
@@ -555,16 +557,27 @@ export const recover = internalMutation({
         );
       }
     }
-    // Validation can include a document conversion with retries
-    // (see VALIDATION_TIMEOUT_MS); only restart files that outlived it.
-    const files = await ctx.db
-      .query("files")
-      .withIndex("by_status_updated", (q) =>
-        q
-          .eq("status", "validating")
-          .lt("updatedAt", now - VALIDATION_TIMEOUT_MS),
-      )
-      .take(40);
+    // Files that go through the document converter get longer before they
+    // count as stuck (see CONVERSION_TIMEOUT_MS).
+    const files = (
+      await ctx.db
+        .query("files")
+        .withIndex("by_status_updated", (q) =>
+          q
+            .eq("status", "validating")
+            .lt("updatedAt", now - VALIDATION_TIMEOUT_MS),
+        )
+        .take(100)
+    )
+      .filter((f) => {
+        const type = fileTypeOf(f.stagingKey);
+        return (
+          !type ||
+          !usesConverter(type) ||
+          f.updatedAt < now - CONVERSION_TIMEOUT_MS
+        );
+      })
+      .slice(0, 40);
     for (const f of files) {
       if ((f.validationRetries ?? 0) >= 2) {
         await ctx.db.patch(f._id, {

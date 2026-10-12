@@ -18,6 +18,8 @@ import { storage, object, signedGet } from "./storage";
 import { MAX_FILE_BYTES } from "../../shared/analysisSchema";
 import { fileTypeOf, type FileType } from "../../shared/fileTypes";
 import {
+  ConverterUnavailable,
+  converterConfig,
   convertsLocally,
   convertToPdf,
   imageToPdf,
@@ -109,24 +111,22 @@ export async function inspectPdf(
 }
 /**
  * The converter may be starting (Cloud Run scales to zero) or busy when a
- * teacher drops many files at once, so unavailable answers are retried with
- * growing pauses. Worst case (every attempt timing out) stays well within the
- * 10-minute action limit; see VALIDATION_TIMEOUT_MS.
+ * teacher drops many files at once, so quick unavailable answers are retried
+ * with growing pauses. A timeout or missing configuration fails at once; see
+ * CONVERSION_TIMEOUT_MS for the worst case.
  */
 async function convertWithRetries(bytes: Buffer, type: FileType) {
+  const config = converterConfig();
   for (const pause of [5_000, 15_000, 30_000]) {
     try {
-      return await convertToPdf(bytes, type);
+      return await convertToPdf(bytes, type, config);
     } catch (error) {
-      if (
-        !(error instanceof Error) ||
-        error.message !== "conversion_unavailable"
-      )
+      if (!(error instanceof ConverterUnavailable) || !error.retryable)
         throw error;
       await new Promise((resolve) => setTimeout(resolve, pause));
     }
   }
-  return convertToPdf(bytes, type);
+  return convertToPdf(bytes, type, config);
 }
 /**
  * Validates an upload. Non-PDF material is converted first and stored next to

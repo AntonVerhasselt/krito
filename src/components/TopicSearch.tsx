@@ -7,7 +7,7 @@ import {
   type CSSProperties,
   type ReactNode,
 } from "react";
-import { useQuery } from "convex/react";
+import { useConvex, useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
 import { api } from "../../convex/_generated/api";
 import { StatusIcon } from "./brand";
@@ -42,6 +42,7 @@ export function TopicSearch({
   disabled?: boolean;
 }) {
   const id = useId();
+  const convex = useConvex();
   const input = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -87,6 +88,19 @@ export function TopicSearch({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
+  /** Enter before the results for the typed text arrived: fetch them now. */
+  async function chooseFirstFor(text: string) {
+    try {
+      const fresh = await convex.query(api.goals.listGoalSets, {
+        search: text,
+        catalogVersion,
+        cursor: null,
+      });
+      if (fresh.topics[0]) choose(fresh.topics[0]);
+    } catch {
+      // The list stays open; the teacher can pick a result once it loads.
+    }
+  }
   function choose(topic: Topic) {
     if (chosen) return;
     setChosen(topic.key);
@@ -199,12 +213,14 @@ export function TopicSearch({
                 if (next >= visible) setVisible(next + 1);
                 setActive(next);
               }
-            } else if (e.key === "Enter" && open && topics.length) {
+            } else if (e.key === "Enter" && open && (topics.length || query)) {
               e.preventDefault();
-              // Without a highlighted option, Enter takes the first result,
-              // but only once the results match what was typed.
+              // Without a highlighted option, Enter takes the first result
+              // for what was typed, fetching it if the list is still loading.
               if (active >= 0) choose(topics[active]);
-              else if (debounced === query) choose(topics[0]);
+              else if (debounced === query) {
+                if (topics[0]) choose(topics[0]);
+              } else void chooseFirstFor(query);
             } else if (e.key === "Escape") {
               e.preventDefault();
               setOpen(false);

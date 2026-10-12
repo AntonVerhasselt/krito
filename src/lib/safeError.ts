@@ -21,7 +21,7 @@ const messages: Record<string, string> = {
   conversion_unavailable:
     "Het omzetten naar pdf lukt even niet. Verwijder het bestand en probeer het zo opnieuw.",
   converted_total_too_large:
-    "Na het omzetten naar pdf worden je bestanden samen groter dan 40 MiB. Verwijder dit bestand of een ander bestand.",
+    "Na het omzetten naar pdf worden je bestanden samen groter dan 40 MiB. Verwijder dit bestand.",
   converted_too_large:
     "Dit bestand wordt na het omzetten te groot. Verdeel het over meerdere bestanden.",
   encrypted_pdf:

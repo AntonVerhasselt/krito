@@ -7,12 +7,23 @@ export const MAX_CONVERTED_BYTES = 30 * 1024 * 1024;
 
 type ConverterConfig = { url: string; username: string; password: string };
 
+/**
+ * The converter could not be reached or was busy. `retryable` marks quick,
+ * passing failures (a cold start, too many requests); a timeout or a missing
+ * configuration is not worth waiting for again.
+ */
+export class ConverterUnavailable extends Error {
+  constructor(readonly retryable: boolean) {
+    super("conversion_unavailable");
+  }
+}
+
 export function converterConfig(
   env: Record<string, string | undefined> = process.env,
 ): ConverterConfig {
   const url = env.CONVERTER_URL?.replace(/\/+$/, "");
   if (!url || !env.CONVERTER_USERNAME || !env.CONVERTER_PASSWORD)
-    throw new Error("conversion_unavailable");
+    throw new ConverterUnavailable(false);
   return {
     url,
     username: env.CONVERTER_USERNAME,
@@ -32,14 +43,17 @@ export function decodeText(bytes: Uint8Array) {
 }
 
 /**
- * Parses CSV text into rows. Quoted cells may contain the delimiter, doubled
- * quotes and line breaks (Alt+Enter in Excel).
+ * Parses CSV text into rows. A quote opens a quoted cell only at the start of
+ * a cell, so a stray quote (12" scherm) stays text. Quoted cells may contain
+ * the delimiter, doubled quotes and line breaks (Alt+Enter in Excel).
+ * With `firstRecordOnly`, parsing stops after the first non-empty row.
  */
-function parseCsv(text: string, delimiter: string) {
+function parseCsv(text: string, delimiter: string, firstRecordOnly = false) {
   const rows: string[][] = [];
   let row: string[] = [];
   let field = "";
   let quoted = false;
+  let atStart = true;
   for (let i = 0; i < text.length; i++) {
     const char = text[i];
     if (quoted) {
@@ -48,17 +62,25 @@ function parseCsv(text: string, delimiter: string) {
         i++;
       } else if (char === '"') quoted = false;
       else field += char;
-    } else if (char === '"') quoted = true;
-    else if (char === delimiter) {
+    } else if (char === '"' && atStart) {
+      quoted = true;
+      atStart = false;
+    } else if (char === delimiter) {
       row.push(field);
       field = "";
+      atStart = true;
     } else if (char === "\n" || char === "\r") {
       if (char === "\r" && text[i + 1] === "\n") i++;
       row.push(field);
       rows.push(row);
+      if (firstRecordOnly && row.join("").trim()) return rows;
       row = [];
       field = "";
-    } else field += char;
+      atStart = true;
+    } else {
+      field += char;
+      atStart = false;
+    }
   }
   row.push(field);
   rows.push(row);
@@ -72,7 +94,7 @@ function parseCsv(text: string, delimiter: string) {
 export function normalizeCsv(text: string) {
   const delimiters = [",", ";", "\t"];
   const counts = delimiters.map((d) => {
-    const first = parseCsv(text, d).find((r) => r.join("").trim());
+    const first = parseCsv(text, d, true).find((r) => r.join("").trim());
     return first ? first.length - 1 : 0;
   });
   const most = Math.max(...counts);
@@ -127,13 +149,18 @@ export async function convertToPdf(
       },
       signal: AbortSignal.timeout(110_000),
     });
-  } catch {
-    throw new Error("conversion_unavailable");
+  } catch (error) {
+    throw new ConverterUnavailable(
+      !(error instanceof Error && error.name === "TimeoutError"),
+    );
   }
   // Gotenberg answers 400 when LibreOffice cannot read the file (damaged,
   // password protected or not what its extension claims).
   if (response.status === 400) throw new Error("conversion_failed");
-  if (!response.ok) throw new Error("conversion_unavailable");
+  if (!response.ok)
+    throw new ConverterUnavailable(
+      response.status >= 500 || response.status === 429,
+    );
   const length = Number(response.headers.get("content-length") ?? 0);
   if (length > MAX_CONVERTED_BYTES) throw new Error("converted_too_large");
   const pdf = Buffer.from(await response.arrayBuffer());
@@ -141,10 +168,7 @@ export async function convertToPdf(
   return pdf;
 }
 
-/** JPG and PNG become a one-page PDF right here; no converter needed. */
-export function convertsLocally(type: FileType) {
-  return ["jpg", "jpeg", "png"].includes(type.extension);
-}
+export { convertsLocally } from "../../shared/fileTypes";
 
 /**
  * Reads the EXIF orientation of a JPEG (1 when absent). Phones store photos

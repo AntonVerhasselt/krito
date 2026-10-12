@@ -8,6 +8,7 @@ import {
   decodeText,
   imageToPdf,
   MAX_CONVERTED_BYTES,
+  ConverterUnavailable,
   jpegOrientation,
   normalizeCsv,
 } from "../convex/node/convert";
@@ -94,6 +95,25 @@ describe("convertToPdf", () => {
       convertToPdf(Buffer.from("x"), type, config, failing),
     ).rejects.toThrow("conversion_unavailable");
   });
+  it("only retries quick, passing converter failures", async () => {
+    const type = fileTypeOf("a.docx")!;
+    const failure = (impl: typeof fetch) =>
+      convertToPdf(Buffer.from("x"), type, config, impl).catch((e) => e);
+    const busy = await failure(
+      fakeFetch(new Response("", { status: 503 })).impl,
+    );
+    expect(busy).toBeInstanceOf(ConverterUnavailable);
+    expect(busy.retryable).toBe(true);
+    const timedOut = await failure((async () => {
+      throw new DOMException("timed out", "TimeoutError");
+    }) as unknown as typeof fetch);
+    expect(timedOut.retryable).toBe(false);
+    const refused = await failure(
+      fakeFetch(new Response("", { status: 401 })).impl,
+    );
+    expect(refused.retryable).toBe(false);
+    expect(() => converterConfig({})).toThrow(ConverterUnavailable);
+  });
   it("refuses converted files that are too large", async () => {
     const big = new Response(new Uint8Array(1), {
       headers: { "content-length": String(MAX_CONVERTED_BYTES + 1) },
@@ -132,6 +152,11 @@ describe("csv and text preparation", () => {
         'Les;Inhoud\r\n"Les 1\nMagneten";"polen; kracht"\r\nLes 2;kompas',
       ),
     ).toBe('Les,Inhoud\n"Les 1\nMagneten",polen; kracht\nLes 2,kompas');
+  });
+  it("treats a quote inside a cell as text", () => {
+    expect(normalizeCsv('Maat;Toestel\n12";scherm\n15;laptop')).toBe(
+      'Maat,Toestel\n"12""",scherm\n15,laptop',
+    );
   });
   it("leaves comma CSV and single columns alone", () => {
     expect(normalizeCsv("a,b\n1,2")).toBe("a,b\n1,2");
