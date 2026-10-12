@@ -12,6 +12,7 @@ import type * as access from "../access.js";
 import type * as analyses from "../analyses.js";
 import type * as analysisAdmin from "../analysisAdmin.js";
 import type * as analysisValidators from "../analysisValidators.js";
+import type * as analytics from "../analytics.js";
 import type * as catalogImport from "../catalogImport.js";
 import type * as catalogValidators from "../catalogValidators.js";
 import type * as crons from "../crons.js";
@@ -39,6 +40,7 @@ declare const fullApi: ApiFromModules<{
   analyses: typeof analyses;
   analysisAdmin: typeof analysisAdmin;
   analysisValidators: typeof analysisValidators;
+  analytics: typeof analytics;
   catalogImport: typeof catalogImport;
   catalogValidators: typeof catalogValidators;
   crons: typeof crons;
@@ -82,4 +84,6 @@ export declare const internal: FilterApi<
   FunctionReference<any, "internal">
 >;
 
-export declare const components: {};
+export declare const components: {
+  posthog: import("@posthog/convex/_generated/component.js").ComponentApi<"posthog">;
+};

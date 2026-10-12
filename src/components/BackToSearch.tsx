@@ -1,4 +1,5 @@
 "use client";
+import { track } from "../lib/analytics";
 
 /** Scrolls back to the topic search in the hero and puts the cursor in it. */
 export function focusSearch() {
@@ -15,7 +16,7 @@ export function BackToSearch({
   className?: string;
 }) {
   return (
-    <button type="button" className={className} onClick={focusSearch}>
+    <button type="button" className={className} onClick={() => { track("search_cta_clicked", { source: "closing" }); focusSearch(); }}>
       Kies een onderwerp
     </button>
   );

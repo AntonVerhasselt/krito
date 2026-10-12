@@ -15,6 +15,8 @@ import {
   MAX_FILES,
 } from "../shared/analysisSchema";
 import { fileTypeOf } from "../shared/fileTypes";
+import { captureAnalysis, captureAnalysisException } from "./analytics";
+import { analyticsErrorCode } from "../shared/analytics";
 
 /** Every stored object of a file: the upload and, if converted, its PDF. */
 export function fileKeys(f: {
@@ -113,6 +115,9 @@ export const register = internalMutation({
     const key = `staging/${a._id}/${fileId}.${type.extension}`;
     await ctx.db.patch(fileId, { stagingKey: key });
     await ctx.db.patch(a._id, { updatedAt: now });
+    await captureAnalysis(ctx, a, "file_upload_registered", {
+      file_id: fileId, extension: type.extension, file_kind: type.kind, bytes: args.bytes,
+    }, now);
     return { fileId, key, contentType: type.contentType };
   },
 });
@@ -137,6 +142,12 @@ export const completeUpload = mutation({
       updatedAt: Date.now(),
     });
     await ctx.db.patch(a._id, { updatedAt: Date.now() });
+    const type = fileTypeOf(f.name);
+    await captureAnalysis(ctx, a, "file_validation_started", {
+      file_id: f._id, generation, extension: type?.extension, file_kind: type?.kind,
+    });
+    if (type && type.kind !== "pdf")
+      await captureAnalysis(ctx, a, "file_conversion_started", { file_id: f._id, generation, extension: type.extension });
     await ctx.scheduler.runAfter(0, internal.node.pdf.validateFile, {
       fileId: f._id,
       generation,
@@ -150,8 +161,10 @@ export const remove = mutation({
     const f = await ctx.db.get(args.fileId);
     if (a.status !== "draft" || f?.analysisId !== a._id)
       throw new ConvexError("file_unavailable");
+    if (f.status === "removed") return;
     await ctx.db.patch(f._id, { status: "removed", updatedAt: Date.now() });
     await ctx.db.patch(a._id, { updatedAt: Date.now() });
+    await captureAnalysis(ctx, a, "file_removed", { file_id: f._id });
     await ctx.scheduler.runAfter(0, internal.node.pdf.deleteObjects, {
       keys: fileKeys(f),
     });
@@ -218,6 +231,19 @@ export const validated = internalMutation({
       updatedAt: Date.now(),
     });
     await ctx.db.patch(a._id, { updatedAt: Date.now() });
+    const type = fileTypeOf(f.name);
+    const metadata = {
+      file_id: f._id, generation: args.generation, extension: type?.extension,
+      duration_ms: Date.now() - f.updatedAt, converted: !!args.info?.pdfKey,
+      page_count: args.info?.pageCount, bytes: args.info?.actualBytes,
+    };
+    await captureAnalysis(ctx, a, safeError ? "file_validation_failed" : "file_ready", {
+      ...metadata, error_code: safeError ? analyticsErrorCode(safeError) : undefined,
+    });
+    if (!safeError && args.info?.pdfKey)
+      await captureAnalysis(ctx, a, "file_conversion_completed", metadata);
+    if (safeError && ["conversion_unavailable", "conversion_failed", "upload_validation_failed"].includes(safeError))
+      await captureAnalysisException(ctx, a, safeError, "file_validation", metadata);
   },
 });
 export const viewContext = internalQuery({

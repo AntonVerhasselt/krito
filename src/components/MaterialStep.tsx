@@ -11,6 +11,7 @@ import {
   useAnalysisSession,
   type AnalysisSession,
 } from "../lib/analysisSession";
+import { analyticsContext, track, trackOnce } from "../lib/analytics";
 import { SiteHeader } from "./SiteHeader";
 import { UploadPanel } from "./UploadPanel";
 import { EmailGate } from "./EmailGate";
@@ -60,6 +61,23 @@ export function MaterialStep() {
   const ready = files.length > 0 && files.every((f) => f.status === "ready");
 
   useEffect(() => {
+    if (selected) trackOnce(`material:${selected.catalogVersion}:${selected.key}`, "material_step_viewed", {
+      subject_key: selected.key, goal_count: selected.goalCount, file_count: files.length,
+      restored: !!session, analysis_id: session?.analysisId,
+    });
+    if (ready && session) trackOnce(`ready:${session.analysisId}`, "material_ready", {
+      analysis_id: session.analysisId, file_count: files.length, goal_count: selected?.goalCount,
+    });
+  }, [selected, session, ready, files.length]);
+  function closeGoals(reason: string) {
+    track("goal_preview_closed", { subject_key: selected?.key, reason });
+    setShowGoals(false);
+  }
+  function closeEmail(reason: string) {
+    track("email_gate_closed", { analysis_id: session?.analysisId, reason });
+    setAskEmail(false);
+  }
+  useEffect(() => {
     if (hydrated && (!selection.goalSetKey || selected === null))
       router.replace("/");
   }, [hydrated, selection.goalSetKey, selected, router]);
@@ -85,6 +103,7 @@ export function MaterialStep() {
         capabilityHash,
         catalogVersion: selected.catalogVersion,
         goalSetKey: selected.key,
+        analyticsContext: analyticsContext(),
       });
       const next = { analysisId, accessToken };
       saveSession(next);
@@ -100,7 +119,7 @@ export function MaterialStep() {
   return (
     <div className="site-shell material-shell">
       <SiteHeader>
-        <Link href="/" className="back-link">
+        <Link href="/" className="back-link" onClick={() => track("subject_change_clicked", { subject_key: selected?.key, file_count: files.length })}>
           <span aria-hidden="true">‹</span> Ander onderwerp
         </Link>
       </SiteHeader>
@@ -127,6 +146,7 @@ export function MaterialStep() {
                   type="button"
                   className="text-button"
                   onClick={() => {
+                    track("goal_preview_opened", { subject_key: selected.key, goal_count: selected.goalCount });
                     setOffset(0);
                     setShowGoals(true);
                   }}
@@ -143,12 +163,14 @@ export function MaterialStep() {
                   <Link
                     className="primary-button"
                     href={`/results/${session.analysisId}`}
+                    onClick={() => track("analysis_resume_clicked", { analysis_id: session.analysisId })}
                   >
                     Bekijk mijn analyse
                   </Link>
                   <button
                     className="text-button"
                     onClick={() => {
+                      track("analysis_new_clicked", { analysis_id: session.analysisId });
                       saveSession(null);
                       router.push("/");
                     }}
@@ -171,7 +193,7 @@ export function MaterialStep() {
                         type="button"
                         className="primary-button start-button"
                         disabled={!ready || busy || !session}
-                        onClick={() => setAskEmail(true)}
+                        onClick={() => { track("analysis_start_clicked", { analysis_id: session?.analysisId, file_count: files.length }); track("email_gate_opened", { analysis_id: session?.analysisId }); setAskEmail(true); }}
                       >
                         Start de analyse
                       </button>
@@ -196,15 +218,15 @@ export function MaterialStep() {
         <Modal
           label="Start de analyse"
           narrow
-          onClose={() => setAskEmail(false)}
+          onClose={() => closeEmail("dismiss")}
         >
-          <EmailGate session={session} onCancel={() => setAskEmail(false)} />
+          <EmailGate session={session} onCancel={() => closeEmail("cancel")} />
         </Modal>
       )}
       {selected && showGoals && (
         <Modal
           label="Leerdoelen in je analyse"
-          onClose={() => setShowGoals(false)}
+          onClose={() => closeGoals("dismiss")}
         >
           <div className="modal-heading">
             <div>
@@ -217,7 +239,7 @@ export function MaterialStep() {
             <button
               className="icon-button"
               aria-label="Sluit leerdoelen"
-              onClick={() => setShowGoals(false)}
+              onClick={() => closeGoals("close")}
             >
               ×
             </button>
@@ -229,12 +251,12 @@ export function MaterialStep() {
           </div>
           <div className="page-controls">
             {offset > 0 && (
-              <button onClick={() => setOffset(Math.max(0, offset - 50))}>
+              <button onClick={() => { track("goal_preview_page_changed", { direction: "previous", page: Math.max(0, offset / 50 - 1) }); setOffset(Math.max(0, offset - 50)); }}>
                 Vorige doelen
               </button>
             )}
             {goals?.more && (
-              <button onClick={() => setOffset(offset + 50)}>
+              <button onClick={() => { track("goal_preview_page_changed", { direction: "next", page: offset / 50 + 1 }); setOffset(offset + 50); }}>
                 Volgende doelen
               </button>
             )}

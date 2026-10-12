@@ -1,11 +1,13 @@
 "use client";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { saveSession, useAccessToken } from "../lib/analysisSession";
+import { analyticsContext, track, trackOnce, captureAnalyticsError } from "../lib/analytics";
+import { analyticsErrorCode } from "../../shared/analytics";
 import { safeError } from "../lib/safeError";
 import { SiteHeader } from "./SiteHeader";
 import { GoalList, type ListGoal, type Phase } from "./GoalList";
@@ -15,6 +17,8 @@ import {
   demoGoalsRunning,
   demoTopic,
 } from "../lib/demoAnalysis";
+
+const subscribeHydration = () => () => {};
 
 type HeadingTopic = {
   title: string;
@@ -70,11 +74,11 @@ function ResultsNote() {
   );
 }
 
-function ResultsShell({ children }: { children: ReactNode }) {
+function ResultsShell({ children, isDemo = false }: { children: ReactNode; isDemo?: boolean }) {
   return (
     <div className="site-shell results-shell">
       <SiteHeader>
-        <Link href="/" className="back-link" onClick={() => saveSession(null)}>
+        <Link href="/" className="back-link" onClick={() => { track("analysis_new_clicked", { is_demo: isDemo }); saveSession(null); }}>
           Nieuwe analyse
         </Link>
       </SiteHeader>
@@ -87,7 +91,7 @@ function ResultsShell({ children }: { children: ReactNode }) {
 function DemoResults({ running }: { running: boolean }) {
   const goals = running ? demoGoalsRunning : demoGoals;
   return (
-    <ResultsShell>
+    <ResultsShell isDemo>
       <ResultsHeading topic={demoTopic} fileCount={demoFiles.length} />
       <GoalList
         goals={goals}
@@ -95,6 +99,7 @@ function DemoResults({ running }: { running: boolean }) {
         phase={running ? "rechecking" : "completed"}
         recheck={{ done: 1, total: 3 }}
         files={demoFiles}
+        analytics={{ is_demo: true, surface: "demo_results" }}
         onOpenPdf={() => {}}
       />
       <ResultsNote />
@@ -111,6 +116,7 @@ export function AnalysisResults() {
 
 function LiveResults({ analysisId }: { analysisId: string }) {
   const accessToken = useAccessToken(analysisId);
+  const hydrated = useSyncExternalStore(subscribeHydration, () => true, () => false);
   const credentials = accessToken ? { analysisId, accessToken } : null;
   const status = useQuery(api.analyses.getStatus, credentials ?? "skip");
   const results = useQuery(
@@ -140,6 +146,20 @@ function LiveResults({ analysisId }: { analysisId: string }) {
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
   const unavailable = !accessToken || status === null;
+  useEffect(() => {
+    if (status) {
+      const properties = { analysis_id: analysisId, attempt: status.attempt, stage: status.status, is_demo: false };
+      trackOnce(`results:${analysisId}`, "analysis_results_viewed", properties);
+      if (status.status !== "draft" && status.status !== "failed" && status.status !== "completed")
+        trackOnce(`progress:${analysisId}:${status.attempt}:${status.status}`, "analysis_progress_viewed", properties);
+      if (status.status === "completed" && results)
+        trackOnce(`completed-results:${analysisId}:${status.attempt}`, "analysis_completed_results_viewed", {
+          ...properties, goal_count: results.goals.length, file_count: results.files.length,
+        });
+    }
+    if (status === null || (hydrated && !accessToken))
+      trackOnce(`unavailable:${analysisId}`, "analysis_results_unavailable", { reason: accessToken ? "unavailable" : "missing_access" });
+  }, [status, results, analysisId, hydrated, accessToken]);
   async function openPdf(fileId: string, page: number) {
     if (!credentials) return;
     const tab = window.open("about:blank", "_blank");
@@ -150,10 +170,17 @@ function LiveResults({ analysisId }: { analysisId: string }) {
         fileId: fileId as Id<"files">,
         page,
       });
-      if (tab) tab.location.href = url;
-      else setError("Sta pop-ups toe om het document te openen.");
+      if (tab) {
+        tab.location.href = url;
+        track("evidence_opened", { analysis_id: analysisId, file_id: fileId, page });
+      } else {
+        track("evidence_open_failed", { analysis_id: analysisId, file_id: fileId, reason: "popup_blocked" });
+        setError("Sta pop-ups toe om het document te openen.");
+      }
     } catch (e) {
       tab?.close();
+      track("evidence_open_failed", { analysis_id: analysisId, file_id: fileId, error_code: analyticsErrorCode(e) });
+      captureAnalyticsError(e, "evidence_open", { analysis_id: analysisId });
       setError(safeError(e));
     }
   }
@@ -211,11 +238,14 @@ function LiveResults({ analysisId }: { analysisId: string }) {
                 disabled={busy}
                 onClick={async () => {
                   if (!credentials) return;
+                  track("analysis_retry_clicked", { analysis_id: analysisId, attempt: status.attempt });
                   setBusy(true);
                   setError("");
                   try {
-                    await retry(credentials);
+                    await retry({ ...credentials, analyticsContext: analyticsContext() });
                   } catch (e) {
+                    track("analysis_retry_failed", { analysis_id: analysisId, error_code: analyticsErrorCode(e) });
+                    captureAnalyticsError(e, "analysis_retry", { analysis_id: analysisId });
                     setError(safeError(e));
                   } finally {
                     setBusy(false);
@@ -229,7 +259,7 @@ function LiveResults({ analysisId }: { analysisId: string }) {
             <div className="result-state">
               <h2>Je analyse is nog niet gestart</h2>
               <p>Voeg je lesmateriaal toe en vul je e-mailadres in.</p>
-              <Link className="primary-button" href="/materiaal">
+              <Link className="primary-button" href="/materiaal" onClick={() => track("results_return_to_material_clicked", { analysis_id: analysisId })}>
                 Ga naar mijn materiaal
               </Link>
             </div>
@@ -248,6 +278,7 @@ function LiveResults({ analysisId }: { analysisId: string }) {
                   total: status.recheckTotal,
                 }}
                 files={results?.files ?? []}
+                analytics={{ analysis_id: analysisId, attempt: status.attempt, is_demo: false }}
                 onOpenPdf={(fileId, page) => void openPdf(fileId, page)}
               />
               {pending?.more && (

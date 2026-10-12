@@ -3,9 +3,10 @@ import { mutation, query, type MutationCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { authorized, requireAccess } from "./access";
 import { MAX_TOTAL_BYTES } from "../shared/analysisSchema";
-import { getOrCreateUser } from "./users";
+import { resolveContact } from "./users";
 import { PROMPT_VERSION } from "../shared/prompts";
 import { isPersonalEmail } from "../shared/emailPolicy";
+import { analyticsContextValidator, validAnalyticsContext, captureAnalysis, identifyContact } from "./analytics";
 
 export const accessArgs = { analysisId: v.string(), accessToken: v.string() };
 async function chosenTopic(
@@ -46,6 +47,7 @@ export const createDraft = mutation({
     capabilityHash: v.string(),
     catalogVersion: v.string(),
     goalSetKey: v.string(),
+    analyticsContext: v.optional(analyticsContextValidator),
   },
   handler: async (ctx, args) => {
     if (!/^[a-f0-9]{64}$/.test(args.capabilityHash))
@@ -56,7 +58,7 @@ export const createDraft = mutation({
       args.goalSetKey,
     );
     const now = Date.now();
-    return ctx.db.insert("analyses", {
+    const analysisId = await ctx.db.insert("analyses", {
       ...selection,
       capabilityHash: args.capabilityHash,
       catalogVersion: args.catalogVersion,
@@ -68,7 +70,10 @@ export const createDraft = mutation({
       recoveryCount: 0,
       createdAt: now,
       updatedAt: now,
+      analyticsContext: validAnalyticsContext(args.analyticsContext),
     });
+    await captureAnalysis(ctx, (await ctx.db.get(analysisId))!, "analysis_draft_created", {}, now);
+    return analysisId;
   },
 });
 export const updateTopic = mutation({
@@ -86,6 +91,10 @@ export const updateTopic = mutation({
       goalSetKey: args.goalSetKey,
       updatedAt: Date.now(),
     });
+    if (analysis.goalSetKey !== args.goalSetKey)
+      await captureAnalysis(ctx, (await ctx.db.get(analysis._id))!, "analysis_topic_changed", {
+        previous_subject_key: analysis.goalSetKey,
+      });
   },
 });
 export const getStatus = query({
@@ -99,6 +108,8 @@ export const getStatus = query({
       .collect();
     return {
       analysisId: a._id,
+      attempt: a.attempt,
+      analyticsDistinctId: a.analyticsContext?.consent && a.userId ? a.userId : null,
       status: a.status,
       topic: a.topic,
       recheckTotal: a.recheckTotal,
@@ -120,7 +131,7 @@ export const getStatus = query({
   },
 });
 export const submit = mutation({
-  args: { ...accessArgs, email: v.string() },
+  args: { ...accessArgs, email: v.string(), analyticsContext: v.optional(analyticsContextValidator) },
   handler: async (ctx, args) => {
     const a = await requireAccess(ctx, args.analysisId, args.accessToken);
     if (a.status !== "draft") return a._id;
@@ -194,9 +205,12 @@ export const submit = mutation({
         },
       });
     }
+    const { userId, created } = await resolveContact(ctx, email);
+    const now = Date.now();
     await ctx.db.patch(a._id, {
       ...selection,
-      userId: await getOrCreateUser(ctx, email),
+      userId,
+      analyticsContext: validAnalyticsContext(args.analyticsContext),
       manifest: files.map((f) => ({
         fileId: f._id,
         name: f.name,
@@ -206,9 +220,18 @@ export const submit = mutation({
       promptVersion: PROMPT_VERSION,
       attempt: 1,
       status: "queued",
-      submittedAt: Date.now(),
-      updatedAt: Date.now(),
+      submittedAt: now,
+      attemptStartedAt: now,
+      updatedAt: now,
     });
+    const submitted = (await ctx.db.get(a._id))!;
+    await identifyContact(ctx, submitted);
+    if (created)
+      await captureAnalysis(ctx, submitted, "user_profile_created", {}, now);
+    await captureAnalysis(ctx, submitted, "analysis_submitted", {
+      file_count: files.length, total_bytes: files.reduce((sum, f) => sum + f.actualBytes!, 0),
+      page_count: files.reduce((sum, f) => sum + f.pageCount!, 0),
+    }, now);
     await ctx.scheduler.runAfter(0, internal.workflow.begin, {
       analysisId: a._id,
       attempt: 1,
@@ -248,7 +271,7 @@ export const getResults = query({
   },
 });
 export const retry = mutation({
-  args: accessArgs,
+  args: { ...accessArgs, analyticsContext: v.optional(analyticsContextValidator) },
   handler: async (ctx, args) => {
     const a = await requireAccess(ctx, args.analysisId, args.accessToken);
     if (a.status !== "failed") return a._id;
@@ -260,12 +283,26 @@ export const retry = mutation({
       recheckTotal: 0,
       recheckCompleted: 0,
       recoveryCount: 0,
+      analyticsContext: validAnalyticsContext(args.analyticsContext),
+      attemptStartedAt: Date.now(),
       updatedAt: Date.now(),
     });
+    await captureAnalysis(ctx, (await ctx.db.get(a._id))!, "analysis_retry_requested");
     await ctx.scheduler.runAfter(0, internal.workflow.begin, {
       analysisId: a._id,
       attempt,
     });
     return a._id;
+  },
+});
+
+// A capabilities-protected consent update applies to subsequent background work.
+export const setAnalyticsConsent = mutation({
+  args: { ...accessArgs, analyticsContext: v.optional(analyticsContextValidator) },
+  handler: async (ctx, args) => {
+    const a = await requireAccess(ctx, args.analysisId, args.accessToken);
+    const context = validAnalyticsContext(args.analyticsContext);
+    await ctx.db.patch(a._id, { analyticsContext: context });
+    if (context && a.userId) await identifyContact(ctx, { ...a, analyticsContext: context });
   },
 });

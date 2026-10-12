@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { api } from "../../convex/_generated/api";
 import { useTopicSelection } from "../lib/useTopicSelection";
 import { saveSession, useAnalysisSession } from "../lib/analysisSession";
+import { track, captureAnalyticsError } from "../lib/analytics";
+import { analyticsErrorCode } from "../../shared/analytics";
 import { safeError } from "../lib/safeError";
 import { TopicSearch, type Topic } from "./TopicSearch";
 
@@ -48,8 +50,13 @@ export function TopicPicker() {
         catalogVersion: topic.catalogVersion,
         goalSetKey: topic.key,
       });
+      track("subject_selected", { subject_key: topic.key, catalog_version: topic.catalogVersion,
+        group_key: topic.group.sourceKey, route_code: topic.group.routeCode, goal_count: topic.goalCount,
+        had_existing_draft: !!session && status?.status === "draft" });
       router.push("/materiaal");
     } catch (e) {
+      track("subject_selection_failed", { subject_key: topic.key, error_code: analyticsErrorCode(e) });
+      captureAnalyticsError(e, "subject_selection");
       setError(safeError(e));
       setBusy(false);
     }
@@ -72,18 +79,18 @@ export function TopicPicker() {
         <p className="resume-note">
           Je analyse van <b>{live.topic.title}</b>{" "}
           {live.status === "completed" ? "is klaar." : "loopt nog."}{" "}
-          <Link href={`/results/${session.analysisId}`}>Bekijk je analyse</Link>
+          <Link href={`/results/${session.analysisId}`} onClick={() => track("analysis_resume_clicked", { analysis_id: session.analysisId })}>Bekijk je analyse</Link>
         </p>
       ) : selected && session && live?.status === "draft" ? (
         <p className="resume-note">
           Je was bezig met <b>{selected.title}</b>.{" "}
-          <Link href="/materiaal">Ga verder met je materiaal</Link>
+          <Link href="/materiaal" onClick={() => track("analysis_resume_clicked", { analysis_id: session.analysisId })}>Ga verder met je materiaal</Link>
         </p>
       ) : (
         <p className="catalog-note">
           Alle leerdoelen uit{" "}
           {catalog ? (
-            <a href={catalog.sourceUrl} target="_blank" rel="noreferrer">
+            <a href={catalog.sourceUrl} target="_blank" rel="noreferrer" onClick={() => track("official_source_clicked", { source: "catalog" })}>
               Op.stap v{catalog.version}
             </a>
           ) : (

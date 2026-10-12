@@ -10,6 +10,7 @@ import {
 import { useConvex, useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
 import { api } from "../../convex/_generated/api";
+import { track, captureAnalyticsError } from "../lib/analytics";
 import { StatusIcon } from "./brand";
 import { OptionMark } from "./brand";
 export type Topic = FunctionReturnType<
@@ -44,6 +45,11 @@ export function TopicSearch({
   const id = useId();
   const convex = useConvex();
   const choosing = useRef(false);
+  const interactionOpen = useRef(false);
+  const typingStarted = useRef(false);
+  const latestResults = useRef("");
+  const openingMethod = useRef("focus");
+  const queryStartedAt = useRef(0);
   const input = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -61,6 +67,38 @@ export function TopicSearch({
     api.goals.listGoalSets,
     open ? { search: debounced, catalogVersion, cursor } : "skip",
   );
+  useEffect(() => {
+    if (!open || !query.trim()) return;
+    const timer = setTimeout(() => track("search_query_updated", {
+      query_length: query.length, word_count: query.trim().split(/\s+/).length,
+    }), 600);
+    return () => clearTimeout(timer);
+  }, [query, open]);
+  useEffect(() => {
+    if (!open || !result || debounced !== query) return;
+    const key = JSON.stringify([debounced, cursor]);
+    if (latestResults.current === key) return;
+    latestResults.current = key;
+    const props = { query_length: debounced.length, result_count: result.topics.length,
+      visible_count: Math.min(result.topics.length, STEP), has_more: result.more,
+      page: previous.length, duration_ms: queryStartedAt.current ? Date.now() - queryStartedAt.current : 0 };
+    track("search_results_loaded", props);
+    if (debounced.trim() && !result.topics.length) track("search_no_results", props);
+  }, [result, open, debounced, query, cursor, previous.length]);
+  function openSearch(method: string) {
+    if (!interactionOpen.current) {
+      interactionOpen.current = true;
+      typingStarted.current = false;
+      latestResults.current = "";
+      track("search_opened", { interaction_method: method });
+    }
+    setOpen(true);
+  }
+  function closeSearch(reason: string, selected = false) {
+    if (interactionOpen.current) track("search_closed", { reason, selected, had_input: typingStarted.current });
+    interactionOpen.current = false;
+    setOpen(false);
+  }
   const topics = result?.topics ?? [];
   const shown = topics.slice(0, visible);
   useEffect(() => {
@@ -83,6 +121,7 @@ export function TopicSearch({
         !target?.closest("input, textarea, [contenteditable]")
       ) {
         e.preventDefault();
+        openingMethod.current = "shortcut";
         input.current?.focus();
       }
     }
@@ -97,15 +136,19 @@ export function TopicSearch({
         catalogVersion,
         cursor: null,
       });
-      if (fresh.topics[0]) choose(fresh.topics[0]);
-    } catch {
+      if (fresh.topics[0]) choose(fresh.topics[0], "keyboard");
+    } catch (error) {
+      captureAnalyticsError(error, "search_results");
       // The list stays open; the teacher can pick a result once it loads.
     }
   }
-  function choose(topic: Topic) {
+  function choose(topic: Topic, method = "pointer") {
     // A ref, not state: Enter can resolve after an await in an older render.
     if (choosing.current) return;
     choosing.current = true;
+    track("subject_selection_requested", { subject_key: topic.key, group_key: topic.group.sourceKey,
+      catalog_version: topic.catalogVersion, goal_count: topic.goalCount,
+      interaction_method: method, position: topics.findIndex((t) => t.key === topic.key) + 1 });
     setChosen(topic.key);
     // Let the pen tick land before the page changes.
     const delay = matchMedia("(prefers-reduced-motion: reduce)").matches
@@ -113,26 +156,31 @@ export function TopicSearch({
       : 420;
     setTimeout(() => {
       onSelect(topic);
-      setOpen(false);
+      closeSearch("selected", true);
       setActive(-1);
       setChosen(null);
       choosing.current = false;
     }, delay);
   }
-  function search(value: string) {
+  function search(value: string, typed = true) {
+    openSearch("typing");
+    if (typed && value.trim() && !typingStarted.current) {
+      typingStarted.current = true;
+      track("search_typing_started");
+    }
+    queryStartedAt.current = Date.now();
     setQuery(value);
     setCursor(null);
     setPrevious([]);
     setVisible(STEP);
     setActive(-1);
-    setOpen(true);
   }
   return (
     <div
       className={`topic-combobox${open ? " is-open" : ""}`}
       onBlur={(e) => {
         if (!e.currentTarget.contains(e.relatedTarget as Node | null))
-          setOpen(false);
+          closeSearch("blur");
       }}
     >
       <label htmlFor={`${id}-input`} className="visually-hidden">
@@ -143,7 +191,7 @@ export function TopicSearch({
           type="button"
           className="search-back"
           aria-label="Sluit zoeken"
-          onClick={() => setOpen(false)}
+          onClick={() => closeSearch("back")}
         >
           <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24">
             <path
@@ -196,19 +244,22 @@ export function TopicSearch({
           placeholder="Zoek een onderwerp, bv. breuken"
           disabled={disabled}
           value={query}
+          onPointerDown={() => { openingMethod.current = "pointer"; }}
           onFocus={(e) => {
-            setOpen(true);
+            openSearch(openingMethod.current);
+            openingMethod.current = "focus";
             e.currentTarget.select();
           }}
           onClick={(e) => {
+            track("search_clicked");
             if (!open) e.currentTarget.select();
-            setOpen(true);
+            openSearch("pointer");
           }}
           onChange={(e) => search(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "ArrowDown" || e.key === "ArrowUp") {
               e.preventDefault();
-              setOpen(true);
+              openSearch("keyboard");
               if (topics.length) {
                 const next =
                   e.key === "ArrowDown"
@@ -221,13 +272,13 @@ export function TopicSearch({
               e.preventDefault();
               // Without a highlighted option, Enter takes the first result
               // for what was typed, fetching it if the list is still loading.
-              if (active >= 0 && topics[active]) choose(topics[active]);
+              if (active >= 0 && topics[active]) choose(topics[active], "keyboard");
               else if (debounced === query && result) {
-                if (topics[0]) choose(topics[0]);
+                if (topics[0]) choose(topics[0], "keyboard");
               } else void chooseFirstFor(query);
             } else if (e.key === "Escape") {
               e.preventDefault();
-              setOpen(false);
+              closeSearch("escape");
             }
           }}
         />
@@ -248,7 +299,8 @@ export function TopicSearch({
                   key={s}
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => {
-                    search(s);
+                    track("search_suggestion_clicked", { suggestion: s });
+                    search(s, false);
                     input.current?.focus();
                   }}
                 >
@@ -321,7 +373,7 @@ export function TopicSearch({
               type="button"
               className="show-more"
               onMouseDown={(e) => e.preventDefault()}
-              onClick={() => setVisible(visible + STEP)}
+              onClick={() => { track("search_more_topics_clicked", { visible_count: visible, result_count: topics.length }); setVisible(visible + STEP); }}
             >
               Toon meer onderwerpen
               <span>{topics.length - visible}</span>
@@ -335,6 +387,7 @@ export function TopicSearch({
                   <button
                     type="button"
                     onClick={() => {
+                      track("search_page_changed", { direction: "previous", page: previous.length - 1 });
                       setCursor(previous.at(-1) ?? null);
                       setPrevious(previous.slice(0, -1));
                       setVisible(STEP);
@@ -348,6 +401,7 @@ export function TopicSearch({
                   <button
                     type="button"
                     onClick={() => {
+                      track("search_page_changed", { direction: "next", page: previous.length + 1 });
                       setPrevious([...previous, cursor]);
                       setCursor(result.cursor);
                       setVisible(STEP);
