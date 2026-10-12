@@ -116,7 +116,9 @@ async function configureAccount() {
   if (project.api_token !== token) throw new Error("The selected PostHog project does not match the configured ingestion token. No account changes made.");
   // Only enable requested functionality and anonymize network IPs. No billing,
   // retention-tier, notification, grouping, or historical-data changes.
-  await api(root, "PATCH", { anonymize_ips: true, session_recording_opt_in: true });
+  await api(root, "PATCH", { anonymize_ips: true, session_recording_opt_in: false });
+  const configured = await api<{ session_recording_opt_in: boolean }>(root);
+  if (configured.session_recording_opt_in !== false) throw new Error("PostHog session recording must remain disabled.");
   const definitions = await all<Resource>(`${root}event_definitions/?limit=100`);
   const detail: Record<string, string> = {
     upload_completed: "Browser file transfer completed and backend acknowledged it; validation/conversion may still fail.",
@@ -172,7 +174,7 @@ async function configureAccount() {
       await api(`${root}insights/`, "POST", { name: chart.name, saved: true, dashboards: [dashboard.id], query: { kind: "InsightVizNode", source } });
     }
   }
-  console.log("Verified selected EU project. Enabled session replay/IP anonymization, documented events, and created missing activation/reliability dashboards.");
+  console.log("Verified selected EU project. Disabled session replay, enabled IP anonymization, documented events, and created missing activation/reliability dashboards.");
   console.log("Existing insight edits preserved. No messages, billing, exports, grouping, or retention-tier changes.");
 }
 

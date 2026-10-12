@@ -144,7 +144,7 @@ Configure the following environment matrix explicitly:
 | Preview, all feature branches and PRs | Same development deployment | Same two values |
 | Production, main branch | Same development deployment until launch | Same two values |
 
-**Naming distinction:** Vercel calls the main-branch frontend target “Production.” During development it still uses the Convex development backend and development R2 bucket. This is a hosted integration app, not the launch of the production backend. Keep it protected during development and do not attach the public launch domain yet. All application data and inference remain in development until readiness is confirmed.
+**Naming distinction:** Vercel calls the main-branch frontend target “Production.” During development it still uses the Convex development backend and development R2 bucket. On 2026-10-12, the user requested public access through `krito.be` and `www.krito.be`. Use Vercel Standard Protection to keep those production domains public while protecting previews and generated deployment URLs. This frontend access change does not launch the production backend: all application data and inference remain in development until readiness is confirmed.
 
 Use these commands to set the public URL for each target; enter the verified development URL at each prompt:
 

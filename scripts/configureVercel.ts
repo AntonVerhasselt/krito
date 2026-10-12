@@ -20,7 +20,8 @@ const desired = {
   framework: "nextjs", rootDirectory: null, installCommand: "npm ci",
   buildCommand: "npx tsx scripts/buildVercel.ts", nodeVersion: "24.x",
   previewDeploymentsDisabled: false, gitForkProtection: true,
-  ssoProtection: { deploymentType: "all" },
+  // Standard Protection keeps production domains public and protects preview URLs.
+  ssoProtection: { deploymentType: "all_except_custom_domains" },
 };
 // Fields verified against Vercel's official updateProject OpenAPI schema.
 cli("npx", ["vercel", "api", endpoint, "--method", "PATCH", "--input", "-", "--scope", development.vercelScope], JSON.stringify(desired));
@@ -28,9 +29,9 @@ project = vercelApi<Project>(endpoint);
 for (const key of ["framework", "rootDirectory", "installCommand", "buildCommand", "nodeVersion", "previewDeploymentsDisabled"] as const) {
   if (project[key] !== desired[key]) throw new Error(`Vercel setting mismatch: ${key}.`);
 }
-if (project.ssoProtection?.deploymentType !== "all") throw new Error("All frontend deployments must remain protected during development.");
+if (project.ssoProtection?.deploymentType !== desired.ssoProtection.deploymentType) throw new Error("Production domains must be public and preview deployments must remain protected.");
 if (project.link && (project.link.type !== "github" || `${project.link.org}/${project.link.repo}` !== development.githubRepository || project.link.productionBranch !== "main")) {
   throw new Error("Vercel Git integration must use the selected repository and main branch.");
 }
-console.log("Verified Vercel framework, root, commands, runtime, previews, and all-deployment protection.");
+console.log("Verified Vercel framework, root, commands, runtime, and Standard Protection (public production domains, protected previews).");
 console.log(project.link ? "Verified Git repository and main production branch." : "Git not connected yet; connect with vercel git connect, then rerun this check.");
