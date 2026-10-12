@@ -10,16 +10,41 @@ import { reportInput } from "./reports";
 import { verifyUnsubscribeToken } from "../shared/email/signing";
 import type { EmailStatus } from "./emailValidators";
 
-const HOUR = 60 * 60 * 1000;
+const MINUTE = 60 * 1000;
+const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
 /** Welcome 1 an hour after the address is first entered, 2 two days later, 3 three days after that. */
 export const WELCOME_DELAYS = [HOUR, 2 * DAY, 3 * DAY];
+/** Transient provider trouble is retried this many times, with these delays. */
+const RETRY_DELAYS = [30_000, 2 * MINUTE, 10 * MINUTE, HOUR, 6 * HOUR];
+/** A delivery action runs at most 10 minutes; a claim older than this was interrupted. */
+const CLAIM_LEASE = 15 * MINUTE;
 
 /** Testing only: shortens the welcome delays. Never applies once e-mail is live. */
 export function welcomeDelay(step: number) {
   const scale = Number(process.env.WELCOME_DELAY_SCALE);
   const usable = process.env.EMAIL_MODE !== "live" && scale > 0 && scale <= 1;
   return Math.round(WELCOME_DELAYS[step - 1] * (usable ? scale : 1));
+}
+
+/** Resend's daily quota resets at midnight UTC: try again a few minutes after. */
+export function afterQuotaReset(now: number) {
+  const next = new Date(now);
+  next.setUTCHours(24, 5, 0, 0);
+  return next.getTime();
+}
+
+/**
+ * Every contact record of one mailbox. Addresses are stored as typed, so
+ * "Juf@School.be" and "juf@school.be" are two users but one inbox.
+ */
+async function mailbox(ctx: QueryCtx, user: Doc<"users">) {
+  const key = user.emailKey ?? emailKey(user.email);
+  const rows = await ctx.db
+    .query("users")
+    .withIndex("by_email_key", (q) => q.eq("emailKey", key))
+    .collect();
+  return rows.some((u) => u._id === user._id) ? rows : [user, ...rows];
 }
 
 type Enqueue = {
@@ -32,6 +57,13 @@ type Enqueue = {
   goalSet?: { catalogVersion: string; key: string };
   analyticsContext?: AnalyticsContext;
 };
+
+async function scheduleDelivery(ctx: MutationCtx, messageId: Id<"emailMessages">, sendAt: number) {
+  const scheduledFunctionId: Id<"_scheduled_functions"> = await ctx.scheduler.runAt(sendAt, internal.node.email.deliver, {
+    messageId,
+  });
+  return scheduledFunctionId;
+}
 
 /** Records an e-mail and schedules its delivery. A second call with the same dedupeKey does nothing. */
 export async function enqueueEmail(ctx: MutationCtx, e: Enqueue): Promise<Id<"emailMessages">> {
@@ -56,10 +88,7 @@ export async function enqueueEmail(ctx: MutationCtx, e: Enqueue): Promise<Id<"em
     createdAt: now,
     updatedAt: now,
   });
-  const scheduledFunctionId: Id<"_scheduled_functions"> = await ctx.scheduler.runAt(sendAt, internal.node.email.deliver, {
-    messageId,
-  });
-  await ctx.db.patch(messageId, { scheduledFunctionId });
+  await ctx.db.patch(messageId, { scheduledFunctionId: await scheduleDelivery(ctx, messageId, sendAt) });
   await captureEmail(ctx, (await ctx.db.get(messageId))!, "email_message_queued");
   return messageId;
 }
@@ -72,15 +101,15 @@ export async function startWelcome(
   analyticsContext?: AnalyticsContext,
 ) {
   const user = await ctx.db.get(userId);
-  if (!user || user.welcome || user.emailSuppressedAt || user.emailUnsubscribedAt) return;
-  const key = emailKey(user.email);
-  const sameMailbox = await ctx.db
-    .query("users")
-    .withIndex("by_email_key", (q) => q.eq("emailKey", key))
-    .collect();
-  if (sameMailbox.some((u) => u._id !== userId && (u.welcome || u.emailUnsubscribedAt || u.emailSuppressedAt))) return;
+  if (!user || user.welcome) return;
+  const inbox = await mailbox(ctx, user);
+  if (inbox.some((u) => u.welcome || u.emailUnsubscribedAt || u.emailSuppressedAt)) return;
   const now = Date.now();
-  await ctx.db.patch(userId, { emailKey: key, welcome: { status: "active", source, startedAt: now }, updatedAt: now });
+  await ctx.db.patch(userId, {
+    emailKey: emailKey(user.email),
+    welcome: { status: "active", source, startedAt: now },
+    updatedAt: now,
+  });
   await enqueueEmail(ctx, {
     userId,
     kind: "welcome",
@@ -92,17 +121,17 @@ export async function startWelcome(
   await captureForContact(ctx, analyticsContext, userId, "welcome_sequence_started", { source });
 }
 
-/** Stops the rest of the sequence: unsubscribed, bounced, complained or not deliverable. */
+/** Stops the rest of one contact's sequence: unsubscribed, bounced, complained or not deliverable. */
 async function stopWelcome(ctx: MutationCtx, userId: Id<"users">, reason: string) {
   const user = await ctx.db.get(userId);
   if (!user?.welcome || user.welcome.status !== "active") return;
   await ctx.db.patch(userId, { welcome: { ...user.welcome, status: "stopped", stoppedReason: reason }, updatedAt: Date.now() });
-  const pending = await ctx.db
+  const messages = await ctx.db
     .query("emailMessages")
     .withIndex("by_user", (q) => q.eq("userId", userId))
     .collect();
   let context: AnalyticsContext | undefined;
-  for (const m of pending) {
+  for (const m of messages) {
     if (m.kind !== "welcome") continue;
     context ??= m.analyticsContext;
     if (m.status !== "scheduled") continue;
@@ -112,11 +141,15 @@ async function stopWelcome(ctx: MutationCtx, userId: Id<"users">, reason: string
   await captureForContact(ctx, context, userId, "welcome_sequence_stopped", { reason });
 }
 
+/** A permanent bounce, complaint or provider suppression silences the whole mailbox. */
 async function suppress(ctx: MutationCtx, userId: Id<"users">, reason: string) {
   const user = await ctx.db.get(userId);
-  if (user && !user.emailSuppressedAt)
-    await ctx.db.patch(userId, { emailSuppressedAt: Date.now(), emailSuppressedReason: reason, updatedAt: Date.now() });
-  await stopWelcome(ctx, userId, reason);
+  if (!user) return;
+  for (const u of await mailbox(ctx, user)) {
+    if (!u.emailSuppressedAt)
+      await ctx.db.patch(u._id, { emailSuppressedAt: Date.now(), emailSuppressedReason: reason, updatedAt: Date.now() });
+    await stopWelcome(ctx, u._id, reason);
+  }
 }
 
 async function topicOf(ctx: QueryCtx, goalSet: { catalogVersion: string; key: string }) {
@@ -135,27 +168,32 @@ export const loadDelivery = internalQuery({
     if (!message) return null;
     const user = await ctx.db.get(message.userId);
     if (!user) return null;
-    const analyses = await ctx.db
-      .query("analyses")
-      .withIndex("by_user", (q) => q.eq("userId", user._id))
-      .collect();
-    const reminders = (
-      await ctx.db
+    const inbox = await mailbox(ctx, user);
+    let hasCompletedAnalysis = false;
+    let lastReminder: Doc<"emailMessages"> | undefined;
+    for (const u of inbox) {
+      const analyses = await ctx.db
+        .query("analyses")
+        .withIndex("by_user", (q) => q.eq("userId", u._id))
+        .collect();
+      hasCompletedAnalysis ||= analyses.some((a) => a.status === "completed" && !a.testMode && !a.fixture);
+      const messages = await ctx.db
         .query("emailMessages")
-        .withIndex("by_user", (q) => q.eq("userId", user._id))
-        .collect()
-    ).filter((m) => m.kind === "reminder" && m.goalSet);
-    const lastReminder = reminders.at(-1);
+        .withIndex("by_user", (q) => q.eq("userId", u._id))
+        .collect();
+      for (const m of messages)
+        if (m.kind === "reminder" && m.goalSet && (!lastReminder || m.createdAt > lastReminder.createdAt)) lastReminder = m;
+    }
     const analysis = message.analysisId ? await ctx.db.get(message.analysisId) : null;
     return {
       message,
       user: {
         email: user.email,
-        suppressed: !!user.emailSuppressedAt,
-        unsubscribed: !!user.emailUnsubscribedAt,
+        suppressed: inbox.some((u) => !!u.emailSuppressedAt),
+        unsubscribed: inbox.some((u) => !!u.emailUnsubscribedAt),
         welcomeActive: user.welcome?.status === "active",
       },
-      hasCompletedAnalysis: analyses.some((a) => a.status === "completed"),
+      hasCompletedAnalysis,
       report: analysis ? await reportInput(ctx, analysis) : null,
       topic: message.goalSet ? await topicOf(ctx, message.goalSet) : null,
       reminder: lastReminder?.goalSet
@@ -165,21 +203,41 @@ export const loadDelivery = internalQuery({
   },
 });
 
-/** Takes the message for sending; a duplicate run (retry, race) gets false and stops. */
+/**
+ * Takes the message for sending and returns this attempt's number, or null when
+ * another run already owns it. Every later bookkeeping step must present the
+ * same number, so a run that outlived its lease cannot overwrite a newer one.
+ */
 export const claim = internalMutation({
   args: { messageId: v.id("emailMessages") },
   handler: async (ctx, { messageId }) => {
     const m = await ctx.db.get(messageId);
-    if (!m || m.status !== "scheduled") return false;
-    await ctx.db.patch(messageId, { status: "sending", attempts: m.attempts + 1, updatedAt: Date.now() });
-    return true;
+    if (!m || m.status !== "scheduled") return null;
+    const attempt = m.attempts + 1;
+    await ctx.db.patch(messageId, { status: "sending", attempts: attempt, claimedAt: Date.now(), updatedAt: Date.now() });
+    return attempt;
+  },
+});
+
+const attemptArgs = { messageId: v.id("emailMessages"), attempt: v.number() };
+async function owned(ctx: MutationCtx, messageId: Id<"emailMessages">, attempt: number) {
+  const m = await ctx.db.get(messageId);
+  return m && m.status === "sending" && m.attempts === attempt ? m : null;
+}
+
+/** The welcome variant is fixed before the first send, so a retry sends the same e-mail. */
+export const noteTemplate = internalMutation({
+  args: { ...attemptArgs, template: v.string() },
+  handler: async (ctx, { messageId, attempt, template }) => {
+    const m = await owned(ctx, messageId, attempt);
+    if (m && !m.template) await ctx.db.patch(messageId, { template, updatedAt: Date.now() });
   },
 });
 
 export const markSent = internalMutation({
-  args: { messageId: v.id("emailMessages"), providerId: v.string(), template: v.string() },
-  handler: async (ctx, { messageId, providerId, template }) => {
-    const m = await ctx.db.get(messageId);
+  args: { ...attemptArgs, providerId: v.string(), template: v.string() },
+  handler: async (ctx, { messageId, attempt, providerId, template }) => {
+    const m = await owned(ctx, messageId, attempt);
     if (!m) return;
     const now = Date.now();
     await ctx.db.patch(messageId, { status: "sent", providerId, template, sentAt: now, errorCode: undefined, updatedAt: now });
@@ -207,9 +265,9 @@ export const markSent = internalMutation({
 
 /** Not sent on purpose (e-mail off, not on the allowlist, unsubscribed, suppressed). */
 export const markSkipped = internalMutation({
-  args: { messageId: v.id("emailMessages"), reason: v.string() },
-  handler: async (ctx, { messageId, reason }) => {
-    const m = await ctx.db.get(messageId);
+  args: { ...attemptArgs, reason: v.string() },
+  handler: async (ctx, { messageId, attempt, reason }) => {
+    const m = await owned(ctx, messageId, attempt);
     if (!m) return;
     await ctx.db.patch(messageId, { status: "skipped", errorCode: reason, updatedAt: Date.now() });
     await captureEmail(ctx, (await ctx.db.get(messageId))!, "email_message_skipped", { reason });
@@ -217,27 +275,37 @@ export const markSkipped = internalMutation({
   },
 });
 
-const RETRY_DELAYS = [30_000, 2 * 60_000, 10 * 60_000, HOUR, 6 * HOUR];
+/** Schedules the next attempt, or fails the message once the retries are used up. */
+async function retry(ctx: MutationCtx, m: Doc<"emailMessages">, errorCode: string) {
+  const now = Date.now();
+  let sendAt: number;
+  let attempts = m.attempts;
+  if (errorCode === "quota_exceeded") {
+    // Waiting for the daily reset is not a failed attempt, but a report three
+    // days late is no longer useful: give up then.
+    if (now - m.createdAt > 3 * DAY) return await fail(ctx, m, errorCode);
+    sendAt = afterQuotaReset(now);
+    attempts = Math.max(0, attempts - 1);
+  } else {
+    if (m.attempts > RETRY_DELAYS.length) return await fail(ctx, m, errorCode);
+    sendAt = now + RETRY_DELAYS[m.attempts - 1];
+  }
+  await ctx.db.patch(m._id, {
+    status: "scheduled",
+    attempts,
+    sendAt,
+    errorCode,
+    scheduledFunctionId: await scheduleDelivery(ctx, m._id, sendAt),
+    updatedAt: now,
+  });
+}
 
-/** Transient provider trouble: try again later, up to five times. */
+/** Transient provider trouble or a full daily quota: try again later. */
 export const markRetry = internalMutation({
-  args: { messageId: v.id("emailMessages"), errorCode: v.string() },
-  handler: async (ctx, { messageId, errorCode }) => {
-    const m = await ctx.db.get(messageId);
-    if (!m) return;
-    if (m.attempts > RETRY_DELAYS.length) {
-      await fail(ctx, m, errorCode);
-      return;
-    }
-    // A full daily quota only frees up hours later.
-    const delay = errorCode === "quota_exceeded" ? Math.max(HOUR, RETRY_DELAYS[m.attempts - 1]) : RETRY_DELAYS[m.attempts - 1];
-    const sendAt = Date.now() + delay;
-    const scheduledFunctionId: Id<"_scheduled_functions"> = await ctx.scheduler.runAt(
-      sendAt,
-      internal.node.email.deliver,
-      { messageId },
-    );
-    await ctx.db.patch(messageId, { status: "scheduled", sendAt, scheduledFunctionId, errorCode, updatedAt: Date.now() });
+  args: { ...attemptArgs, errorCode: v.string() },
+  handler: async (ctx, { messageId, attempt, errorCode }) => {
+    const m = await owned(ctx, messageId, attempt);
+    if (m) await retry(ctx, m, errorCode);
   },
 });
 
@@ -248,10 +316,28 @@ async function fail(ctx: MutationCtx, m: Doc<"emailMessages">, errorCode: string
 }
 
 export const markFailed = internalMutation({
-  args: { messageId: v.id("emailMessages"), errorCode: v.string() },
-  handler: async (ctx, { messageId, errorCode }) => {
-    const m = await ctx.db.get(messageId);
+  args: { ...attemptArgs, errorCode: v.string() },
+  handler: async (ctx, { messageId, attempt, errorCode }) => {
+    const m = await owned(ctx, messageId, attempt);
     if (m) await fail(ctx, m, errorCode);
+  },
+});
+
+/** Cron: a delivery that died mid-run (timeout, crash) is retried instead of staying "sending". */
+export const recoverInterrupted = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const stale = await ctx.db
+      .query("emailMessages")
+      .withIndex("by_status_updated", (q) => q.eq("status", "sending").lt("updatedAt", Date.now() - CLAIM_LEASE))
+      .take(50);
+    for (const m of stale) await retry(ctx, m, "delivery_interrupted");
+    // Webhook event ids only need to outlive Resend's retry window (about a day).
+    const old = await ctx.db
+      .query("webhookEvents")
+      .withIndex("by_received", (q) => q.lt("receivedAt", Date.now() - 7 * DAY))
+      .take(200);
+    for (const e of old) await ctx.db.delete(e._id);
   },
 });
 
@@ -279,16 +365,32 @@ const statusEvents: Record<string, { status: EmailStatus; event: AnalyticsEvent 
 /** Clicks this soon after delivery are most likely a school's link scanner. */
 const BOT_CLICK_MS = 10_000;
 
-/** One Resend webhook event. Unknown messages (other deployments, tests) are ignored. */
+/**
+ * One Resend webhook event. Returns "unknown" when no message has this provider
+ * id (yet): the webhook can arrive before markSent stored it, so http.ts asks
+ * Resend to retry recent unknown events. Replays of the same event are ignored.
+ */
 export const recordEvent = internalMutation({
-  args: { type: v.string(), providerId: v.string(), at: v.number(), bounceType: v.optional(v.string()) },
-  handler: async (ctx, { type, providerId, at, bounceType }) => {
+  args: {
+    eventId: v.string(),
+    type: v.string(),
+    providerId: v.string(),
+    at: v.number(),
+    bounceType: v.optional(v.string()),
+  },
+  handler: async (ctx, { eventId, type, providerId, at, bounceType }): Promise<"recorded" | "duplicate" | "unknown"> => {
+    const seen = await ctx.db
+      .query("webhookEvents")
+      .withIndex("by_event", (q) => q.eq("eventId", eventId))
+      .first();
+    if (seen) return "duplicate";
     const m = await ctx.db
       .query("emailMessages")
       .withIndex("by_provider", (q) => q.eq("providerId", providerId))
       .first();
-    if (!m) return;
+    if (!m) return "unknown";
     const now = Date.now();
+    await ctx.db.insert("webhookEvents", { eventId, receivedAt: now });
     const since = at - (m.deliveredAt ?? m.sentAt ?? at);
     if (type === "email.opened" || type === "email.clicked") {
       const opened = type === "email.opened";
@@ -304,10 +406,10 @@ export const recordEvent = internalMutation({
           duration_ms: Math.max(0, since),
           ...(opened ? {} : { is_bot_suspected: since < BOT_CLICK_MS }),
         });
-      return;
+      return "recorded";
     }
     const mapped = statusEvents[type];
-    if (!mapped) return;
+    if (!mapped) return "recorded";
     if (rank[mapped.status] > rank[m.status] || (mapped.status !== m.status && rank[mapped.status] === 5)) {
       await ctx.db.patch(m._id, {
         status: mapped.status,
@@ -324,9 +426,11 @@ export const recordEvent = internalMutation({
     if (type === "email.bounced" && bounceType !== "Transient") await suppress(ctx, m.userId, "bounced");
     if (type === "email.complained") await suppress(ctx, m.userId, "complained");
     if (type === "email.suppressed") await suppress(ctx, m.userId, "email_suppressed");
+    return "recorded";
   },
 });
 
+/** Unsubscribing applies to the mailbox, however its address was capitalised. */
 async function unsubscribeUser(ctx: MutationCtx, token: string) {
   const secret = process.env.EMAIL_LINK_SECRET;
   const raw = secret ? await verifyUnsubscribeToken(token, secret) : null;
@@ -334,17 +438,18 @@ async function unsubscribeUser(ctx: MutationCtx, token: string) {
   const user = userId ? await ctx.db.get(userId) : null;
   if (!user) throw new ConvexError("invalid_link");
   if (user.emailUnsubscribedAt) return;
-  await ctx.db.patch(user._id, { emailUnsubscribedAt: Date.now(), updatedAt: Date.now() });
-  const last = (
-    await ctx.db
+  const now = Date.now();
+  let last: Doc<"emailMessages"> | undefined;
+  for (const u of await mailbox(ctx, user)) {
+    if (!u.emailUnsubscribedAt) await ctx.db.patch(u._id, { emailUnsubscribedAt: now, updatedAt: now });
+    const messages = await ctx.db
       .query("emailMessages")
-      .withIndex("by_user", (q) => q.eq("userId", user._id))
-      .collect()
-  )
-    .filter((m) => m.kind === "welcome" && m.sentAt)
-    .at(-1);
-  await stopWelcome(ctx, user._id, "unsubscribed");
-  await captureForContact(ctx, last?.analyticsContext, user._id, "email_unsubscribed", {
+      .withIndex("by_user", (q) => q.eq("userId", u._id))
+      .collect();
+    for (const m of messages) if (m.kind === "welcome" && m.sentAt && (!last || m.sentAt > last.sentAt!)) last = m;
+    await stopWelcome(ctx, u._id, "unsubscribed");
+  }
+  await captureForContact(ctx, last?.analyticsContext, last?.userId ?? user._id, "email_unsubscribed", {
     email_kind: "welcome",
     sequence_step: last?.step,
   });
@@ -368,5 +473,31 @@ export const unsubscribeOneClick = internalMutation({
     } catch {
       return false;
     }
+  },
+});
+
+/** Consent withdrawn: e-mails caused by this contact stop reporting to PostHog. */
+export async function withdrawEmailAnalytics(ctx: MutationCtx, userId: Id<"users">) {
+  const messages = await ctx.db
+    .query("emailMessages")
+    .withIndex("by_user", (q) => q.eq("userId", userId))
+    .collect();
+  for (const m of messages) if (m.analyticsContext) await ctx.db.patch(m._id, { analyticsContext: undefined });
+}
+
+/**
+ * Consent withdrawn in a browser without an analysis (the mobile reminder):
+ * forget the analytics context of e-mails that browser journey caused. It can
+ * only remove telemetry, so the unguessable journey id is enough.
+ */
+export const withdrawJourneyAnalytics = mutation({
+  args: { journeyId: v.string() },
+  handler: async (ctx, { journeyId }) => {
+    if (!/^[A-Za-z0-9_-]{1,100}$/.test(journeyId)) return;
+    const messages = await ctx.db
+      .query("emailMessages")
+      .withIndex("by_journey", (q) => q.eq("analyticsContext.journeyId", journeyId))
+      .take(200);
+    for (const m of messages) await ctx.db.patch(m._id, { analyticsContext: undefined });
   },
 });

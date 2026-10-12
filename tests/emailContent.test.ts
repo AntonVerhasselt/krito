@@ -22,7 +22,9 @@ describe("emails/*.md", () => {
       expect(email.text.trimEnd().split("--")[0].trimEnd().endsWith("Anton") || email.text.includes("\nAnton\n"), id).toBe(true);
       expect(email.photo, id).toBe(id.startsWith("welcome-1"));
       expect(email.html.includes("cid:anton-charlotte"), id).toBe(email.photo);
-      expect(email.text.includes("uitschrijven"), id).toBe(id.startsWith("welcome"));
+      const link = "https://www.krito.be/uitschrijven?t=voorbeeld";
+      expect(email.text.includes(link), id).toBe(id.startsWith("welcome"));
+      expect(email.html.includes(`href="${link}"`), id).toBe(id.startsWith("welcome"));
     }
   });
 });
@@ -37,6 +39,9 @@ describe("template language", () => {
     expect(validateTemplate("reminder", { subject: "s", body: "{{#if topic}}x" })[0]).toContain("never closed");
     expect(validateTemplate("reminder", { subject: "s", body: "{{photo}}" })[0]).toContain("only allowed");
     expect(validateTemplate("welcome-3", { subject: "s", body: "Dag" })[0]).toContain("unsubscribeLink");
+    // A link hidden behind a condition, or only used as one, does not count.
+    for (const body of ["{{#if unsubscribeLink}}uitschrijven{{/if}}", "{{#if email}}{{unsubscribeLink}}{{/if}}"])
+      expect(validateTemplate("welcome-3", { subject: "s", body })).toEqual([expect.stringContaining("always show")]);
   });
 
   it("parses frontmatter, ignoring notes", () => {

@@ -66,6 +66,8 @@ export type ReportModel = {
   routeCode: string;
   catalogVersion: string;
   date: string;
+  /** When the analysis completed; also the pdf's creation date. */
+  timestamp: number;
   fileName: string;
   goalCount: number;
   counts: Record<Verdict, number>;
@@ -98,6 +100,14 @@ export function reportFileName(title: string, group: string, timestamp: number) 
   return `Krito - ${safe.slice(0, 120)} - ${year}-${month}-${day}.pdf`;
 }
 
+/**
+ * Text as the pdf fonts can draw it: no font has the non-breaking hyphen that
+ * one Op.stap goal uses, and control characters would print as boxes.
+ */
+export function printable(text: string) {
+  return text.replace(/\u2011/g, "-").replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, "");
+}
+
 export function buildReportModel(input: ReportInput): ReportModel {
   const names = new Map(input.files.map((f) => [f.fileId, f.name]));
   const counts = Object.fromEntries(VERDICTS.map((v) => [v, 0])) as Record<Verdict, number>;
@@ -110,25 +120,26 @@ export function buildReportModel(input: ReportInput): ReportModel {
     routeCode: topic.group.routeCode,
     catalogVersion: topic.catalogVersion,
     date: reportDate(input.completedAt),
+    timestamp: input.completedAt,
     fileName: reportFileName(topic.title, topic.group.title, input.completedAt),
     goalCount: input.goals.length,
     counts,
     review: input.goals.filter((g) => g.needsReview).length,
-    files: input.files.map((f) => ({ name: f.name, pages: f.pageCount, size: fileSize(f.bytes) })),
+    files: input.files.map((f) => ({ name: printable(f.name), pages: f.pageCount, size: fileSize(f.bytes) })),
     goals: input.goals.map(({ snapshot, result, needsReview, reviewReason, rechecked }) => ({
       code: snapshot.goalId,
-      wording: snapshot.wordingText,
+      wording: printable(snapshot.wordingText),
       verdict: result.status,
       label: verdictLabels[result.status],
       confidence: result.confidence,
-      confidenceReason: result.confidenceReason,
-      explanation: result.explanation,
-      missing: result.missingRequirements,
+      confidenceReason: printable(result.confidenceReason),
+      explanation: printable(result.explanation),
+      missing: result.missingRequirements.map(printable),
       evidence: result.evidence.map((e) => ({
-        file: names.get(e.fileId) ?? "Onbekend bestand",
+        file: printable(names.get(e.fileId) ?? "Onbekend bestand"),
         page: e.page,
-        quote: e.kind === "text" ? e.quote : null,
-        description: e.description,
+        quote: e.kind === "text" && e.quote ? printable(e.quote) : null,
+        description: printable(e.description),
       })),
       // The same wording as the results page.
       reviewNote: !needsReview ? null : reviewReason === "recheck_failed"

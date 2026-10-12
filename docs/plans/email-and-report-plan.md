@@ -194,7 +194,7 @@ The mobile reminder adds a **public endpoint that sends e-mail to any school add
 |---|---|
 | Reminders per address | 3 / 24 h |
 | Reminders per browser journey (`journey_id`) | 5 / h |
-| Reminders globally | 150 / day (also protects the Resend quota) |
+| Reminders globally | 100 / day (also protects the Resend quota; lowered from 150 in review) |
 | Welcome sequences per address | Once, ever. Compare in lowercase, because `users.email` is stored as typed and `Juf@School.be` ≠ `juf@school.be` today |
 
 Also apply:

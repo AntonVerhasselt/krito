@@ -198,7 +198,8 @@ npm run test:converter
 `npm test` runs fast tests without external services. They cover missing
 configuration, basic-auth request headers, 401/403 failures, retryable 429/5xx
 responses, timeouts, converted-file size limits, CSV normalization, legacy text
-encoding and local image conversion.
+encoding and local image conversion. The pdf report tests read the rendered pdf
+with `pdftotext`, so Poppler must be installed (CI installs `poppler-utils`).
 
 `npm run test:converter` takes roughly two to four minutes and checks the actual
 development service and backend. It reads the installed converter variables
@@ -236,7 +237,16 @@ mezelf" link, and the three-step welcome sequence. The content lives in
 `emails/*.md` (see `emails/README.md`); `npm run emails:build` compiles it to
 `shared/email/content.generated.ts`, and `npm test` fails when that is stale.
 Every send is recorded in `emailMessages` (no content); `convex/node/email.ts`
-renders and sends, retrying transient failures with the same idempotency key.
+renders and sends, retrying transient failures with the same idempotency key
+(the pdf is byte-identical on every render, and a welcome variant is fixed at
+the first attempt). Each attempt carries a number, so a run that outlived its
+lease can't overwrite a newer one; a cron retries deliveries stuck in "sending"
+for more than 15 minutes. A full daily Resend quota waits until just after
+midnight UTC (for up to three days); a full monthly quota fails the message.
+Suppression (hard bounce, complaint) and unsubscribing apply to the whole
+mailbox, whatever capitalisation the address was typed with. Withdrawing
+analytics consent also removes the analytics context from that contact's
+e-mails, and from e-mails requested in that browser tab.
 
 The sending domain `mail.krito.be` is verified in Resend (EU region,
 `eu-west-1`). The webhook `https://majestic-sturgeon-687.eu-west-1.convex.site/resend-webhook`

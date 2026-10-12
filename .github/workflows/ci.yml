@@ -18,6 +18,8 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      # The pdf report tests read the rendered text with pdftotext (poppler).
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends poppler-utils
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test

@@ -105,8 +105,9 @@ export function validateTemplate(id: TemplateId, template: Template): string[] {
         problems.push(`${part}: unknown variable {{${name}}}; allowed here: ${[...allowed].join(", ")}`);
     if (hasPhoto(nodes) && (part === "subject" || !PHOTO_ALLOWED.has(id)))
       problems.push(`${part}: {{photo}} is only allowed in the welcome 1 e-mails`);
-    if (part === "body" && UNSUBSCRIBE_REQUIRED.has(id) && !names(nodes).has("unsubscribeLink"))
-      problems.push("body: welcome e-mails must contain {{unsubscribeLink}}");
+    // The link itself must always be printed: not inside an {{#if}}, not only as a condition.
+    if (part === "body" && UNSUBSCRIBE_REQUIRED.has(id) && !nodes.some((n) => n.kind === "var" && n.name === "unsubscribeLink"))
+      problems.push("body: welcome e-mails must always show {{unsubscribeLink}} (outside any {{#if}})");
   }
   return problems;
 }

@@ -54,7 +54,8 @@ This replaces individual-goal checkbox selection in original step 3 and the sele
 - Welcome sequence for a new mailbox (via an analysis or the mobile link): +1 hour, +2 days, +3 days after e-mail 2. Only welcome 1 carries the photo of Anton and Charlotte; every e-mail is signed "Anton". A small grey notice under the e-mail field announces the three mails; each one has an unsubscribe link.
 - E-mails are plain text with a plain-looking html twin. From `anton@mail.krito.be`, replies to `anton.verhasselt@gmail.com`. Open and click tracking is on.
 - E-mail content lives in `emails/*.md`, one file per e-mail, instead of Resend templates. Our own Resend integration instead of `@convex-dev/resend`, whose queue cannot send attachments.
-- On a phone, a card above the upload sends the teacher a link to the same topic; it starts no analysis and is rate-limited.
+- On a phone, a card above the upload sends the teacher a link to the same topic; it starts no analysis and is rate-limited (3 per address per day, 100 in total per day).
+- Accepted trade-off (review of PR #11): someone can type a colleague's school address in the mobile form, which also starts the welcome sequence for that address. The owner wants reminders to count as a first sign-up. Mitigations: the reminder says "Was jij dat niet? Negeer deze mail", every welcome e-mail has an unsubscribe link, the sequence starts once per mailbox and stops on a bounce or complaint. Revisit with a confirmation step if abuse shows up.
 
 ## Uploads and future accounts
 

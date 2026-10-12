@@ -32,6 +32,8 @@ export const emailMessageFields = {
   scheduledFunctionId: v.optional(v.id("_scheduled_functions")),
   providerId: v.optional(v.string()),
   attempts: v.number(),
+  /** When the current attempt was claimed; a stale claim is recovered by a cron. */
+  claimedAt: v.optional(v.number()),
   errorCode: v.optional(v.string()),
   openedAt: v.optional(v.number()),
   openCount: v.optional(v.number()),

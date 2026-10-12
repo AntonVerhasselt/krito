@@ -1,11 +1,12 @@
 "use client";
 import { useState } from "react";
-import { useConvex, useMutation, useQuery } from "convex/react";
+import { useConvex, useQuery } from "convex/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api } from "../../convex/_generated/api";
 import { useTopicSelection } from "../lib/useTopicSelection";
-import { saveSession, useAnalysisSession } from "../lib/analysisSession";
+import { useAnalysisSession } from "../lib/analysisSession";
+import { chooseTopic } from "../lib/chooseTopic";
 import { track, captureAnalyticsError } from "../lib/analytics";
 import { analyticsErrorCode } from "../../shared/analytics";
 import { safeError } from "../lib/safeError";
@@ -24,7 +25,6 @@ export function TopicPicker() {
   );
   const session = useAnalysisSession();
   const live = useQuery(api.analyses.getStatus, session ?? "skip");
-  const updateTopic = useMutation(api.analyses.updateTopic);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const running = live && live.status !== "draft";
@@ -33,26 +33,10 @@ export function TopicPicker() {
     setError("");
     setBusy(true);
     try {
-      // The search never waits for the analysis status; if it hasn't loaded
-      // yet, fetch it once so a draft keeps its uploaded files.
-      const status =
-        session && live === undefined
-          ? await convex.query(api.analyses.getStatus, session)
-          : live;
-      if (session && status?.status === "draft")
-        await updateTopic({
-          ...session,
-          catalogVersion: topic.catalogVersion,
-          goalSetKey: topic.key,
-        });
-      else if (session) saveSession(null);
-      setSelection({
-        catalogVersion: topic.catalogVersion,
-        goalSetKey: topic.key,
-      });
+      const { keptDraft } = await chooseTopic(convex, session, live, topic, setSelection);
       track("subject_selected", { subject_key: topic.key, catalog_version: topic.catalogVersion,
         group_key: topic.group.sourceKey, route_code: topic.group.routeCode, goal_count: topic.goalCount,
-        had_existing_draft: !!session && status?.status === "draft" });
+        had_existing_draft: keptDraft });
       router.push("/materiaal");
     } catch (e) {
       track("subject_selection_failed", { subject_key: topic.key, error_code: analyticsErrorCode(e) });

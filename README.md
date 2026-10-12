@@ -26,6 +26,7 @@ Planned resources must not be treated as already created.
 ## Local commands
 
 Use Node **24.21.0** (`.nvmrc` / `.node-version`). Vercel uses supported Node 24.x.
+`npm test` also needs `pdftotext` (Poppler) on PATH for the pdf report tests.
 With mise, prefix commands with `mise exec node@24.21.0 --`.
 
 ```bash

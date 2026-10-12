@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useConvex, useMutation, useQuery } from "convex/react";
+import { chooseTopic } from "../lib/chooseTopic";
+import { safeError } from "../lib/safeError";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api } from "../../convex/_generated/api";
@@ -26,6 +28,29 @@ function useHydrated() {
     () => true,
     () => false,
   );
+}
+
+/** The topic an e-mail link carries ("versie|onderwerp"), read from the address bar. */
+const linkListeners = new Set<() => void>();
+function subscribeLink(listener: () => void) {
+  linkListeners.add(listener);
+  return () => {
+    linkListeners.delete(listener);
+  };
+}
+function linkSnapshot() {
+  const params = new URLSearchParams(window.location.search);
+  const key = params.get("onderwerp"),
+    catalogVersion = params.get("versie");
+  return key && catalogVersion ? `${catalogVersion}|${key}` : "";
+}
+/** Removes the e-mail link's topic from the address bar once it has been applied. */
+function dropLinkParams() {
+  const url = new URL(window.location.href);
+  url.searchParams.delete("onderwerp");
+  url.searchParams.delete("versie");
+  history.replaceState(history.state, "", `${url.pathname}${url.search}${url.hash}`);
+  linkListeners.forEach((listener) => listener());
 }
 
 export function MaterialStep() {
@@ -80,35 +105,29 @@ export function MaterialStep() {
     setAskEmail(false);
   }
   // The "stuur dit naar mezelf" e-mail links here with the topic in the URL.
-  const linkedTopic = useRef(false);
+  // Until that topic is the selection, the page must not redirect home.
+  const link = useSyncExternalStore(subscribeLink, linkSnapshot, () => "");
+  const [linkError, setLinkError] = useState("");
+  const handledLink = useRef("");
   useEffect(() => {
     // After hydration, so a draft from this browser's session is known.
-    if (!hydrated || linkedTopic.current) return;
-    linkedTopic.current = true;
-    const params = new URLSearchParams(window.location.search);
-    const key = params.get("onderwerp"),
-      catalogVersion = params.get("versie");
-    if (!key || !catalogVersion) return;
-    void (async () => {
-      if (session) {
-        // Like choosing a topic: a draft keeps its files, a started analysis stays as it is.
-        const current = await convex.query(api.analyses.getStatus, session).catch(() => null);
-        if (current?.status === "draft")
-          await updateTopic({ ...session, catalogVersion, goalSetKey: key }).catch(() => saveSession(null));
-        else saveSession(null);
-      }
-      setSelection({ catalogVersion, goalSetKey: key });
-      const url = new URL(window.location.href);
-      url.searchParams.delete("onderwerp");
-      url.searchParams.delete("versie");
-      history.replaceState(history.state, "", `${url.pathname}${url.search}${url.hash}`);
-    })();
-  }, [hydrated, convex, session, setSelection, updateTopic]);
+    if (!hydrated || !link || handledLink.current === link) return;
+    handledLink.current = link;
+    const [catalogVersion, key] = link.split("|");
+    chooseTopic(convex, session, status, { catalogVersion, key }, setSelection).catch((e) => {
+      // The current draft and selection stay as they were.
+      setLinkError(safeError(e));
+      dropLinkParams();
+    });
+  }, [hydrated, link, convex, session, status, setSelection]);
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).has("onderwerp")) return;
+    if (link && link === `${selection.catalogVersion}|${selection.goalSetKey}`) dropLinkParams();
+  }, [link, selection.catalogVersion, selection.goalSetKey]);
+  useEffect(() => {
+    if (link) return;
     if (hydrated && (!selection.goalSetKey || selected === null))
       router.replace("/");
-  }, [hydrated, selection.goalSetKey, selected, router]);
+  }, [link, hydrated, selection.goalSetKey, selected, router]);
 
   async function ensureDraft(): Promise<AnalysisSession> {
     if (!selected) throw new Error("invalid_topic");
@@ -186,6 +205,11 @@ export function MaterialStep() {
             </>
           )}
         </div>
+        {linkError && (
+          <p className="form-error" role="alert">
+            {linkError}
+          </p>
+        )}
         {submitted && session ? (
           <div className="started-note">
             <h2>Je analyse is gestart</h2>

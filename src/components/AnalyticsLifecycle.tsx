@@ -18,6 +18,7 @@ export function AnalyticsLifecycle() {
   const status = useQuery(api.analyses.getStatus, session ?? "skip");
   const consent = useSyncExternalStore(subscribeAnalyticsConsent, getAnalyticsConsent, () => "unknown" as const);
   const setConsent = useMutation(api.analyses.setAnalyticsConsent);
+  const withdrawJourney = useMutation(api.emails.withdrawJourneyAnalytics);
   const pending = useRef(Promise.resolve());
   useEffect(() => {
     const context = consent === "granted" ? analyticsContext() : undefined;
@@ -35,6 +36,13 @@ export function AnalyticsLifecycle() {
         }
       } catch { /* Storage access is optional for analytics. */ }
     }
+    // E-mails requested without an analysis (the mobile reminder) carry only this tab's journey.
+    if (consent === "denied") {
+      try {
+        const journeyId = sessionStorage.getItem("krito-analytics-journey");
+        if (journeyId) void withdrawJourney({ journeyId }).catch(() => {});
+      } catch { /* Storage access is optional for analytics. */ }
+    }
     if (!sessions.length) return;
     // Serialize rapid grant/revoke changes; the most recent decision must win.
     pending.current = pending.current.catch(() => {}).then(async () => {
@@ -43,7 +51,7 @@ export function AnalyticsLifecycle() {
         catch { /* A stale/private session or telemetry outage never blocks the app. */ }
       }
     });
-  }, [consent, session, setConsent]);
+  }, [consent, session, setConsent, withdrawJourney]);
   useEffect(() => {
     if (consent === "granted" && status?.analyticsDistinctId) identifyContact(status.analyticsDistinctId);
   }, [consent, status?.analyticsDistinctId]);

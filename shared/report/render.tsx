@@ -14,7 +14,8 @@ export async function renderReport(input: ReportInput) {
 
 /** Writes "pagina x van y" in the footer of every page, in the report's own font. */
 async function numberPages(bytes: Uint8Array) {
-  const pdf = await PDFDocument.load(bytes);
+  // Keep react-pdf's fixed dates: the output must be identical on every render.
+  const pdf = await PDFDocument.load(bytes, { updateMetadata: false });
   pdf.registerFontkit(fontkit);
   const font = await pdf.embedFont(Buffer.from(uiRegular, "base64"), { subset: true });
   const pages = pdf.getPages();

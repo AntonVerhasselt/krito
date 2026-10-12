@@ -32,7 +32,8 @@ export function ReportDownload({
           const started = performance.now();
           try {
             const { fileName, bytes } = await download({ analysisId, accessToken });
-            const url = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+            // octet-stream: iOS Safari opens an application/pdf blob in the tab instead of saving it.
+            const url = URL.createObjectURL(new Blob([bytes], { type: "application/octet-stream" }));
             const link = document.createElement("a");
             link.href = url;
             link.download = fileName;

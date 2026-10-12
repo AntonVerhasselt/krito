@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { analyticsContext, track, trackOnce } from "../lib/analytics";
@@ -8,24 +8,41 @@ import { SchoolEmailForm } from "./SchoolEmailForm";
 
 type Topic = { key: string; catalogVersion: string; title: string; group: { title: string; sourceKey: string } };
 
+const phone = "(max-width: 900px)";
+
 /**
  * On a phone the lesson files are usually on the computer: a card above the
  * upload sends a link to this topic by e-mail. CSS shows it on small screens only.
  */
 export function SendToSelf({ topic }: { topic: Topic }) {
   const [open, setOpen] = useState(false),
-    [sent, setSent] = useState(false);
+    [sent, setSent] = useState(false),
+    [pending, setPending] = useState(false);
+  // Each opening gets a number, so a late answer can't change a newer form.
+  const opening = useRef(0);
+  const closeButton = useRef<HTMLButtonElement>(null);
   const request = useMutation(api.reminders.request);
   const analytics = { subject_key: topic.key, group_key: topic.group.sourceKey, source: "reminder" };
   useEffect(() => {
-    if (window.matchMedia("(max-width: 900px)").matches)
-      trackOnce(`reminder-prompt:${topic.catalogVersion}:${topic.key}`, "reminder_prompt_viewed", {
-        subject_key: topic.key,
-        group_key: topic.group.sourceKey,
-      });
+    // Counted whenever the card is actually shown, also after rotating or resizing.
+    const query = window.matchMedia(phone);
+    const viewed = () => {
+      if (query.matches)
+        trackOnce(`reminder-prompt:${topic.catalogVersion}:${topic.key}`, "reminder_prompt_viewed", {
+          subject_key: topic.key,
+          group_key: topic.group.sourceKey,
+        });
+    };
+    viewed();
+    query.addEventListener("change", viewed);
+    return () => query.removeEventListener("change", viewed);
   }, [topic.key, topic.catalogVersion, topic.group.sourceKey]);
+  useEffect(() => {
+    if (sent) closeButton.current?.focus();
+  }, [sent]);
   function close(reason: string) {
     track("reminder_gate_closed", { subject_key: topic.key, reason: sent ? "sent" : reason });
+    opening.current++;
     setOpen(false);
     setSent(false);
   }
@@ -40,6 +57,7 @@ export function SendToSelf({ topic }: { topic: Topic }) {
         className="primary-button"
         onClick={() => {
           track("reminder_gate_opened", { subject_key: topic.key });
+          opening.current++;
           setOpen(true);
         }}
       >
@@ -47,17 +65,17 @@ export function SendToSelf({ topic }: { topic: Topic }) {
       </button>
       <p className="send-self-alt">Of neem hieronder een foto van een blad op papier.</p>
       {open && (
-        <Modal label="Stuur dit naar jezelf" narrow onClose={() => close("dismiss")}>
+        <Modal label="Stuur dit naar jezelf" narrow dismissible={!pending} onClose={() => close("dismiss")}>
           {sent ? (
             <div className="email-gate send-self-done">
               <div className="modal-heading">
                 <h2>Verstuurd</h2>
               </div>
-              <p className="email-gate-lead">
+              <p className="email-gate-lead" role="status">
                 Open de mail op je computer. Niets gekregen? Kijk dan even bij je ongewenste mail.
               </p>
               <div className="email-actions">
-                <button type="button" className="primary-button" data-autofocus onClick={() => close("close")}>
+                <button type="button" className="primary-button" ref={closeButton} onClick={() => close("close")}>
                   Sluit
                 </button>
               </div>
@@ -73,13 +91,19 @@ export function SendToSelf({ topic }: { topic: Topic }) {
               events={{ requested: "reminder_submit_requested", failed: "reminder_submit_failed", operation: "reminder_submit" }}
               onCancel={() => close("cancel")}
               onSubmit={async (email) => {
-                await request({
-                  email,
-                  catalogVersion: topic.catalogVersion,
-                  goalSetKey: topic.key,
-                  analyticsContext: analyticsContext(),
-                });
-                setSent(true);
+                const current = opening.current;
+                setPending(true);
+                try {
+                  await request({
+                    email,
+                    catalogVersion: topic.catalogVersion,
+                    goalSetKey: topic.key,
+                    analyticsContext: analyticsContext(),
+                  });
+                  if (opening.current === current) setSent(true);
+                } finally {
+                  setPending(false);
+                }
               }}
             />
           )}

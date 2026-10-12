@@ -16,7 +16,10 @@ const DAY = 24 * HOUR;
 const limiter = new RateLimiter(components.rateLimiter, {
   reminderPerAddress: { kind: "fixed window", rate: 3, period: DAY },
   reminderPerJourney: { kind: "fixed window", rate: 5, period: HOUR },
-  reminderTotal: { kind: "fixed window", rate: 150, period: DAY },
+  // Callers can't be identified server-side, so the per-journey limit is only a
+  // speed bump; the address and total limits are the real caps. The total also
+  // stays within Resend's free daily quota.
+  reminderTotal: { kind: "fixed window", rate: 100, period: DAY },
 });
 
 /** "Stuur dit naar mezelf" on a phone: a link to this topic for the computer. Starts no analysis. */

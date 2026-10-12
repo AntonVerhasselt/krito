@@ -4,7 +4,7 @@ import { internal } from "./_generated/api";
 import { authorized, requireAccess } from "./access";
 import { MAX_TOTAL_BYTES } from "../shared/analysisSchema";
 import { resolveContact } from "./users";
-import { startWelcome } from "./emails";
+import { startWelcome, withdrawEmailAnalytics } from "./emails";
 import { PROMPT_VERSION } from "../shared/prompts";
 import { schoolEmailProblem } from "../shared/emailPolicy";
 import { analyticsContextValidator, validAnalyticsContext, captureAnalysis, identifyContact } from "./analytics";
@@ -307,5 +307,7 @@ export const setAnalyticsConsent = mutation({
     const context = validAnalyticsContext(args.analyticsContext);
     await ctx.db.patch(a._id, { analyticsContext: context });
     if (context && a.userId) await identifyContact(ctx, { ...a, analyticsContext: context });
+    // Withdrawal also covers e-mail events: report, welcome sequence, reminders.
+    if (!context && a.userId) await withdrawEmailAnalytics(ctx, a.userId);
   },
 });

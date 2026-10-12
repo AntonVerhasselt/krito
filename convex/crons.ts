@@ -11,4 +11,9 @@ crons.interval(
   { hours: 1 },
   internal.workflow.cleanDrafts,
 );
+crons.interval(
+  "Retry interrupted e-mail deliveries",
+  { minutes: 5 },
+  internal.emails.recoverInterrupted,
+);
 export default crons;

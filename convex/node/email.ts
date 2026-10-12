@@ -7,10 +7,10 @@ import type { FunctionReturnType } from "convex/server";
 import { emailContent } from "../../shared/email/content.generated";
 import { PHOTO_CONTENT_ID, renderTemplate, TEMPLATE_IDS, type TemplateId, type Variables } from "../../shared/email/template";
 import { materialUrl, reportVariables, trackedLink } from "../../shared/email/variables";
-import { sampleVariables } from "../../shared/email/samples";
+import { sampleReportInput, sampleVariables } from "../../shared/email/samples";
 import { unsubscribeToken } from "../../shared/email/signing";
 import { antonPhotoJpeg } from "../../shared/email/photo.generated";
-import { buildReportModel } from "../../shared/report/model";
+import { buildReportModel, type ReportInput } from "../../shared/report/model";
 import { renderReport } from "../../shared/report/render";
 
 type Delivery = NonNullable<FunctionReturnType<typeof internal.emails.loadDelivery>>;
@@ -54,16 +54,20 @@ const photo: Attachment = {
   contentId: PHOTO_CONTENT_ID,
 };
 
+async function reportEmail(input: ReportInput): Promise<Composed> {
+  const pdf = await renderReport(input);
+  return {
+    template: "report",
+    vars: reportVariables(buildReportModel(input)),
+    attachments: [{ filename: pdf.fileName, content: Buffer.from(pdf.bytes), contentType: "application/pdf" }],
+  };
+}
+
 async function compose(d: Delivery, c: ReturnType<typeof config>): Promise<Composed> {
   const { message, user } = d;
   if (message.kind === "report") {
     if (!d.report) throw new Error("report_unavailable");
-    const pdf = await renderReport(d.report);
-    return {
-      template: "report",
-      vars: reportVariables(buildReportModel(d.report)),
-      attachments: [{ filename: pdf.fileName, content: Buffer.from(pdf.bytes), contentType: "application/pdf" }],
-    };
+    return await reportEmail(d.report);
   }
   if (message.kind === "reminder") {
     if (!message.goalSet || !d.topic) throw new Error("invalid_topic");
@@ -80,8 +84,10 @@ async function compose(d: Delivery, c: ReturnType<typeof config>): Promise<Compo
     email: user.email,
     unsubscribeLink: { text: links.page, href: links.page },
   };
+  // A retry keeps the variant chosen at the first attempt, so it sends the same e-mail.
   const template: TemplateId =
-    step === 3 ? "welcome-3" : `welcome-${step}-${d.hasCompletedAnalysis ? "analysis" : "no-analysis"}` as TemplateId;
+    (message.template as TemplateId | undefined) ??
+    (step === 3 ? "welcome-3" : (`welcome-${step}-${d.hasCompletedAnalysis ? "analysis" : "no-analysis"}` as TemplateId));
   if (template === "welcome-2-no-analysis" && d.reminder?.topic)
     Object.assign(vars, {
       topic: d.reminder.topic.title,
@@ -121,11 +127,13 @@ async function send(
       { idempotencyKey },
     );
     if (data) return { ok: true, id: data.id };
-    const quota = error.name === "daily_quota_exceeded" || error.name === "monthly_quota_exceeded";
+    // The daily quota resets at midnight UTC; the monthly one needs a plan change.
+    if (error.name === "daily_quota_exceeded") return { ok: false, code: "quota_exceeded", retry: true };
+    if (error.name === "monthly_quota_exceeded") return { ok: false, code: "monthly_quota_exceeded", retry: false };
     const transient =
-      quota || error.name === "rate_limit_exceeded" || error.name === "concurrent_idempotent_requests" ||
+      error.name === "rate_limit_exceeded" || error.name === "concurrent_idempotent_requests" ||
       error.statusCode === null || error.statusCode === 429 || error.statusCode >= 500;
-    return { ok: false, code: quota ? "quota_exceeded" : "email_provider_error", retry: transient };
+    return { ok: false, code: "email_provider_error", retry: transient };
   } catch {
     // Network trouble: the idempotency key makes a retry safe.
     return { ok: false, code: "email_provider_error", retry: true };
@@ -136,32 +144,41 @@ async function send(
 export const deliver = internalAction({
   args: { messageId: v.id("emailMessages") },
   handler: async (ctx, { messageId }): Promise<null> => {
-    const claimed: boolean = await ctx.runMutation(internal.emails.claim, { messageId });
-    if (!claimed) return null;
-    const d: Delivery | null = await ctx.runQuery(internal.emails.loadDelivery, { messageId });
-    if (!d) return await ctx.runMutation(internal.emails.markFailed, { messageId, errorCode: "not_found" });
-    const c = config();
-    const reason = skipReason(d, c);
-    if (reason) return await ctx.runMutation(internal.emails.markSkipped, { messageId, reason });
-    let composed: Composed;
+    const attempt: number | null = await ctx.runMutation(internal.emails.claim, { messageId });
+    if (attempt === null) return null;
+    const own = { messageId, attempt };
     try {
-      composed = await compose(d, c);
-    } catch (e) {
-      const code = e instanceof Error && /^[a-z_]+$/.test(e.message) ? e.message : "report_failed";
-      console.error(JSON.stringify({ operation: "email_compose", messageId, code }));
-      return await ctx.runMutation(internal.emails.markFailed, { messageId, errorCode: code });
+      const d: Delivery | null = await ctx.runQuery(internal.emails.loadDelivery, { messageId });
+      if (!d) return await ctx.runMutation(internal.emails.markFailed, { ...own, errorCode: "not_found" });
+      const c = config();
+      const reason = skipReason(d, c);
+      if (reason) return await ctx.runMutation(internal.emails.markSkipped, { ...own, reason });
+      let composed: Composed;
+      try {
+        composed = await compose(d, c);
+      } catch (e) {
+        const code = e instanceof Error && /^[a-z_]+$/.test(e.message) ? e.message : "report_failed";
+        console.error(JSON.stringify({ operation: "email_compose", messageId, code }));
+        return await ctx.runMutation(internal.emails.markFailed, { ...own, errorCode: code });
+      }
+      if (!d.message.template) await ctx.runMutation(internal.emails.noteTemplate, { ...own, template: composed.template });
+      const result = await send(c, d.user.email, composed, `krito-${messageId}`, [
+        { name: "kind", value: d.message.kind },
+        ...(d.message.step ? [{ name: "step", value: String(d.message.step) }] : []),
+      ]);
+      if (result.ok)
+        return await ctx.runMutation(internal.emails.markSent, { ...own, providerId: result.id, template: composed.template });
+      console.error(JSON.stringify({ operation: "email_send", messageId, code: result.code, retry: result.retry }));
+      return await ctx.runMutation(result.retry ? internal.emails.markRetry : internal.emails.markFailed, {
+        ...own,
+        errorCode: result.code,
+      });
+    } catch {
+      // Anything unexpected (a failed query, a bookkeeping error) is retried;
+      // if even this fails, the recovery cron picks the message up.
+      console.error(JSON.stringify({ operation: "email_deliver", messageId, code: "delivery_interrupted" }));
+      return await ctx.runMutation(internal.emails.markRetry, { ...own, errorCode: "delivery_interrupted" });
     }
-    const result = await send(c, d.user.email, composed, `krito-${messageId}`, [
-      { name: "kind", value: d.message.kind },
-      ...(d.message.step ? [{ name: "step", value: String(d.message.step) }] : []),
-    ]);
-    if (result.ok)
-      return await ctx.runMutation(internal.emails.markSent, { messageId, providerId: result.id, template: composed.template });
-    console.error(JSON.stringify({ operation: "email_send", messageId, code: result.code, retry: result.retry }));
-    return await ctx.runMutation(result.retry ? internal.emails.markRetry : internal.emails.markFailed, {
-      messageId,
-      errorCode: result.code,
-    });
   },
 });
 
@@ -178,9 +195,11 @@ export const sendSamples = internalAction({
     const runId = Date.now();
     for (const template of TEMPLATE_IDS) {
       if (only && template !== only) continue;
-      const result = await send(c, to, { template, vars: sampleVariables[template], attachments: [] }, `krito-sample-${runId}-${template}`, [
-        { name: "kind", value: "sample" },
-      ]);
+      const composed =
+        template === "report"
+          ? await reportEmail(sampleReportInput)
+          : { template, vars: sampleVariables[template], attachments: [] };
+      const result = await send(c, to, composed, `krito-sample-${runId}-${template}`, [{ name: "kind", value: "sample" }]);
       results[template] = result.ok ? `sent ${result.id}` : `failed ${result.code}`;
     }
     return results;

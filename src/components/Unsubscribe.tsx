@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { safeError } from "../lib/safeError";
@@ -13,12 +13,18 @@ export function Unsubscribe() {
   const unsubscribe = useMutation(api.emails.unsubscribe);
   const [state, setState] = useState<"idle" | "busy" | "done">("idle"),
     [error, setError] = useState("");
+  const confirmation = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    if (state === "done") confirmation.current?.focus();
+  }, [state]);
   if (state === "done")
     return (
-      <>
-        <h1>Je bent uitgeschreven</h1>
+      <div role="status">
+        <h1 ref={confirmation} tabIndex={-1}>
+          Je bent uitgeschreven
+        </h1>
         <p>Bedankt dat je Krito wilde proberen.</p>
-      </>
+      </div>
     );
   return (
     <>

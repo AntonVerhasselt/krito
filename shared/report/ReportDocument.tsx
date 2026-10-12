@@ -21,7 +21,10 @@ const verdictColor: Record<Verdict, string> = {
 };
 
 /** Footer geometry, shared with the page numbers stamped in render.tsx. */
-export const FOOTER = { size: 7.5, side: 48, bottom: 26, baseline: 28.4 };
+export const FOOTER = { size: 7.5, side: 48, bottom: 26, baseline: 28.4, counterWidth: 80 };
+/** Symbols the text fonts lack (∥ ⊥ ∦ appear in real goals) come from Noto Sans Math. */
+const ui = ["UI", "Math"];
+const doc = ["Doc", "Math"];
 
 let registered = false;
 function registerFonts() {
@@ -44,6 +47,14 @@ function registerFonts() {
     ],
   });
   Font.register({ family: "Hand", src: src(fonts.hand) });
+  // One upright face stands in for every weight and style the text fonts use.
+  const math = src(fonts.math);
+  Font.register({
+    family: "Math",
+    fonts: [400, 600, 700].flatMap((fontWeight) =>
+      (["normal", "italic"] as const).map((fontStyle) => ({ src: math, fontWeight, fontStyle })),
+    ),
+  });
   // The default hyphenation is English; Dutch words must not be split by it.
   Font.registerHyphenationCallback((word) => [word]);
 }
@@ -52,7 +63,7 @@ function registerFonts() {
 // inherited relative line height (a fixed footer grew on every page).
 const lh = 1.38;
 const s = StyleSheet.create({
-  page: { paddingTop: 40, paddingBottom: 56, paddingHorizontal: 48, fontFamily: "UI", fontSize: 9.5, color: c.ink },
+  page: { paddingTop: 40, paddingBottom: 56, paddingHorizontal: 48, fontFamily: ui, fontSize: 9.5, color: c.ink },
   top: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 22 },
   logo: { fontSize: 17, fontWeight: 700, letterSpacing: -0.3 },
   topRight: { fontSize: 8.5, color: c.faint, textAlign: "right", lineHeight: lh },
@@ -99,7 +110,7 @@ const s = StyleSheet.create({
   verdict: { fontSize: 8.5, fontWeight: 600, lineHeight: lh },
   reviewFlag: { fontSize: 7.5, color: c.soft, marginTop: 1, lineHeight: lh },
   fileRow: { flexDirection: "row", paddingVertical: 2.5, borderBottomWidth: 0.6, borderBottomColor: c.ruleSoft },
-  fileName: { flex: 1, fontFamily: "Doc", fontSize: 10, lineHeight: lh },
+  fileName: { flex: 1, fontFamily: doc, fontSize: 10, lineHeight: lh },
   fileMeta: { fontSize: 8.5, color: c.soft, lineHeight: lh },
   note: { marginTop: 16, fontSize: 8, color: c.faint, lineHeight: 1.45 },
   breakdownTitle: { fontSize: 15, fontWeight: 700, marginBottom: 4 },
@@ -135,7 +146,7 @@ const s = StyleSheet.create({
   evidence: { marginTop: 4, marginBottom: 2 },
   evidenceHead: { fontSize: 8.5, fontWeight: 600, color: c.soft, lineHeight: lh },
   quote: {
-    fontFamily: "Doc",
+    fontFamily: doc,
     fontStyle: "italic",
     fontSize: 10,
     marginTop: 2,
@@ -158,6 +169,8 @@ const s = StyleSheet.create({
     borderTopColor: c.ruleSoft,
     paddingTop: 6,
   },
+  // A long topic title is cut short instead of running into the page number.
+  footerTitle: { width: 595.28 - 2 * FOOTER.side - FOOTER.counterWidth, maxLines: 1, textOverflow: "ellipsis" },
 });
 
 const tick = "M4.3 12.9c1.7 1.2 3.1 2.8 4.4 4.9 2.7-5.2 6.3-9.5 11-12.9";
@@ -237,7 +250,7 @@ function Footer({ model }: { model: ReportModel }) {
     <View style={s.footer} fixed>
       {/* "pagina x van y" is stamped afterwards (render.tsx): react-pdf's
           render prop lays the whole document out twice. */}
-      <Text>
+      <Text style={s.footerTitle}>
         Krito · {model.title} · {model.group}
       </Text>
     </View>
@@ -328,17 +341,18 @@ function Overview({ model }: { model: ReportModel }) {
 function GoalBlock({ goal }: { goal: ReportGoal }) {
   return (
     <View style={s.goal}>
-      <View minPresenceAhead={80} wrap={false}>
-        <View style={s.goalHead}>
-          <Mark verdict={goal.verdict} size={15} />
-          <Text style={s.goalCode}>{goal.code}</Text>
-          <Text style={[s.verdict, { color: verdictColor[goal.verdict] }]}>{goal.label}</Text>
-          {goal.reviewNote && <Text style={[s.small, { marginLeft: 8 }]}>· Kijk zelf na</Text>}
-        </View>
-        <Text style={s.goalWording}>{goal.wording}</Text>
-        <Text style={s.label}>Beoordeling</Text>
-        <Text style={s.body}>{goal.explanation}</Text>
+      {/* The heading stays with the start of the goal; long text flows on to the next page. */}
+      <View style={s.goalHead} wrap={false} minPresenceAhead={60}>
+        <Mark verdict={goal.verdict} size={15} />
+        <Text style={s.goalCode}>{goal.code}</Text>
+        <Text style={[s.verdict, { color: verdictColor[goal.verdict] }]}>{goal.label}</Text>
+        {goal.reviewNote && <Text style={[s.small, { marginLeft: 8 }]}>· Kijk zelf na</Text>}
       </View>
+      <Text style={s.goalWording}>{goal.wording}</Text>
+      <Text style={s.label} minPresenceAhead={24}>
+        Beoordeling
+      </Text>
+      <Text style={s.body}>{goal.explanation}</Text>
       <View style={s.confidence} wrap={false}>
         <View style={s.track}>
           <View style={{ width: `${goal.confidence}%`, height: 4, backgroundColor: c.soft }} />
@@ -357,7 +371,7 @@ function GoalBlock({ goal }: { goal: ReportGoal }) {
             Wat ontbreekt
           </Text>
           {goal.missing.map((m, i) => (
-            <View key={i} style={s.bullet} wrap={false}>
+            <View key={i} style={s.bullet}>
               <Text style={s.bulletDot}>–</Text>
               <Text style={[s.body, { flex: 1 }]}>{m}</Text>
             </View>
@@ -369,8 +383,8 @@ function GoalBlock({ goal }: { goal: ReportGoal }) {
       </Text>
       {goal.evidence.length ? (
         goal.evidence.map((e, i) => (
-          <View key={i} style={s.evidence} wrap={false}>
-            <Text style={s.evidenceHead}>
+          <View key={i} style={s.evidence}>
+            <Text style={s.evidenceHead} minPresenceAhead={24}>
               {e.file} · pagina {e.page}
             </Text>
             {e.quote && <Text style={s.quote}>“{e.quote}”</Text>}
@@ -398,6 +412,10 @@ export function ReportDocument({ model }: { model: ReportModel }) {
       language="nl-BE"
       creator="Krito"
       producer="Krito"
+      // Fixed dates make the pdf byte-identical on every render, so a retried
+      // e-mail sends exactly the same attachment under the same idempotency key.
+      creationDate={new Date(model.timestamp)}
+      modificationDate={new Date(model.timestamp)}
     >
       <Page size="A4" style={s.page}>
         <Overview model={model} />

@@ -109,7 +109,13 @@ export default defineSchema({
   emailMessages: defineTable(emailMessageFields)
     .index("by_dedupe", ["dedupeKey"])
     .index("by_provider", ["providerId"])
-    .index("by_user", ["userId", "createdAt"]),
+    .index("by_user", ["userId", "createdAt"])
+    .index("by_status_updated", ["status", "updatedAt"])
+    .index("by_journey", ["analyticsContext.journeyId"]),
+  /** Resend webhook event ids already applied, so retries and replays count once. */
+  webhookEvents: defineTable({ eventId: v.string(), receivedAt: v.number() })
+    .index("by_event", ["eventId"])
+    .index("by_received", ["receivedAt"]),
   analyses: defineTable({
     capabilityHash: v.string(),
     status: analysisStatus,
