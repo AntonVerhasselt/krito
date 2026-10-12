@@ -1,4 +1,7 @@
 import type { MutationCtx } from "./_generated/server";
+
+/** One mailbox, however its address was capitalised. */
+export const emailKey = (email: string) => email.trim().toLowerCase();
 // This is an application profile/contact, not an authenticated Better Auth identity.
 // Retain the exact trimmed email; do not merge plus aliases or rewrite local parts.
 export async function getOrCreateUser(ctx: MutationCtx, email: string) {
@@ -13,6 +16,7 @@ export async function resolveContact(ctx: MutationCtx, email: string) {
   if (existing) return { userId: existing._id, created: false };
   const userId = await ctx.db.insert("users", {
     email,
+    emailKey: emailKey(email),
     emailVerified: false,
     createdAt: Date.now(),
     updatedAt: Date.now(),

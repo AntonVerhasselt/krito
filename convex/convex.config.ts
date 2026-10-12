@@ -1,5 +1,6 @@
 import { defineApp } from "convex/server";
 import posthog from "@posthog/convex/convex.config.js";
+import rateLimiter from "@convex-dev/rate-limiter/convex.config.js";
 import { v } from "convex/values";
 
 const app = defineApp({ env: {
@@ -13,4 +14,6 @@ app.use(posthog, {
     // No personal API key: this integration captures telemetry without flag polling.
   },
 });
+// Limits the public "send this to myself" e-mail (convex/reminders.ts).
+app.use(rateLimiter);
 export default app;

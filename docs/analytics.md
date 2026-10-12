@@ -105,6 +105,10 @@ different meanings and must remain separate:
 | Retry/recovery | Manual analysis retries, automatic model-run retries, and recovery of stalled work remain separate. Analysis `attempt` and provider-run `generation` distinguish repetitions. |
 | Results | Processing views, completed-results views, goal details, clarification, evidence, retry, and restart show whether users receive and inspect the outcome. `evidence_opened` confirms link retrieval/navigation initiation, not external PDF rendering. |
 | Homepage | Navigation, CTA, mobile-menu, FAQ, example-goal, section, and source-link events measure discovery. Demo interactions carry `is_demo=true`. |
+| Report | `report_download_clicked/completed/failed` in the browser; backend `report_generated`-style outcomes are covered by the download result and the report e-mail. |
+| Reminder | `reminder_prompt_viewed` fires once per topic when the mobile card is shown; `reminder_gate_opened/closed`, `reminder_submit_requested/failed` measure the modal; backend `reminder_requested` means accepted and queued. `email_typing_started` and `email_validation_failed` carry `source` (`analysis` or `reminder`). |
+| E-mail | `email_message_queued/sent/skipped/failed` come from Convex; `delivered`, `delivery_delayed`, `bounced`, `complained`, `opened` and `clicked` from the Resend webhook. Opens and clicks are counted once per message; a click within 10 seconds of delivery has `is_bot_suspected=true` (school link scanners). Apple Mail preloads images, so opens are a trend, not a fact. `email_link_opened` is a visit through a link with `?via=` (`herinnering`, `welkom-1..3`). Properties: `email_kind`, `sequence_step`, `email_variant` (the md file sent). Addresses, message content and Resend ids are never sent. |
+| Welcome | `welcome_sequence_started` (with `source`), `welcome_sequence_completed`, `welcome_sequence_stopped` (with `reason`: unsubscribed, bounced, complained, email_disabled…), `email_unsubscribed`. |
 | AI | `$ai_generation` records actual completed/failed generations with model, tokens, latency, trace/run IDs and safe error data. Poll requests are not generations. Prompts, documents, and model output are excluded. Missing cost is unknown rather than zero. |
 
 Browser event properties include a schema version, safe route pattern, environment,
@@ -158,12 +162,15 @@ requests stay on the EU project host. Reruns preserve existing insight edits.
 It does not modify billing, retention tiers, notification destinations, historical
 data, or organization grouping.
 
-The two initial dashboards include:
+The dashboards include:
 
 - **Krito · Activation**: ordered teacher funnel, search discovery, and result
   engagement.
 - **Krito · Reliability**: upload/conversion outcomes, analysis outcomes, and
   retries/recovery.
+- **Krito · E-mail** (2026-10-12): mobile hand-off funnel, welcome sequence
+  (delivered, opened, clicked, link visits, unsubscribes), deliverability, and
+  report downloads.
 
 Their insights include only `environment=hosted` and exclude demo/test events.
 The funnel measures person progression within seven days; use event context and
@@ -173,11 +180,23 @@ Use PostHog's built-in Web Analytics, Error Tracking, and AI
 Observability views for their specialized metrics. Start alerts after establishing
 a traffic baseline and choosing explicit recipients; none are silently sent.
 
-The SDK disables replay independently of the account settings. After obtaining
-project-management credentials, rerun account setup to disable recording at the
-project level too. The earlier setup key was revoked, and the remaining build
-credential only has source-map permissions. Historical recordings are not
-removed by changing the SDK or project setting.
+The SDK disables replay independently of the account settings; account setup was
+rerun on 2026-10-12 and also disabled recording at the project level. Historical
+recordings are not removed by changing the SDK or project setting.
+
+Two personal API keys exist, each with only the scopes it needs:
+
+- **Account setup** (`.secrets/posthog.env`, local only): project, event_definition,
+  dashboard and insight read/write. Used by `npm run env:posthog -- --account`.
+  Create it under PostHog EU → Settings → Personal API keys if it was revoked.
+- **Build source maps** (`.secrets/posthog-build.env` and Vercel
+  `POSTHOG_PERSONAL_API_KEY`): `error_tracking:write` only.
+
+Neither belongs on Convex, which only needs the public `POSTHOG_PROJECT_TOKEN` and
+`POSTHOG_HOST`.
+
+E-mail events carry the analytics context of the request that caused the e-mail
+(the analysis, or the reminder request), so they follow the same consent.
 
 Feature flags, experiments, surveys, organization grouping, support, outbound
 workflows, warehouse/CDP integrations and replay AI are deferred. They add value

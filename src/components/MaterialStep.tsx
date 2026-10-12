@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useConvex, useMutation, useQuery } from "convex/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api } from "../../convex/_generated/api";
@@ -15,6 +15,7 @@ import { analyticsContext, track, trackOnce } from "../lib/analytics";
 import { SiteHeader } from "./SiteHeader";
 import { UploadPanel } from "./UploadPanel";
 import { EmailGate } from "./EmailGate";
+import { SendToSelf } from "./SendToSelf";
 import { Modal } from "./Modal";
 import { GoalPreview } from "./GoalPreview";
 
@@ -30,7 +31,8 @@ function useHydrated() {
 export function MaterialStep() {
   const router = useRouter();
   const hydrated = useHydrated();
-  const [selection] = useTopicSelection();
+  const [selection, setSelection] = useTopicSelection();
+  const convex = useConvex();
   const selected = useQuery(
     api.goals.getGoalSet,
     selection.goalSetKey
@@ -77,7 +79,33 @@ export function MaterialStep() {
     track("email_gate_closed", { analysis_id: session?.analysisId, reason });
     setAskEmail(false);
   }
+  // The "stuur dit naar mezelf" e-mail links here with the topic in the URL.
+  const linkedTopic = useRef(false);
   useEffect(() => {
+    // After hydration, so a draft from this browser's session is known.
+    if (!hydrated || linkedTopic.current) return;
+    linkedTopic.current = true;
+    const params = new URLSearchParams(window.location.search);
+    const key = params.get("onderwerp"),
+      catalogVersion = params.get("versie");
+    if (!key || !catalogVersion) return;
+    void (async () => {
+      if (session) {
+        // Like choosing a topic: a draft keeps its files, a started analysis stays as it is.
+        const current = await convex.query(api.analyses.getStatus, session).catch(() => null);
+        if (current?.status === "draft")
+          await updateTopic({ ...session, catalogVersion, goalSetKey: key }).catch(() => saveSession(null));
+        else saveSession(null);
+      }
+      setSelection({ catalogVersion, goalSetKey: key });
+      const url = new URL(window.location.href);
+      url.searchParams.delete("onderwerp");
+      url.searchParams.delete("versie");
+      history.replaceState(history.state, "", `${url.pathname}${url.search}${url.hash}`);
+    })();
+  }, [hydrated, convex, session, setSelection, updateTopic]);
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).has("onderwerp")) return;
     if (hydrated && (!selection.goalSetKey || selected === null))
       router.replace("/");
   }, [hydrated, selection.goalSetKey, selected, router]);
@@ -184,6 +212,7 @@ export function MaterialStep() {
           </div>
         ) : (
           <>
+            {selected && <SendToSelf topic={selected} />}
             <UploadPanel
               ensureDraft={ensureDraft}
               session={session}

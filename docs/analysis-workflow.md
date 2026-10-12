@@ -8,7 +8,7 @@ The start page hero contains one autocomplete for source subdomains. Choosing on
 
 Upload at most 20 PDFs, 10 MiB each and 40 MiB combined. Files go directly from the browser to private development R2 through five-minute PUT URLs bound to `application/pdf`. Server validation checks actual size, PDF signature, strict parseability, encryption and page count. Upload state lives independently of rerenders; ready files and the topic reconnect after a same-tab refresh.
 
-A browser-generated random 256-bit capability is stored only in session storage. Convex stores its SHA-256 hash. Every status/result/draft/file operation checks that capability. Public responses exclude email, hashes, object keys, provider IDs and permanent/signed file URLs. On-demand citation links expire after two minutes. The MVP does not promise retrieval in a different browser or email delivery.
+A browser-generated random 256-bit capability is stored only in session storage. Convex stores its SHA-256 hash. Every status/result/draft/file operation checks that capability. Public responses exclude email, hashes, object keys, provider IDs and permanent/signed file URLs. On-demand citation links expire after two minutes. The MVP does not promise retrieval in a different browser; when an analysis completes, Convex queues the report e-mail with the pdf attached (`convex/emails.ts`, `convex/node/email.ts`).
 
 Submitted addresses live in `users`, with `emailVerified: false` and optional future `authId`; analyses reference `userId`. These profile links do not authorize access. `scripts/migrateEmails.ts` idempotently moves legacy addresses without printing them. An optional legacy schema field remains for that migration only; submission no longer writes it.
 

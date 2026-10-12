@@ -39,6 +39,14 @@ export const ANALYTICS_EVENTS = [
   "navigation_link_clicked", "search_cta_clicked", "mobile_menu_opened", "mobile_menu_closed",
   "faq_opened", "faq_closed", "example_goal_expanded", "example_goal_collapsed",
   "official_source_clicked", "external_reference_clicked", "landing_section_viewed",
+  "report_download_clicked", "report_download_completed", "report_download_failed",
+  "report_generated", "report_generation_failed", "reminder_prompt_viewed", "reminder_gate_opened",
+  "reminder_gate_closed", "reminder_submit_requested", "reminder_submit_failed", "reminder_requested",
+  "email_link_opened", "email_message_queued", "email_message_sent", "email_message_delivered",
+  "email_message_delivery_delayed", "email_message_bounced", "email_message_complained",
+  "email_message_failed", "email_message_skipped", "email_message_opened", "email_message_clicked",
+  "welcome_sequence_started", "welcome_sequence_completed", "welcome_sequence_stopped",
+  "email_unsubscribed",
   "$ai_generation",
 ] as const;
 export type AnalyticsEvent = (typeof ANALYTICS_EVENTS)[number];
@@ -58,6 +66,7 @@ const propertyNames = new Set([
   "uncertain_count", "retry_count", "recovery_count", "fallback_used", "prompt_version",
   "originating_session_id", "evidence_kind", "section_id", "faq_id", "destination", "hostname",
   "was_open", "selected", "restored", "status", "consent_version", "operation", "digest",
+  "email_kind", "sequence_step", "email_variant", "is_bot_suspected",
   "$session_id", "$ai_trace_id", "$ai_span_id", "$ai_span_name", "$ai_parent_id", "$ai_model",
   "$ai_provider", "$ai_input_tokens", "$ai_output_tokens", "$ai_cache_read_input_tokens",
   "$ai_reasoning_tokens", "$ai_latency", "$ai_is_error", "$ai_error", "$ai_total_cost_usd",
@@ -80,6 +89,7 @@ export function routePattern(path: string): string {
   if (path === "/") return "/";
   if (path === "/materiaal") return path;
   if (path === "/privacy") return path;
+  if (path === "/uitschrijven") return path;
   if (path === "/results/demo" || path === "/results/demo-loopt") return path;
   if (path.startsWith("/results/")) return "/results/[analysisId]";
   return "/other";
@@ -93,7 +103,8 @@ const safeCodes = new Set([
   "creation_interrupted", "provider_timeout", "provider_credentials", "provider_configuration",
   "request_too_large", "provider_request_rejected", "provider_refusal", "invalid_output",
   "provider_response_unavailable", "provider_transient", "session_storage_unavailable", "upload_failed",
-  "popup_blocked", "missing_access", "invalid_capability",
+  "popup_blocked", "missing_access", "invalid_capability", "rate_limited", "email_disabled",
+  "email_suppressed", "quota_exceeded", "email_provider_error", "report_failed", "invalid_link",
 ]);
 export function analyticsErrorCode(error: unknown): string {
   const candidate = typeof error === "string" ? error :

@@ -2,7 +2,7 @@
 
 Dutch-language goal coverage analysis for teachers. Select an Op.stap subdomain and group, automatically include all of its goals,
 upload private PDFs, and enter an email after clicking Analyze. Results will appear
-on the same page. No login, dashboard, PDF reports, or email delivery in this MVP.
+on the same page, and the report arrives as a pdf by e-mail. No login or dashboard in this MVP.
 
 Application code is licensed under the **MIT License**; see [LICENSE](LICENSE).
 Op.stap content is third-party source data; see [source attribution and MVP permission](data/opstap/README.md).

@@ -8,6 +8,7 @@ import {
 } from "./analysisValidators";
 import { v } from "convex/values";
 import { analyticsContextValidator } from "./analytics";
+import { emailMessageFields } from "./emailValidators";
 import {
   counts,
   goalFields,
@@ -85,11 +86,30 @@ export default defineSchema({
     email: v.string(),
     emailVerified: v.boolean(),
     authId: v.optional(v.string()),
+    /** Lowercased address: the welcome sequence is sent once per mailbox. */
+    emailKey: v.optional(v.string()),
+    welcome: v.optional(
+      v.object({
+        status: v.union(v.literal("active"), v.literal("completed"), v.literal("stopped")),
+        source: v.union(v.literal("analysis"), v.literal("reminder")),
+        startedAt: v.number(),
+        stoppedReason: v.optional(v.string()),
+      }),
+    ),
+    emailUnsubscribedAt: v.optional(v.number()),
+    emailSuppressedAt: v.optional(v.number()),
+    emailSuppressedReason: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index("by_email", ["email"])
+    .index("by_email_key", ["emailKey"])
     .index("by_auth", ["authId"]),
+  /** Every e-mail Krito sends: idempotency, delivery status and tracking. No content is stored. */
+  emailMessages: defineTable(emailMessageFields)
+    .index("by_dedupe", ["dedupeKey"])
+    .index("by_provider", ["providerId"])
+    .index("by_user", ["userId", "createdAt"]),
   analyses: defineTable({
     capabilityHash: v.string(),
     status: analysisStatus,

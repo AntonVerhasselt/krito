@@ -53,6 +53,10 @@ const messages: Record<string, string> = {
     "De analysedienst is tijdelijk niet beschikbaar. Probeer opnieuw.",
   session_storage_unavailable:
     "Sta sessieopslag toe in je browser om je privé-analyse te bewaren.",
+  rate_limited: "Je vroeg al een paar links aan. Probeer het later opnieuw.",
+  invalid_link:
+    "Deze link werkt niet (meer). Gebruik de link onderaan je meest recente mail van Krito.",
+  report_failed: "De pdf lukte niet. Probeer het opnieuw.",
 };
 export function safeError(error: unknown) {
   const code =
