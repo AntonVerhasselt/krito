@@ -195,7 +195,7 @@ export function TopicSearch({
           spellCheck={false}
           placeholder="Zoek een onderwerp, bv. breuken"
           disabled={disabled}
-          value={open ? query : (selected?.title ?? query)}
+          value={query}
           onFocus={(e) => {
             setOpen(true);
             e.currentTarget.select();
@@ -231,7 +231,7 @@ export function TopicSearch({
             }
           }}
         />
-        {!open && !query && !selected && (
+        {!open && !query && (
           <kbd className="search-shortcut" aria-hidden="true">
             /
           </kbd>
