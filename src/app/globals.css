@@ -3729,9 +3729,62 @@ html {
   border-top: 3px solid var(--pen);
   box-shadow: var(--sheet-shadow);
   font-size: 15px;
+  /* A short note from Anton: a small round photo beside the question. */
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  gap: 0 18px;
+  align-items: start;
+  transition: opacity 0.3s var(--ease), transform 0.3s var(--ease);
 }
 .analytics-consent h2 { margin: 0 0 8px; font-size: 20px; }
-.analytics-consent p { margin: 0 0 16px; }
+.analytics-consent p { margin: 0 0 12px; }
+.consent-photo { position: relative; width: 52px; height: 52px; margin-top: 2px; }
+.consent-photo img {
+  display: block; width: 100%; height: 100%;
+  border-radius: 50%; object-fit: cover;
+  box-shadow: 0 0 0 1px rgb(29 36 34 / 0.1);
+}
+.consent-sign {
+  font-family: var(--handface); font-size: 30px; line-height: 0.9;
+  color: var(--pen-stroke); transform: rotate(-3deg); transform-origin: left center;
+}
+/* After yes: the photo grows, a pen ring is drawn around it, then "Merci!". */
+.analytics-consent:not(.is-ask) {
+  grid-template-columns: 112px minmax(0, 1fr);
+  align-items: center;
+  width: min(440px, calc(100vw - 40px));
+}
+.analytics-consent:not(.is-ask) .consent-photo { width: 112px; height: 112px; margin: 0; }
+.consent-ring {
+  position: absolute; inset: -9px; width: calc(100% + 18px); height: calc(100% + 18px);
+  overflow: visible; pointer-events: none;
+}
+.consent-ring path {
+  fill: none; stroke: var(--pen-stroke); stroke-width: 2.4;
+  stroke-linecap: round; vector-effect: non-scaling-stroke;
+}
+.consent-thanks p { margin: 0; color: var(--ink-soft); }
+.consent-thanks .consent-merci {
+  font-family: var(--handface); font-size: 56px; line-height: 0.95;
+  color: var(--pen-stroke); transform: rotate(-4deg); transform-origin: left center;
+  margin-bottom: 6px;
+}
+.analytics-consent.is-leaving { opacity: 0; transform: translateY(10px); }
+@media (prefers-reduced-motion: no-preference) {
+  .analytics-consent.is-thanks .consent-photo { animation: consent-grow 0.5s var(--ease) both; }
+  .analytics-consent.is-thanks .consent-ring path {
+    stroke-dasharray: 1 1.02;
+    animation: pen-draw 0.7s cubic-bezier(0.45, 0.05, 0.3, 1) 0.25s both;
+  }
+  .analytics-consent.is-thanks .consent-merci { animation: pen-write 0.55s steps(10, end) 0.55s both; }
+  .analytics-consent.is-thanks .consent-thanks p:last-child { animation: consent-fade 0.4s ease 0.75s both; }
+}
+@keyframes consent-grow {
+  from { transform: scale(0.46); }
+}
+@keyframes consent-fade {
+  from { opacity: 0; transform: translateY(4px); }
+}
 .analytics-consent-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
 .analytics-consent-actions .secondary-button { padding: 9px 16px; font-size: 15px; }
 .analytics-consent-actions a { font-size: 13px; text-underline-offset: 3px; }
@@ -3744,7 +3797,11 @@ html {
 .unsubscribe-page h1:focus { outline: none; }
 .analytics-settings-icon { display: none; }
 @media (max-width: 600px) {
-  .analytics-consent { bottom: 12px; right: 12px; width: calc(100vw - 24px); padding: 18px; }
+  .analytics-consent { bottom: 12px; right: 12px; width: calc(100vw - 24px); padding: 18px; gap: 0 14px; grid-template-columns: 44px minmax(0, 1fr); }
+  .consent-photo { width: 44px; height: 44px; }
+  .analytics-consent:not(.is-ask) { width: calc(100vw - 24px); grid-template-columns: 88px minmax(0, 1fr); }
+  .analytics-consent:not(.is-ask) .consent-photo { width: 88px; height: 88px; }
+  .consent-thanks .consent-merci { font-size: 46px; }
   .analytics-settings.text-button {
     bottom: 12px; right: 12px; background: var(--paper); width: 32px; height: 32px; padding: 0;
     display: grid; place-items: center; border: 1px solid var(--rule); border-radius: 50%;

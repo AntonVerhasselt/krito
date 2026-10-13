@@ -73,9 +73,13 @@ into event properties.
 
 Autocapture is disabled in favor of explicit events. Session replay only runs
 after consent; withdrawal stops it (see "Session replay"). Default SDK URL and error properties are
-sanitized before capture. The privacy prompt describes the purpose of usage
-measurement, the school-email link and the ability to change the choice, with
-matching accept and decline buttons.
+sanitized before capture. The privacy prompt (2026-10-13) is a short personal note from
+Anton with a small round photo of him and his son Arthur: it asks to use cookies
+to see what works and what can be better, says the choice can be changed, and links
+to the privacy page, which lists what is measured and recorded. It deliberately
+names cookies and doesn't list what is tracked. Accept and decline are matching
+buttons. After "Ja, dat mag" the photo grows inside a drawn pen ring with "Merci!",
+and the note closes two seconds after the thank-you is written.
 
 ## Identity
 

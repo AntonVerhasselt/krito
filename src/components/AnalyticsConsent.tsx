@@ -1,14 +1,43 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
-import { useState, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
+import photo from "../../public/anton-arthur.webp";
 import { analyticsAvailable, getAnalyticsConsent, setAnalyticsConsent, subscribeAnalyticsConsent } from "../lib/analytics";
+
+/** How long the thank-you stays once it is fully written, then the note slides away. */
+const THANKS_MS = 2000;
+const WRITTEN_MS = 1100;
+const LEAVE_MS = 300;
+
+/** A hand-drawn ring, drawn around the photo when someone says yes. */
+function PenRing() {
+  return (
+    <svg className="consent-ring" viewBox="0 0 100 100" aria-hidden="true">
+      <path d="M55 5C29 3 6 21 6 49c0 26 20 46 46 45 25-1 43-20 42-45C93 24 74 7 50 7 38 7 28 11 21 18" pathLength={1} />
+    </svg>
+  );
+}
 
 export function AnalyticsConsent() {
   const consent = useSyncExternalStore(subscribeAnalyticsConsent, getAnalyticsConsent, () => "unknown" as const);
   const [editing, setEditing] = useState(false);
+  const [stage, setStage] = useState<"ask" | "thanks" | "leaving">("ask");
+
+  useEffect(() => {
+    if (stage === "ask") return;
+    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const timer = setTimeout(() => {
+      if (stage === "thanks") { setStage("leaving"); return; }
+      setStage("ask");
+      setEditing(false);
+    }, stage === "thanks" ? THANKS_MS + (still ? 0 : WRITTEN_MS) : LEAVE_MS);
+    return () => clearTimeout(timer);
+  }, [stage]);
+
   if (!analyticsAvailable()) return null;
-  if (consent !== "unknown" && !editing) return (
+  if (consent !== "unknown" && !editing && stage === "ask") return (
     <button type="button" className="analytics-settings text-button" aria-label="Privacykeuze" title="Privacykeuze" onClick={() => setEditing(true)}>
       {/* On phones only the shield shows, so it stays out of the way of the page. */}
       <svg className="analytics-settings-icon" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
@@ -18,25 +47,45 @@ export function AnalyticsConsent() {
       <span className="analytics-settings-label">Privacykeuze</span>
     </button>
   );
+
   function choose(choice: "granted" | "denied") {
     setAnalyticsConsent(choice);
-    setEditing(false);
+    if (choice === "granted") setStage("thanks");
+    else setEditing(false);
   }
+
+  const asking = stage === "ask";
   return (
-    <aside className="analytics-consent" aria-label="Privacykeuze">
-      <h2>Help Krito verbeteren</h2>
-      <p>
-        Met jouw toestemming zien we wat goed werkt en waar mensen vastlopen.
-        Zo help je Krito beter te maken voor jou en andere leerkrachten.
-        We meten gebruik en technische gegevens, geen zoekopdrachten of lesmateriaal.
-        Bij een analyse koppelen we je schoolmail aan je gebruik.
-        Je kunt je keuze altijd aanpassen.
-      </p>
-      <div className="analytics-consent-actions">
-        <button className="secondary-button" type="button" onClick={() => choose("denied")}>Nee, bedankt</button>
-        <button className="secondary-button" type="button" onClick={() => choose("granted")}>Ja, dat mag</button>
-        <Link href="/privacy">Meer over je gegevens</Link>
+    <aside className={`analytics-consent is-${stage}`} aria-label="Privacykeuze">
+      <div className="consent-photo">
+        <Image src={photo} alt="Anton met zijn zoon Arthur" sizes="112px" />
+        {!asking && <PenRing />}
       </div>
+      {asking ? (
+        <div className="consent-note">
+          <h2>Mag ik je iets vragen?</h2>
+          <p>
+            Ik ben Anton, papa van Charlotte en Arthur, de kleine naast mij op
+            de foto. Ik maak Krito zodat jij minder werk hebt naast de klas.
+          </p>
+          <p>
+            Mag Krito cookies gebruiken? Zo zie ik wat goed werkt en wat beter
+            kan, en wordt Krito steeds handiger voor jou en je collega&apos;s.
+            Je kunt je keuze altijd aanpassen.
+          </p>
+          <p className="consent-sign">Anton</p>
+          <div className="analytics-consent-actions">
+            <button className="secondary-button" type="button" onClick={() => choose("denied")}>Nee, bedankt</button>
+            <button className="secondary-button" type="button" onClick={() => choose("granted")}>Ja, dat mag</button>
+            <Link href="/privacy">Meer over je gegevens</Link>
+          </div>
+        </div>
+      ) : (
+        <div className="consent-thanks" role="status">
+          <p className="consent-merci">Merci!</p>
+          <p>Daar help je Krito echt mee vooruit.</p>
+        </div>
+      )}
     </aside>
   );
 }
