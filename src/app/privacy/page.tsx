@@ -1,5 +1,14 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { SiteHeader } from "../../components/SiteHeader";
+import { openGraph } from "@/lib/site";
+
+export const metadata: Metadata = {
+  title: "Privacy",
+  description: "Hoe Krito met je lesmateriaal, je e-mailadres en je privacykeuze omgaat.",
+  alternates: { canonical: "/privacy" },
+  openGraph: { ...openGraph, url: "/privacy" },
+};
 
 export default function PrivacyPage() {
   return <div className="site-shell">

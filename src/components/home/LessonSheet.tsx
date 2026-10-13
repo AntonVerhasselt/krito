@@ -1,4 +1,5 @@
 import type { CSSProperties, ReactNode } from "react";
+import { DeskDemo } from "./DeskDemo";
 
 type Ink = "green" | "red";
 const delay = (s: number) => ({ "--d": `${s}s` }) as CSSProperties;
@@ -89,11 +90,12 @@ function Note({
 
 /**
  * A teacher's lesson preparation, read and marked by Krito. Pure illustration:
- * the figcaption carries the meaning for assistive technology.
+ * the figcaption carries the meaning for assistive technology. Its headings
+ * are styled paragraphs, so they stay out of the page outline.
  */
 export function LessonSheet() {
   return (
-    <figure className="desk-demo">
+    <DeskDemo>
       <div className="sheet-stack" aria-hidden="true">
         <div className="sheet sheet-under">
           <div className="doc-head">
@@ -124,11 +126,11 @@ export function LessonSheet() {
             <span>3de leerjaar</span>
           </div>
           <p className="doc-kicker">Magnetisme</p>
-          <h3 className="doc-title">Les 2: Wat trekt een magneet aan?</h3>
+          <p className="doc-title">Les 2: Wat trekt een magneet aan?</p>
 
           <div className="doc-row">
             <div className="doc-main">
-              <h4>Lesdoelen</h4>
+              <p className="doc-label">Lesdoelen</p>
               <ul>
                 <li>
                   De leerlingen weten dat{" "}
@@ -158,7 +160,7 @@ export function LessonSheet() {
 
           <div className="doc-row is-optional">
             <div className="doc-main">
-              <h4>Materiaal</h4>
+              <p className="doc-label">Materiaal</p>
               <p>
                 Per groep: 2 staafmagneten, een doosje paperclips, een blad
                 papier. Voor de klas: een kompas.
@@ -168,7 +170,7 @@ export function LessonSheet() {
 
           <div className="doc-row">
             <div className="doc-main">
-              <h4>Proefje</h4>
+              <p className="doc-label">Proefje</p>
               <div className="doc-box">
                 <p>
                   Leg tien paperclips op tafel. Hoeveel paperclips kan je
@@ -185,7 +187,7 @@ export function LessonSheet() {
 
           <div className="doc-row">
             <div className="doc-main">
-              <h4>Slot</h4>
+              <p className="doc-label">Slot</p>
               <p>
                 Kompas tonen:{" "}
                 <Mark kind="wave" at={1.45} ink="red" pair="compass">
@@ -203,7 +205,7 @@ export function LessonSheet() {
 
           <div className="doc-row is-optional">
             <div className="doc-main">
-              <h4>Verwerking</h4>
+              <p className="doc-label">Verwerking</p>
               <ol>
                 <li>
                   Wat gebeurt er als je twee noordpolen naar elkaar duwt?
@@ -220,6 +222,6 @@ export function LessonSheet() {
         Een les over magnetisme, nagelezen voor het 3de leerjaar. Groen is
         gevonden, rood ontbreekt.
       </figcaption>
-    </figure>
+    </DeskDemo>
   );
 }

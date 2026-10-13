@@ -1,27 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef } from "react";
+import { useDrawnInView } from "./useDrawnInView";
 
 /** "gratis", circled twice in green pen once the price sheet scrolls into view. */
 export function FreeMark() {
   const ref = useRef<HTMLSpanElement>(null);
-  const [drawn, setDrawn] = useState(false);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setDrawn(true);
-          observer.disconnect();
-        }
-      },
-      { threshold: 1, rootMargin: "0px 0px -25% 0px" },
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
+  const drawn = useDrawnInView(ref, 1, "0px 0px -25% 0px");
 
   return (
     <span ref={ref} className={`price-word${drawn ? " is-drawn" : ""}`}>
