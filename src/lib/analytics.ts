@@ -43,6 +43,41 @@ function sanitizedUrl(value: unknown, referrer = false): string | undefined {
   } catch { return undefined; }
 }
 
+/** Attributes that hold a URL, which can carry a private ID, signed link or token. */
+const urlAttributes = new Set(["href", "src", "srcset", "action", "formaction", "poster", "data", "xlink:href"]);
+
+/**
+ * Replay keeps Krito's own markup and CSS, so recordings look like the site.
+ * URLs keep only public routes and Next.js assets; form values stay masked.
+ */
+function recordedAttribute(name: string, value: string, element?: Element) {
+  if (name === "value" && element && /^(INPUT|TEXTAREA)$/.test(element.tagName)) return "*".repeat(value.length);
+  if (!urlAttributes.has(name) || value.startsWith("#")) return value;
+  if (name === "srcset") return value.split(",").every((part) => part.trim().startsWith("/_next/")) ? value : "[redacted]";
+  try {
+    const url = new URL(value, window.location.origin);
+    // blob: and data: URLs share the page origin but hold the teacher's own files.
+    if (!/^https?:$/.test(url.protocol)) return "[redacted]";
+    if (url.origin === window.location.origin) {
+      // Next.js assets and public files (favicon, photo, share image) are not private.
+      const asset = /^\/(_next\/|[\w-]+\.(svg|png|jpe?g|webp|ico|txt|xml)$|opengraph-image$)/.test(url.pathname);
+      return asset ? value : `${url.origin}${routePattern(url.pathname)}`;
+    }
+    return !url.search && !url.hash ? value : "[redacted]";
+  } catch { return "[redacted]"; }
+}
+
+/** The recorder stores the page URL (with any token in it) in meta and pageview events. */
+function scrubSnapshot(data: unknown) {
+  for (const item of Array.isArray(data) ? data : [data]) {
+    const record = item as { type?: number; data?: { href?: unknown; payload?: { href?: unknown } } } | null;
+    if (record?.type === 4 && record.data && "href" in record.data) record.data.href = sanitizedUrl(record.data.href) ?? "";
+    if (record?.type === 5 && record.data?.payload && "href" in record.data.payload) {
+      record.data.payload.href = sanitizedUrl(record.data.payload.href) ?? "";
+    }
+  }
+}
+
 const sdkKeys = new Set([
   "distinct_id", "$device_id", "$user_id", "$anon_distinct_id", "$session_id", "$window_id",
   "$is_identified", "$process_person_profile", "$os", "$os_version", "$browser", "$browser_version",
@@ -88,8 +123,12 @@ function scrubExceptionList(value: unknown) {
 
 function beforeSend(event: CaptureResult | null): CaptureResult | null {
   if (!event || getAnalyticsConsent() !== "granted") return null;
-  // Session recordings are disabled; reject snapshots even if an SDK sends one.
-  if (event.event === "$snapshot") return null;
+  // Replay data is masked while it is recorded (see session_recording); only URLs need scrubbing here.
+  if (event.event === "$snapshot") {
+    scrubSnapshot(event.properties.$snapshot_data);
+    remember(event.event, { recording: true });
+    return event;
+  }
   const original = event.properties;
   const properties: Record<string, unknown> = {
     ...safeAnalyticsProperties(original),
@@ -107,6 +146,17 @@ function beforeSend(event: CaptureResult | null): CaptureResult | null {
     const value = original[key];
     if (typeof value === "boolean" || (typeof value === "number" && Number.isFinite(value))) properties[key] = value;
     else if (typeof value === "string" && value.length <= 160 && !/@|https?:|[?&=]|[a-f0-9]{64}/i.test(value)) properties[key] = value;
+  }
+  // Scroll depth and time on the previous page, for web analytics.
+  for (const [key, value] of Object.entries(original)) {
+    if (/^\$prev_pageview_((last|max)_(scroll|content)(_percentage)?|duration)$/.test(key) &&
+      typeof value === "number" && Number.isFinite(value)) properties[key] = value;
+  }
+  for (const key of ["$pageview_id", "$prev_pageview_id"]) {
+    if (typeof original[key] === "string" && /^[\w-]{1,64}$/.test(original[key] as string)) properties[key] = original[key];
+  }
+  if (typeof original.$prev_pageview_pathname === "string") {
+    properties.$prev_pageview_pathname = routePattern(original.$prev_pageview_pathname);
   }
   properties.$current_url = sanitizedUrl(original.$current_url ?? window.location.href);
   properties.$process_person_profile = original.$is_identified === true || event.event === "$identify";
@@ -159,8 +209,17 @@ export function initializeAnalytics() {
         capture_performance: { web_vitals: true, network_timing: false },
         capture_exceptions: { capture_unhandled_errors: true, capture_unhandled_rejections: true, capture_console_errors: false },
         disable_surveys: true,
-        disable_session_recording: true,
         enable_recording_console_log: false,
+        session_recording: {
+          maskAllInputs: true,
+          // Krito's own text is public. A teacher's files, file names, quotes and
+          // explanations are marked data-private / ph-no-capture and never recorded.
+          blockSelector: '[data-private], input[type="file"], input[type="hidden"], iframe, canvas, video',
+          maskAttributeFn: recordedAttribute,
+          recordHeaders: false,
+          recordBody: false,
+          captureJsonLd: false,
+        },
         ip: false,
         before_send: beforeSend,
       });
@@ -169,6 +228,7 @@ export function initializeAnalytics() {
     // A stored SDK opt-out survives reload even though our own choice was just granted.
     if (posthog.has_opted_out_capturing()) {
       posthog.opt_in_capturing({ captureEventName: false });
+      posthog.startSessionRecording();
       // Fresh initialization already schedules one initial pageview on the next tick.
       if (!fresh) posthog.capture("$pageview");
     }
@@ -197,7 +257,7 @@ export function setAnalyticsConsent(consent: "granted" | "denied") {
     initializeAnalytics();
     track("analytics_consent_granted", { consent_version: 1 });
   } else if (initialized) {
-    try { posthog.opt_out_capturing(); } catch { /* fail closed */ }
+    try { posthog.stopSessionRecording(); posthog.opt_out_capturing(); } catch { /* fail closed */ }
     captured.clear();
     diagnostics.length = 0;
   }
@@ -248,7 +308,7 @@ if (typeof window !== "undefined") {
       consentOverride = undefined;
       if (getAnalyticsConsent() === "granted") initializeAnalytics();
       else if (initialized) {
-        try { posthog.opt_out_capturing(); } catch { /* fail closed */ }
+        try { posthog.stopSessionRecording(); posthog.opt_out_capturing(); } catch { /* fail closed */ }
       }
       listeners.forEach((listener) => listener());
     }
