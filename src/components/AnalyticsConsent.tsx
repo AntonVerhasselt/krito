@@ -42,7 +42,11 @@ export function AnalyticsConsent() {
   // A withdrawal (here or in another tab) ends the thank-you and cancels its timer.
   useEffect(() => subscribeAnalyticsConsent(() => {
     const now = getAnalyticsConsent();
-    if (now === "granted") return;
+    if (now === "granted") {
+      // A yes from another tab closes the question; a local yes sets "thanks" after this.
+      focusNext.current ??= "shield";
+      return;
+    }
     setStage("ask");
     setEditing(false);
     // Denied shows the shield; cleared storage ("unknown") shows the question again.
