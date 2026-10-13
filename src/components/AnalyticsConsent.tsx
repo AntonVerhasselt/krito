@@ -38,6 +38,14 @@ export function AnalyticsConsent() {
     if (!document.activeElement || document.activeElement === document.body) target.focus();
   });
 
+  // A withdrawal (here or in another tab) ends the thank-you and cancels its timer.
+  useEffect(() => subscribeAnalyticsConsent(() => {
+    if (getAnalyticsConsent() === "granted") return;
+    setStage("ask");
+    setEditing(false);
+    focusNext.current = "shield";
+  }), []);
+
   useEffect(() => {
     if (stage === "ask") return;
     const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -51,7 +59,7 @@ export function AnalyticsConsent() {
   }, [stage]);
 
   if (!analyticsAvailable()) return null;
-  // A withdrawal in another tab ends the thank-you at once.
+  // Until the subscription above resets the stage, never thank someone who withdrew.
   const shown = consent === "granted" ? stage : "ask";
   if (consent !== "unknown" && !editing && shown === "ask") return (
     <button ref={shield} type="button" className="analytics-settings text-button" aria-label="Privacykeuze" title="Privacykeuze"
