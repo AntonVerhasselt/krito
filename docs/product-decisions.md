@@ -43,7 +43,7 @@ This replaces individual-goal checkbox selection in original step 3 and the sele
 - The second section, "Te veel werk naast de klas", only names the problem (planlast, administratie, work in the evening) so teachers feel understood; it does not pitch Krito. Its quotes are verbatim, dated and linked to their source.
 - Results will be e-mailed later, so don't claim they aren't.
 - Price: "gratis" is the headline on its own line and is circled in green pen once, when it scrolls into view. On phones (≤900px) the three checkmark facts are hidden: "gratis" and its one line lead straight into the maker's note, which the owner wants leads to read (2026-10-13).
-- The hero's pen marks start only when 65% of the lesson sheet is on screen, so phones that first show just its top still see the whole sheet being marked (2026-10-13).
+- The hero's pen marks start only when 65% of the lesson sheet is on screen, so phones that first show just its top still see the whole sheet being marked (2026-10-13). If 65% of the sheet can't fit on the screen (e.g. a phone in landscape), the marks are shown without animation.
 - Below the hero: why (the workload problem, with sourced quotes), how it works, a live example of the results list with real Op.stap goals, what Krito does and does not do, FAQ and a closing call to action.
 - Claims to avoid: anything about pupils reaching goals; "inspectieklaar" or proof for the inspectie (it asks for no extra documents); any affiliation with or endorsement by Katholiek Onderwijs Vlaanderen; calling per-year leerplandoelen "minimumdoelen" (those exist only at the end of the 3de kleuterklas, 4de and 6de leerjaar); "always up to date" or "approved" claims; unsourced time-saving numbers.
 - Only school email addresses may start an analysis; consumer mailboxes are refused (`shared/emailPolicy.ts`).
@@ -51,7 +51,7 @@ This replaces individual-goal checkbox selection in original step 3 and the sele
 ## Search engines (2026-10-13)
 
 - The production site (www.krito.be) is indexable; previews, local builds and every non-production Vercel build send `noindex` and a robots.txt that disallows everything (`src/lib/site.ts`, keyed on `VERCEL_ENV`).
-- Indexable pages: the homepage and `/privacy`, both in the sitemap with a canonical on www.krito.be. The material step, results (including the demos) and the unsubscribe page are `noindex`; robots.txt also keeps crawlers out of `/results/`.
+- Indexable pages: the homepage and `/privacy`, both in the sitemap with a canonical on www.krito.be. The material step, results (including the demos) and the unsubscribe page are `noindex`. robots.txt doesn't block them, so crawlers can read that noindex.
 - The homepage carries JSON-LD (WebSite, a free WebApplication for teachers, and the FAQ, generated from `src/content/home.ts`). The share card is `src/app/opengraph-image.tsx`, rendered at build time in the site's fonts.
 - The illustration's headings in the hero sheet are styled paragraphs, so they stay out of the page outline (h1, then the h2 sections).
 

@@ -791,15 +791,16 @@ html {
     }
   }
 
-  /* The single orchestrated moment: the marks are written once, when most of
-     the sheet is in view (DeskDemo). Without scripting they are simply there. */
+  /* The single orchestrated moment: the marks are written once, when 65% of
+     the sheet is in view (DeskDemo). Without scripting, or when the sheet is
+     too tall for that (is-static), they are simply there. */
   @media (prefers-reduced-motion: no-preference) and (scripting: enabled) {
-    .desk-demo :is(.mk, .mk-tick, .mk-caret) path {
+    .desk-demo:not(.is-static) :is(.mk, .mk-tick, .mk-caret) path {
       stroke-dasharray: 1 1.02;
       stroke-dashoffset: 1;
       opacity: 0;
     }
-    .desk-demo .mk-note {
+    .desk-demo:not(.is-static) .mk-note {
       clip-path: inset(-30% 100% -30% 0);
     }
     .desk-demo.is-drawn :is(.mk, .mk-tick, .mk-caret) path {
