@@ -34,16 +34,19 @@ export function AnalyticsConsent() {
     const target = { yes, thanks, shield }[focusNext.current ?? "yes"].current;
     if (!focusNext.current || !target) return;
     focusNext.current = null;
-    // Only when focus was lost with the removed element, never away from something else.
-    if (!document.activeElement || document.activeElement === document.body) target.focus();
+    // Only when focus was lost (or sits on the emptied thank-you), never away from something else.
+    const active = document.activeElement;
+    if (!active || active === document.body || active === thanks.current) target.focus();
   });
 
   // A withdrawal (here or in another tab) ends the thank-you and cancels its timer.
   useEffect(() => subscribeAnalyticsConsent(() => {
-    if (getAnalyticsConsent() === "granted") return;
+    const now = getAnalyticsConsent();
+    if (now === "granted") return;
     setStage("ask");
     setEditing(false);
-    focusNext.current = "shield";
+    // Denied shows the shield; cleared storage ("unknown") shows the question again.
+    focusNext.current = now === "denied" ? "shield" : "yes";
   }), []);
 
   useEffect(() => {
