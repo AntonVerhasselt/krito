@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import photo from "../../public/anton-arthur.webp";
 import { analyticsAvailable, getAnalyticsConsent, setAnalyticsConsent, subscribeAnalyticsConsent } from "../lib/analytics";
 
@@ -24,6 +24,19 @@ export function AnalyticsConsent() {
   const consent = useSyncExternalStore(subscribeAnalyticsConsent, getAnalyticsConsent, () => "unknown" as const);
   const [editing, setEditing] = useState(false);
   const [stage, setStage] = useState<"ask" | "thanks" | "leaving">("ask");
+  // Choosing removes the focused button; move keyboard focus to what replaces it.
+  const focusNext = useRef<"yes" | "thanks" | "shield" | null>(null);
+  const yes = useRef<HTMLButtonElement>(null);
+  const thanks = useRef<HTMLDivElement>(null);
+  const shield = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    const target = { yes, thanks, shield }[focusNext.current ?? "yes"].current;
+    if (!focusNext.current || !target) return;
+    focusNext.current = null;
+    // Only when focus was lost with the removed element, never away from something else.
+    if (!document.activeElement || document.activeElement === document.body) target.focus();
+  });
 
   useEffect(() => {
     if (stage === "ask") return;
@@ -32,13 +45,15 @@ export function AnalyticsConsent() {
       if (stage === "thanks") { setStage("leaving"); return; }
       setStage("ask");
       setEditing(false);
+      focusNext.current = "shield";
     }, stage === "thanks" ? THANKS_MS + (still ? 0 : WRITTEN_MS) : LEAVE_MS);
     return () => clearTimeout(timer);
   }, [stage]);
 
   if (!analyticsAvailable()) return null;
   if (consent !== "unknown" && !editing && stage === "ask") return (
-    <button type="button" className="analytics-settings text-button" aria-label="Privacykeuze" title="Privacykeuze" onClick={() => setEditing(true)}>
+    <button ref={shield} type="button" className="analytics-settings text-button" aria-label="Privacykeuze" title="Privacykeuze"
+      onClick={() => { focusNext.current = "yes"; setEditing(true); }}>
       {/* Only the shield shows, so it stays out of the way of the page. */}
       <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
         <path d="M8 1.5 2.75 3.5v4c0 3.2 2.2 5.9 5.25 7 3.05-1.1 5.25-3.8 5.25-7v-4L8 1.5Z" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
@@ -49,6 +64,7 @@ export function AnalyticsConsent() {
 
   function choose(choice: "granted" | "denied") {
     setAnalyticsConsent(choice);
+    focusNext.current = choice === "granted" ? "thanks" : "shield";
     if (choice === "granted") setStage("thanks");
     else setEditing(false);
   }
@@ -74,7 +90,7 @@ export function AnalyticsConsent() {
           </p>
           <p className="consent-sign">Anton</p>
           <div className="analytics-consent-actions">
-            <button className="primary-button" type="button" onClick={() => choose("granted")}>Ja, dat mag</button>
+            <button ref={yes} className="primary-button" type="button" onClick={() => choose("granted")}>Ja, dat mag</button>
             <button className="consent-decline" type="button" onClick={() => choose("denied")}>Nee, bedankt</button>
             <Link href="/privacy" className="consent-more" aria-label="Meer over je gegevens" title="Meer over je gegevens">
               <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
@@ -85,7 +101,7 @@ export function AnalyticsConsent() {
           </div>
         </div>
       ) : (
-        <div className="consent-thanks" role="status">
+        <div ref={thanks} className="consent-thanks" role="status" tabIndex={-1}>
           <p className="consent-merci">Merci!</p>
           <p>Daar help je Krito echt mee vooruit.</p>
         </div>

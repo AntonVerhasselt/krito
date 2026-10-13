@@ -3764,6 +3764,7 @@ html {
   stroke-linecap: round; vector-effect: non-scaling-stroke;
 }
 .consent-thanks p { margin: 0; color: var(--ink-soft); }
+.consent-thanks:focus { outline: none; }
 .consent-thanks .consent-merci {
   font-family: var(--handface); font-size: 56px; line-height: 0.95;
   color: var(--pen-stroke); transform: rotate(-4deg); transform-origin: left center;
