@@ -3810,6 +3810,9 @@ html {
 @media (max-width: 600px) {
   .analytics-consent { bottom: 12px; right: 12px; width: calc(100vw - 24px); padding: 18px; gap: 0 14px; grid-template-columns: 44px minmax(0, 1fr); }
   .consent-photo { width: 44px; height: 44px; }
+  /* On a phone the photo sits above the note, so the text gets the full width. */
+  .analytics-consent.is-ask { grid-template-columns: minmax(0, 1fr); }
+  .analytics-consent.is-ask .consent-photo { width: 48px; height: 48px; margin: 0 0 12px; }
   .analytics-consent:not(.is-ask) { width: calc(100vw - 24px); grid-template-columns: 88px minmax(0, 1fr); }
   .analytics-consent:not(.is-ask) .consent-photo { width: 88px; height: 88px; }
   .consent-thanks .consent-merci { font-size: 46px; }
