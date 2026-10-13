@@ -3785,9 +3785,20 @@ html {
 @keyframes consent-fade {
   from { opacity: 0; transform: translateY(4px); }
 }
-.analytics-consent-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
-.analytics-consent-actions .secondary-button { padding: 9px 16px; font-size: 15px; }
-.analytics-consent-actions a { font-size: 13px; text-underline-offset: 3px; }
+.analytics-consent-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 18px; }
+.analytics-consent-actions .primary-button { min-height: 44px; padding: 0 20px; font-size: 15px; }
+.consent-decline {
+  padding: 4px 0; border: 0; background: none; cursor: pointer;
+  font: 500 15px var(--ui); color: var(--ink-soft);
+  text-decoration: underline; text-decoration-color: var(--rule); text-underline-offset: 4px;
+}
+.consent-decline:hover { color: var(--ink); text-decoration-color: currentColor; }
+/* "More about your data" as a small round question mark in the corner. */
+.consent-more {
+  display: grid; place-items: center; width: 30px; height: 30px; margin-left: auto;
+  border: 1px solid var(--rule); border-radius: 50%; color: var(--ink-soft);
+}
+.consent-more:hover { color: var(--pen); border-color: var(--pen); }
 /* .text-button sits in a nested block with higher specificity; repeat it to win. */
 .analytics-settings.text-button { position: fixed; bottom: 10px; right: 20px; z-index: 30; background: var(--paper); padding: 4px 10px; font-size: 12px; }
 .privacy-page { max-width: 720px; padding: 36px 0; }

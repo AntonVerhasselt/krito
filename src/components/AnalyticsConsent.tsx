@@ -75,9 +75,14 @@ export function AnalyticsConsent() {
           </p>
           <p className="consent-sign">Anton</p>
           <div className="analytics-consent-actions">
-            <button className="secondary-button" type="button" onClick={() => choose("denied")}>Nee, bedankt</button>
-            <button className="secondary-button" type="button" onClick={() => choose("granted")}>Ja, dat mag</button>
-            <Link href="/privacy">Meer over je gegevens</Link>
+            <button className="primary-button" type="button" onClick={() => choose("granted")}>Ja, dat mag</button>
+            <button className="consent-decline" type="button" onClick={() => choose("denied")}>Nee, bedankt</button>
+            <Link href="/privacy" className="consent-more" aria-label="Meer over je gegevens" title="Meer over je gegevens">
+              <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M6 6.1a2.1 2.1 0 1 1 3 1.9c-.6.3-1 .8-1 1.5v.4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                <circle cx="8" cy="12.2" r="0.9" fill="currentColor" />
+              </svg>
+            </Link>
           </div>
         </div>
       ) : (
