@@ -1,5 +1,18 @@
+import type { Metadata, ResolvingMetadata } from "next";
 import Link from "next/link";
 import { SiteHeader } from "../../components/SiteHeader";
+import { openGraph } from "@/lib/site";
+
+export async function generateMetadata(_: unknown, parent: ResolvingMetadata): Promise<Metadata> {
+  // A page's openGraph replaces the inherited one; keep the share image.
+  const { openGraph: inherited } = await parent;
+  return {
+    title: "Privacy",
+    description: "Hoe Krito met je lesmateriaal, je e-mailadres en je privacykeuze omgaat.",
+    alternates: { canonical: "/privacy" },
+    openGraph: { ...openGraph, images: inherited?.images, url: "/privacy" },
+  };
+}
 
 export default function PrivacyPage() {
   return <div className="site-shell">

@@ -620,7 +620,7 @@ html {
   .doc-main {
     grid-column: 1;
   }
-  .doc-main h4 {
+  .doc-main .doc-label {
     margin: 0 0 0.25em;
     font-size: 1.18em;
     font-weight: 400;
@@ -791,23 +791,29 @@ html {
     }
   }
 
-  /* The single orchestrated moment: the marks are written once on load. */
-  @media (prefers-reduced-motion: no-preference) {
-    .mk path,
-    .mk-tick path,
-    .mk-caret path {
+  /* The single orchestrated moment: the marks are written once, when 65% of
+     the sheet is in view (DeskDemo). Without scripting, or when the sheet is
+     too tall for that (is-static), they are simply there. */
+  @media (prefers-reduced-motion: no-preference) and (scripting: enabled) {
+    .desk-demo:not(.is-static) :is(.mk, .mk-tick, .mk-caret) path {
       stroke-dasharray: 1 1.02;
+      stroke-dashoffset: 1;
+      opacity: 0;
+    }
+    .desk-demo:not(.is-static) .mk-note {
+      clip-path: inset(-30% 100% -30% 0);
+    }
+    .desk-demo.is-drawn :is(.mk, .mk-tick, .mk-caret) path {
       animation: pen-draw 0.55s cubic-bezier(0.45, 0.05, 0.3, 1) var(--d, 0s)
         both;
     }
-    .mk-circle path {
+    .desk-demo.is-drawn .mk-circle path {
       animation-duration: 0.75s;
     }
-    .mk-tick path,
-    .mk-caret path {
+    .desk-demo.is-drawn :is(.mk-tick, .mk-caret) path {
       animation-duration: 0.32s;
     }
-    .mk-note {
+    .desk-demo.is-drawn .mk-note {
       animation: pen-write 0.6s steps(12, end) var(--d, 0s) both;
     }
   }
@@ -3289,6 +3295,10 @@ html {
     }
     &.nav-open {
       overflow: hidden;
+    }
+    /* On a phone "gratis" says enough; the maker's note follows straight away. */
+    .price-facts {
+      display: none;
     }
     .maker-note {
       grid-template-columns: minmax(0, 1fr);
