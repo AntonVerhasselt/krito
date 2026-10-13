@@ -2,7 +2,10 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { ANALYTICS_EVENTS } from "../shared/analytics";
 import { assertDevelopment, cli, development, readEnv, vercelApi } from "./lib";
 
-// Ingestion uses eu.i.posthog.com; management and source maps use eu.posthog.com.
+// Browsers send through PostHog's managed reverse proxy on our own domain, so ad
+// blockers don't drop events; servers ingest at eu.i.posthog.com directly.
+// Management and source maps use eu.posthog.com.
+const browserHost = "https://k.krito.be";
 const ingestionHost = "https://eu.i.posthog.com";
 const managementHost = "https://eu.posthog.com";
 
@@ -12,8 +15,8 @@ function publicConfig() {
   if (!token || !/^phc_[A-Za-z0-9]+$/.test(token)) {
     throw new Error("Set NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN in .env.local first.");
   }
-  if (local.NEXT_PUBLIC_POSTHOG_HOST !== ingestionHost) {
-    throw new Error("This setup requires the selected EU ingestion host.");
+  if (local.NEXT_PUBLIC_POSTHOG_HOST !== browserHost) {
+    throw new Error(`This setup requires NEXT_PUBLIC_POSTHOG_HOST=${browserHost} (the managed reverse proxy).`);
   }
   return { token };
 }
@@ -38,7 +41,7 @@ function configureEnvironment() {
   }
   const values = {
     NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN: token,
-    NEXT_PUBLIC_POSTHOG_HOST: ingestionHost,
+    NEXT_PUBLIC_POSTHOG_HOST: browserHost,
     NEXT_PUBLIC_POSTHOG_ENABLED: "true",
   };
   for (const [key, value] of Object.entries(values)) {
@@ -133,9 +136,14 @@ async function configureAccount() {
 
   // Only enable requested functionality and anonymize network IPs. No billing,
   // retention-tier, notification, grouping, or historical-data changes.
-  await api(root, "PATCH", { anonymize_ips: true, session_recording_opt_in: false });
-  const configured = await api<{ session_recording_opt_in: boolean }>(root);
-  if (configured.session_recording_opt_in !== false) throw new Error("PostHog session recording must remain disabled.");
+  // Replay is masked in the SDK (src/lib/analytics.ts); the project setting only switches it on.
+  await api(root, "PATCH", { anonymize_ips: true, session_recording_opt_in: true });
+  const configured = await api<{ session_recording_opt_in: boolean; session_recording_masking_config: unknown }>(root);
+  if (configured.session_recording_opt_in !== true) throw new Error("PostHog session recording must be enabled.");
+  // Explicit SDK settings win per field, but a project config fills the ones the SDK
+  // leaves open (e.g. maskTextSelector) and maskAllElementAttributes disables our
+  // maskAttributeFn. Any project masking config needs review first.
+  if (configured.session_recording_masking_config) throw new Error("Unexpected project replay masking config; review it before continuing.");
   const detail: Record<string, string> = {
     upload_completed: "Browser file transfer completed and backend acknowledged it; validation may still fail.",
     upload_failed: "Browser upload failed. stage says where; error_code upload_blocked means the browser blocked the PUT (CORS, offline, network filter); status is the HTTP status.",
@@ -234,7 +242,7 @@ async function configureAccount() {
       config: { type: "TrendsAlertConfig", series_index: 0 },
     });
   }
-  console.log("Verified selected EU project. Disabled session replay, enabled IP anonymization, documented events, and created missing activation/reliability/e-mail dashboards and failure alerts.");
+  console.log("Verified selected EU project. Enabled masked session replay and IP anonymization, documented events, and created missing activation/reliability/e-mail dashboards and failure alerts.");
   console.log("Existing insight edits preserved. No messages, billing, exports, grouping, or retention-tier changes.");
 }
 

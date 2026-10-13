@@ -1,9 +1,8 @@
 # PostHog analytics
 
 Krito uses the EU PostHog project for explicit product events, error tracking,
-and metadata-only AI observability. Session recording is disabled at the user’s
-request on 2026-10-12: the SDK cannot start replay, snapshot events are rejected,
-and the account setup script enforces recording off. The shared event
+and metadata-only AI observability. Session replay was switched off on 2026-10-12 and
+back on, masked, on 2026-10-13 at the owner's request (see "Session replay" below). The shared event
 registry and property allowlist live in `shared/analytics.ts`. Analytics is best
 effort: disabled tracking, network failures, and delivery retries must not prevent
 searching, uploading, submitting, or completing an analysis.
@@ -17,7 +16,11 @@ Next.js process after changing public variables; production embeds them at build
 time.
 
 - `NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN`: public project ingestion token.
-- `NEXT_PUBLIC_POSTHOG_HOST`: `https://eu.i.posthog.com`.
+- `NEXT_PUBLIC_POSTHOG_HOST`: `https://k.krito.be`, PostHog's managed reverse proxy
+  (Settings → Managed reverse proxy; Cloudflare CNAME `k`, DNS only). Browsers
+  send there so ad blockers drop fewer events. Convex keeps `POSTHOG_HOST`
+  `https://eu.i.posthog.com`. Don't put the proxy on `krito.be` itself: the apex
+  must stay on Vercel, where it redirects to www.
 - `NEXT_PUBLIC_POSTHOG_ENABLED`: explicit master switch, `true` to enable.
 - `NEXT_PUBLIC_KRITO_ENVIRONMENT`: `local`, `preview`, or `hosted`.
 - `NEXT_PUBLIC_POSTHOG_DEBUG`: local sanitized event diagnostics; omit on hosted
@@ -68,13 +71,16 @@ URLs, and provider response bodies are excluded. The shared helper drops unknown
 property names and unsafe property values. Arbitrary objects must never be spread
 into event properties.
 
-Autocapture is disabled in favor of explicit events. Session recordings are
-explicitly disabled with `disable_session_recording: true`; initialization,
-consent regrant and contact changes never start recording. The ingestion filter
-also rejects `$snapshot` events. Default SDK URL and error properties are
-sanitized before capture. The privacy prompt describes the purpose of usage
-measurement, the school-email link and the ability to change the choice, with
-matching accept and decline buttons.
+Autocapture is disabled in favor of explicit events. Session replay only runs
+after consent; withdrawal stops it (see "Session replay"). Default SDK URL and error properties are
+sanitized before capture. The privacy prompt (2026-10-13) is a short personal note from
+Anton with a small round photo of him and his son Arthur: it asks to use cookies
+to see what works and what can be better, says the choice can be changed, and links
+to the privacy page, which lists what is measured and recorded. It deliberately
+names cookies and doesn't list what is tracked. "Ja, dat mag" is the primary
+button; "Nee, bedankt" is a text button beside it, and a question mark in the
+corner links to the privacy page. After "Ja, dat mag" the photo grows inside a drawn pen ring with "Merci!",
+and the note closes two seconds after the thank-you is written.
 
 ## Identity
 
@@ -192,9 +198,45 @@ they only cover consenting visitors; the Convex logs record every preparation
 failure (`prepare <analysis>/<attempt>: <file> (<extension>) <code>`) without
 file names.
 
-The SDK disables replay independently of the account settings; account setup was
-rerun on 2026-10-12 and also disabled recording at the project level. Historical
-recordings are not removed by changing the SDK or project setting.
+## Session replay
+
+Replay is on (project setting `session_recording_opt_in`, enforced by
+`npm run env:posthog -- --account`) and only after the visitor consents. The 2026-10-12
+recordings showed asterisks and no styling: every text was masked and an attribute
+filter replaced the inlined CSS (`_cssText`) with `[redacted]`. Masking now lives in
+`session_recording` in `src/lib/analytics.ts`:
+
+- Krito's own text, markup and CSS are recorded, so replays look like the site.
+- Blocked entirely: `[data-private]` / `ph-no-capture` (file slips, skipped files,
+  each result's explanation, quotes and sources), file inputs, hidden inputs,
+  iframes, canvas and video. New UI that shows a teacher's material must carry
+  `data-private`.
+- Masked: every input value, the search highlight (`ph-mask`, it spells out the
+  query) and `value` attributes.
+- URLs in attributes keep Next.js assets and public files; private routes collapse
+  to their pattern (`/results/[analysisId]`), and signed, blob and data URLs become
+  `[redacted]`. `before_send` scrubs the page URLs the recorder stores in meta and
+  pageview events, e.g. the unsubscribe token.
+- Console logs and network requests are not recorded.
+- Feature flags are off (`advanced_disable_feature_flags`): Krito uses none, and
+  `/flags` requests skip `before_send` while carrying the first page URL. The `t`
+  query parameter (unsubscribe token) is masked in SDK URL properties as well.
+- Consent is versioned: `krito-analytics-consent-v2` in localStorage and the
+  `krito_analytics_consent_v2` cookie (read by `src/instrumentation.ts`). v1 choices
+  were made when the privacy page promised no recordings, so everyone is asked again.
+
+Explicit SDK masking settings win per field; a project-level masking config only
+fills fields the SDK leaves open (such as `maskTextSelector`), but its
+`maskAllElementAttributes` would switch off `maskAttributeFn`. The account script
+fails if a project masking config appears. Headless browsers are dropped as bots by posthog-js; to inspect
+replay payloads in Playwright, hide `navigator.webdriver` and `userAgentData`, and
+abort the requests so test sessions never reach PostHog.
+
+## Scroll depth
+
+Web analytics' scroll depth needs the `$prev_pageview_*` numbers that posthog-js
+adds to `$pageview` and `$pageleave`. `before_send` keeps those numbers, the
+pageview IDs and the previous page's route pattern; it drops anything else.
 
 Two personal API keys exist, each with only the scopes it needs:
 
@@ -223,8 +265,8 @@ network delivery and local sanitized diagnostics for search open/type/results,
 subject selection, upload selection/transfer/readiness, accepted identity,
 analysis start/completion, and result interactions. Verify refusal/withdrawal,
 refresh restoration, shared-browser identity changes, failed uploads, retries,
-and demo exclusion. Verify no recorder script or snapshot requests appear after
-consent or regrant. Inspect event properties for private data.
+and demo exclusion. Verify replay (recorder script and `/s/` snapshot requests)
+starts after consent and regrant, and is absent before consent and after withdrawal. Inspect event properties for private data.
 Do not print signed URLs, emails or raw exception bodies
 into test reports.
 

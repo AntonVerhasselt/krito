@@ -26,9 +26,10 @@ function highlight(text: string, query: string): ReactNode {
     .filter((w) => w.length > 1)
     .map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
   if (!words.length) return text;
+  // The highlight spells out what was typed, so session replay masks it (ph-mask).
   return text
     .split(new RegExp(`(${words.join("|")})`, "gi"))
-    .map((part, i) => (i % 2 ? <mark key={i}>{part}</mark> : part));
+    .map((part, i) => (i % 2 ? <mark key={i} className="ph-mask">{part}</mark> : part));
 }
 export function TopicSearch({
   selected,

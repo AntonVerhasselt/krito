@@ -67,6 +67,7 @@ describe("analytics boundaries", () => {
     analytics.setAnalyticsConsent("denied"); const calls = sdk.capture.mock.calls.length;
     analytics.track("search_clicked"); analytics.captureAnalyticsError(new Error("secret"), "upload");
     expect(analytics.analyticsContext()).toBeUndefined(); expect(sdk.capture).toHaveBeenCalledTimes(calls);
+    expect(sdk.stopSessionRecording).toHaveBeenCalled();
     expect(sdk.opt_out_capturing).toHaveBeenCalled();
     expect(sdk.startSessionRecording).not.toHaveBeenCalled();
   });
@@ -80,8 +81,19 @@ describe("analytics boundaries", () => {
     reloaded.setAnalyticsConsent("granted");
     expect(sdk.init).toHaveBeenCalledTimes(1);
     expect(sdk.opt_in_capturing).toHaveBeenCalledWith({ captureEventName: false });
-    expect(sdk.startSessionRecording).not.toHaveBeenCalled();
+    // Resume replay without overriding the project's sampling or triggers.
+    expect(sdk.startSessionRecording).toHaveBeenCalledWith();
     expect(sdk.capture.mock.calls.filter(([event]) => event === "$pageview")).toHaveLength(0);
+  });
+  it("resumes replay in a tab whose shared SDK opt-out another tab already cleared", async () => {
+    const analytics = await import("../src/lib/analytics");
+    analytics.setAnalyticsConsent("granted");
+    analytics.setAnalyticsConsent("denied");
+    expect(sdk.stopSessionRecording).toHaveBeenCalledOnce();
+    sdk.has_opted_out_capturing.mockReturnValue(false);
+    analytics.setAnalyticsConsent("granted");
+    expect(sdk.opt_in_capturing).not.toHaveBeenCalled();
+    expect(sdk.startSessionRecording).toHaveBeenCalledWith();
   });
   it("keeps the application usable when capture throws", async () => {
     const analytics = await import("../src/lib/analytics");
@@ -139,11 +151,11 @@ describe("analytics boundaries", () => {
     const onStorage = vi.mocked(window.addEventListener).mock.calls
       .find(([event]) => event === "storage")![1] as (event: Partial<StorageEvent>) => void;
     stored = null;
-    onStorage({ key: "krito-analytics-consent-v1", newValue: null });
+    onStorage({ key: "krito-analytics-consent-v2", newValue: null });
     expect(analytics.getAnalyticsConsent()).toBe("unknown");
     expect(analytics.analyticsContext()).toBeUndefined();
     stored = "granted";
-    onStorage({ key: "krito-analytics-consent-v1", newValue: stored });
+    onStorage({ key: "krito-analytics-consent-v2", newValue: stored });
     expect(analytics.getAnalyticsConsent()).toBe("granted");
     expect(analytics.analyticsContext()).toMatchObject({ consent: true });
     stored = null;
@@ -158,15 +170,45 @@ describe("analytics boundaries", () => {
     expect(sdk.reset).toHaveBeenCalledTimes(1); expect(sdk.identify).toHaveBeenCalledWith("secondcontact456");
     analytics.identifyContact("teacher@school.be"); expect(sdk.identify).toHaveBeenCalledTimes(1);
   });
-  it("scrubs SDK URLs/exceptions and disables network/console/document capture", async () => {
+  it("records a masked replay: private blocks, inputs, URLs and tokens never leave the browser", async () => {
     const analytics = await import("../src/lib/analytics");
     analytics.setAnalyticsConsent("granted");
     const config = sdk.init.mock.calls[0][1];
     expect(config).toMatchObject({ autocapture: false, enable_recording_console_log: false,
-      disable_session_recording: true });
-    expect(config.session_recording).toBeUndefined();
+      capture_performance: { network_timing: false } });
+    expect(config.disable_session_recording).toBeUndefined();
+    // Flag requests skip before_send and carry the first URL (with any unsubscribe token).
+    expect(config).toMatchObject({ advanced_disable_feature_flags: true, mask_personal_data_properties: true,
+      custom_personal_data_properties: ["t"] });
     expect(config.loaded).toBeUndefined();
-    expect(config.before_send({ event: "$snapshot", properties: { snapshot_data: "private content" } })).toBeNull();
+    const replay = config.session_recording;
+    expect(replay).toMatchObject({ maskAllInputs: true, recordHeaders: false, recordBody: false, captureJsonLd: false });
+    expect(replay.blockSelector).toContain("[data-private]");
+    expect(replay.blockSelector).toContain('input[type="file"]');
+    const mask = replay.maskAttributeFn as (name: string, value: string, element?: { tagName: string }) => string;
+    // Krito's own CSS and markup stay, so recordings look like the site.
+    expect(mask("_cssText", ".hero{color:red}")).toBe(".hero{color:red}");
+    expect(mask("class", "hero-title")).toBe("hero-title");
+    expect(mask("href", "/_next/static/chunks/app.css")).toBe("/_next/static/chunks/app.css");
+    expect(mask("href", "#prijs")).toBe("#prijs");
+    expect(mask("href", "/icon.svg?b0c3a1")).toBe("/icon.svg?b0c3a1");
+    expect(mask("href", "/other-page/secret")).toBe("https://krito.example/other");
+    expect(mask("srcset", "/_next/image?url=a.webp&w=256 1x, /_next/image?url=a.webp&w=384 2x")).toContain("/_next/image");
+    // Private IDs, tokens, signed and local URLs, and form values do not.
+    expect(mask("href", "/results/private-id?t=secret")).toBe("https://krito.example/results/[analysisId]");
+    expect(mask("href", "/uitschrijven?t=secret")).toBe("https://krito.example/uitschrijven");
+    expect(mask("src", "https://bucket.example/file.pdf?X-Amz-Signature=secret")).toBe("[redacted]");
+    expect(mask("src", "blob:https://krito.example/1234")).toBe("[redacted]");
+    expect(mask("value", "teacher@school.be", { tagName: "INPUT" })).toBe("*".repeat(17));
+    const snapshot = config.before_send({ event: "$snapshot", properties: { $snapshot_data: [
+      { type: 4, data: { href: "https://krito.example/uitschrijven?t=secret", width: 390, height: 844 } },
+      { type: 5, data: { tag: "$pageview", payload: { href: "https://krito.example/results/private-id?t=secret" } } },
+      { type: 3, data: { source: 2 } },
+    ] } });
+    expect(JSON.stringify(snapshot)).not.toContain("secret");
+    expect(JSON.stringify(snapshot)).not.toContain("private-id");
+    expect(snapshot.properties.$snapshot_data[0].data).toMatchObject({ href: "https://krito.example/uitschrijven", width: 390 });
+    expect(snapshot.properties.$snapshot_data[1].data.payload.href).toBe("https://krito.example/results/[analysisId]");
     const event = config.before_send({ event: "$exception", properties: { distinct_id: "anonymous-test",
       $current_url: "https://krito.example/results/secret-id?token=secret", $exception_message: "private quotation",
       $release_id: "krito:abc123",
@@ -181,5 +223,23 @@ describe("analytics boundaries", () => {
     expect(serialized).not.toContain("quotation"); expect(serialized).not.toContain("teacher@"); expect(serialized).not.toContain("token=");
     expect(serialized).toContain("/results/[analysisId]");
     analytics.setAnalyticsConsent("denied"); expect(config.before_send(event)).toBeNull();
+    expect(config.before_send({ event: "$snapshot", properties: { $snapshot_data: [] } })).toBeNull();
+  });
+  it("keeps scroll depth for web analytics without the previous page's private route", async () => {
+    const analytics = await import("../src/lib/analytics");
+    analytics.setAnalyticsConsent("granted");
+    const config = sdk.init.mock.calls[0][1];
+    const event = config.before_send({ event: "$pageleave", properties: {
+      $prev_pageview_max_scroll_percentage: 0.8, $prev_pageview_max_content_percentage: 0.75,
+      $prev_pageview_last_scroll: 1200, $prev_pageview_duration: 42.5, $prev_pageview_max_content: Infinity,
+      $prev_pageview_pathname: "/results/private-id", $prev_pageview_id: "0197e6db-9a73-7b91-9e80-4e1b7158db5c",
+      $pageview_id: "teacher@school.be", $prev_pageview_last_content: "private text" } });
+    expect(event.properties).toMatchObject({
+      $prev_pageview_max_scroll_percentage: 0.8, $prev_pageview_max_content_percentage: 0.75,
+      $prev_pageview_last_scroll: 1200, $prev_pageview_duration: 42.5,
+      $prev_pageview_pathname: "/results/[analysisId]", $prev_pageview_id: "0197e6db-9a73-7b91-9e80-4e1b7158db5c" });
+    expect(event.properties).not.toHaveProperty("$prev_pageview_max_content");
+    expect(event.properties).not.toHaveProperty("$pageview_id");
+    expect(event.properties).not.toHaveProperty("$prev_pageview_last_content");
   });
 });
