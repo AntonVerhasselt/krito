@@ -85,6 +85,16 @@ describe("analytics boundaries", () => {
     expect(sdk.startSessionRecording).toHaveBeenCalledWith();
     expect(sdk.capture.mock.calls.filter(([event]) => event === "$pageview")).toHaveLength(0);
   });
+  it("resumes replay in a tab whose shared SDK opt-out another tab already cleared", async () => {
+    const analytics = await import("../src/lib/analytics");
+    analytics.setAnalyticsConsent("granted");
+    analytics.setAnalyticsConsent("denied");
+    expect(sdk.stopSessionRecording).toHaveBeenCalledOnce();
+    sdk.has_opted_out_capturing.mockReturnValue(false);
+    analytics.setAnalyticsConsent("granted");
+    expect(sdk.opt_in_capturing).not.toHaveBeenCalled();
+    expect(sdk.startSessionRecording).toHaveBeenCalledWith();
+  });
   it("keeps the application usable when capture throws", async () => {
     const analytics = await import("../src/lib/analytics");
     analytics.setAnalyticsConsent("granted");

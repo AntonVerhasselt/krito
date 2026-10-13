@@ -234,12 +234,13 @@ export function initializeAnalytics() {
       initialized = true;
     }
     // A stored SDK opt-out survives reload even though our own choice was just granted.
-    if (posthog.has_opted_out_capturing()) {
-      posthog.opt_in_capturing({ captureEventName: false });
-      posthog.startSessionRecording();
-      // Fresh initialization already schedules one initial pageview on the next tick.
-      if (!fresh) posthog.capture("$pageview");
-    }
+    const optedOut = posthog.has_opted_out_capturing();
+    if (optedOut) posthog.opt_in_capturing({ captureEventName: false });
+    // Withdrawal stopped replay in this tab. Another tab may already have cleared the
+    // shared opt-out, so resume whenever this instance was running before.
+    if (optedOut || !fresh) posthog.startSessionRecording();
+    // Fresh initialization already schedules one initial pageview on the next tick.
+    if (optedOut && !fresh) posthog.capture("$pageview");
     if (process.env.NEXT_PUBLIC_POSTHOG_DEBUG === "true") {
       Object.assign(window, { __kritoAnalytics: {
         events: diagnostics,

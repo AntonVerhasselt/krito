@@ -51,7 +51,9 @@ export function AnalyticsConsent() {
   }, [stage]);
 
   if (!analyticsAvailable()) return null;
-  if (consent !== "unknown" && !editing && stage === "ask") return (
+  // A withdrawal in another tab ends the thank-you at once.
+  const shown = consent === "granted" ? stage : "ask";
+  if (consent !== "unknown" && !editing && shown === "ask") return (
     <button ref={shield} type="button" className="analytics-settings text-button" aria-label="Privacykeuze" title="Privacykeuze"
       onClick={() => { focusNext.current = "yes"; setEditing(true); }}>
       {/* Only the shield shows, so it stays out of the way of the page. */}
@@ -69,14 +71,14 @@ export function AnalyticsConsent() {
     else setEditing(false);
   }
 
-  const asking = stage === "ask";
+  const asking = shown === "ask";
   return (
-    <aside className={`analytics-consent is-${stage}`} aria-label="Privacykeuze">
+    <aside className={`analytics-consent is-${shown}`} aria-label="Privacykeuze">
       <div className="consent-photo">
         <Image src={photo} alt="Anton met zijn zoon Arthur" sizes="112px" />
         {!asking && <PenRing />}
       </div>
-      {asking ? (
+      {asking && (
         <div className="consent-note">
           <h2>Mag ik je iets vragen?</h2>
           <p>
@@ -100,12 +102,16 @@ export function AnalyticsConsent() {
             </Link>
           </div>
         </div>
-      ) : (
-        <div ref={thanks} className="consent-thanks" role="status" tabIndex={-1}>
-          <p className="consent-merci">Merci!</p>
-          <p>Daar help je Krito echt mee vooruit.</p>
-        </div>
       )}
+      {/* Mounted before the choice, so screen readers announce the thank-you when it fills. */}
+      <div ref={thanks} className="consent-thanks" role="status" tabIndex={-1}>
+        {!asking && (
+          <>
+            <p className="consent-merci">Merci!</p>
+            <p>Daar help je Krito echt mee vooruit.</p>
+          </>
+        )}
+      </div>
     </aside>
   );
 }

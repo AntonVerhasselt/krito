@@ -12,7 +12,8 @@ export const onRequestError: Instrumentation.onRequestError = async (error, requ
   try {
     const { PostHog } = await import("posthog-node");
     const client = new PostHog(process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN, {
-      host: process.env.NEXT_PUBLIC_POSTHOG_HOST, flushAt: 1, flushInterval: 0,
+      // Servers ingest directly; NEXT_PUBLIC_POSTHOG_HOST is the browsers' proxy.
+      host: "https://eu.i.posthog.com", flushAt: 1, flushInterval: 0,
       disableGeoip: true, requestTimeout: 2000, fetchRetryCount: 0,
     });
     let distinctId: string = crypto.randomUUID();

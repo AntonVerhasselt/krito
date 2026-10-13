@@ -140,7 +140,9 @@ async function configureAccount() {
   await api(root, "PATCH", { anonymize_ips: true, session_recording_opt_in: true });
   const configured = await api<{ session_recording_opt_in: boolean; session_recording_masking_config: unknown }>(root);
   if (configured.session_recording_opt_in !== true) throw new Error("PostHog session recording must be enabled.");
-  // A project masking config would override the SDK's masking without review.
+  // Explicit SDK settings win per field, but a project config fills the ones the SDK
+  // leaves open (e.g. maskTextSelector) and maskAllElementAttributes disables our
+  // maskAttributeFn. Any project masking config needs review first.
   if (configured.session_recording_masking_config) throw new Error("Unexpected project replay masking config; review it before continuing.");
   const detail: Record<string, string> = {
     upload_completed: "Browser file transfer completed and backend acknowledged it; validation may still fail.",

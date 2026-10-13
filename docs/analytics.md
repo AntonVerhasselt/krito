@@ -225,8 +225,10 @@ filter replaced the inlined CSS (`_cssText`) with `[redacted]`. Masking now live
   `krito_analytics_consent_v2` cookie (read by `src/instrumentation.ts`). v1 choices
   were made when the privacy page promised no recordings, so everyone is asked again.
 
-A project-level masking config would override the SDK's masking; the account script
-fails if one appears. Headless browsers are dropped as bots by posthog-js; to inspect
+Explicit SDK masking settings win per field; a project-level masking config only
+fills fields the SDK leaves open (such as `maskTextSelector`), but its
+`maskAllElementAttributes` would switch off `maskAttributeFn`. The account script
+fails if a project masking config appears. Headless browsers are dropped as bots by posthog-js; to inspect
 replay payloads in Playwright, hide `navigator.webdriver` and `userAgentData`, and
 abort the requests so test sessions never reach PostHog.
 
@@ -263,8 +265,8 @@ network delivery and local sanitized diagnostics for search open/type/results,
 subject selection, upload selection/transfer/readiness, accepted identity,
 analysis start/completion, and result interactions. Verify refusal/withdrawal,
 refresh restoration, shared-browser identity changes, failed uploads, retries,
-and demo exclusion. Verify no recorder script or snapshot requests appear after
-consent or regrant. Inspect event properties for private data.
+and demo exclusion. Verify replay (recorder script and `/s/` snapshot requests)
+starts after consent and regrant, and is absent before consent and after withdrawal. Inspect event properties for private data.
 Do not print signed URLs, emails or raw exception bodies
 into test reports.
 
