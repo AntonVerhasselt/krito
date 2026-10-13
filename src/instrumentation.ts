@@ -7,7 +7,8 @@ export const onRequestError: Instrumentation.onRequestError = async (error, requ
   const header = request.headers.cookie;
   const cookies = Object.fromEntries((Array.isArray(header) ? header.join("; ") : header ?? "")
     .split(";").map((part) => { const i = part.indexOf("="); return [part.slice(0, i).trim(), part.slice(i + 1)]; }));
-  if (cookies.krito_analytics_consent !== "granted") return;
+  // Mirrors consentCookie in src/lib/analytics.ts (a client module).
+  if (cookies.krito_analytics_consent_v2 !== "granted") return;
   try {
     const { PostHog } = await import("posthog-node");
     const client = new PostHog(process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN, {

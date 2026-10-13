@@ -141,11 +141,11 @@ describe("analytics boundaries", () => {
     const onStorage = vi.mocked(window.addEventListener).mock.calls
       .find(([event]) => event === "storage")![1] as (event: Partial<StorageEvent>) => void;
     stored = null;
-    onStorage({ key: "krito-analytics-consent-v1", newValue: null });
+    onStorage({ key: "krito-analytics-consent-v2", newValue: null });
     expect(analytics.getAnalyticsConsent()).toBe("unknown");
     expect(analytics.analyticsContext()).toBeUndefined();
     stored = "granted";
-    onStorage({ key: "krito-analytics-consent-v1", newValue: stored });
+    onStorage({ key: "krito-analytics-consent-v2", newValue: stored });
     expect(analytics.getAnalyticsConsent()).toBe("granted");
     expect(analytics.analyticsContext()).toMatchObject({ consent: true });
     stored = null;
@@ -167,6 +167,9 @@ describe("analytics boundaries", () => {
     expect(config).toMatchObject({ autocapture: false, enable_recording_console_log: false,
       capture_performance: { network_timing: false } });
     expect(config.disable_session_recording).toBeUndefined();
+    // Flag requests skip before_send and carry the first URL (with any unsubscribe token).
+    expect(config).toMatchObject({ advanced_disable_feature_flags: true, mask_personal_data_properties: true,
+      custom_personal_data_properties: ["t"] });
     expect(config.loaded).toBeUndefined();
     const replay = config.session_recording;
     expect(replay).toMatchObject({ maskAllInputs: true, recordHeaders: false, recordBody: false, captureJsonLd: false });

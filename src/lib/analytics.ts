@@ -7,7 +7,10 @@ import {
 } from "../../shared/analytics";
 
 export type AnalyticsConsent = "unknown" | "granted" | "denied";
-const consentKey = "krito-analytics-consent-v1";
+// v2 (2026-10-13): consent now covers session replay, so choices made under v1,
+// when the privacy page promised no recordings, are asked again.
+const consentKey = "krito-analytics-consent-v2";
+const consentCookie = "krito_analytics_consent_v2";
 const listeners = new Set<() => void>();
 const captured = new Set<string>();
 let initialized = false;
@@ -210,6 +213,11 @@ export function initializeAnalytics() {
         capture_exceptions: { capture_unhandled_errors: true, capture_unhandled_rejections: true, capture_console_errors: false },
         disable_surveys: true,
         enable_recording_console_log: false,
+        // Krito uses no feature flags. Flag requests bypass before_send and carry the
+        // first page URL, which can hold the unsubscribe token.
+        advanced_disable_feature_flags: true,
+        mask_personal_data_properties: true,
+        custom_personal_data_properties: ["t"],
         session_recording: {
           maskAllInputs: true,
           // Krito's own text is public. A teacher's files, file names, quotes and
@@ -251,11 +259,11 @@ export function setAnalyticsConsent(consent: "granted" | "denied") {
   } catch { /* The explicit choice remains authoritative for this visit. */ }
   // The server needs the same explicit opt-in before reporting request errors.
   try {
-    document.cookie = `krito_analytics_consent=${consent}; Path=/; SameSite=Lax; Max-Age=15552000${location.protocol === "https:" ? "; Secure" : ""}`;
+    document.cookie = `${consentCookie}=${consent}; Path=/; SameSite=Lax; Max-Age=15552000${location.protocol === "https:" ? "; Secure" : ""}`;
   } catch { /* Browser privacy settings must not prevent choosing. */ }
   if (consent === "granted") {
     initializeAnalytics();
-    track("analytics_consent_granted", { consent_version: 1 });
+    track("analytics_consent_granted", { consent_version: 2 });
   } else if (initialized) {
     try { posthog.stopSessionRecording(); posthog.opt_out_capturing(); } catch { /* fail closed */ }
     captured.clear();

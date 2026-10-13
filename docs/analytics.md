@@ -218,6 +218,12 @@ filter replaced the inlined CSS (`_cssText`) with `[redacted]`. Masking now live
   `[redacted]`. `before_send` scrubs the page URLs the recorder stores in meta and
   pageview events, e.g. the unsubscribe token.
 - Console logs and network requests are not recorded.
+- Feature flags are off (`advanced_disable_feature_flags`): Krito uses none, and
+  `/flags` requests skip `before_send` while carrying the first page URL. The `t`
+  query parameter (unsubscribe token) is masked in SDK URL properties as well.
+- Consent is versioned: `krito-analytics-consent-v2` in localStorage and the
+  `krito_analytics_consent_v2` cookie (read by `src/instrumentation.ts`). v1 choices
+  were made when the privacy page promised no recordings, so everyone is asked again.
 
 A project-level masking config would override the SDK's masking; the account script
 fails if one appears. Headless browsers are dropped as bots by posthog-js; to inspect
