@@ -36,7 +36,8 @@ export function DeskDemo({ children }: { children: ReactNode }) {
       }
       seen = new IntersectionObserver(
         ([entry]) => {
-          if (entry.intersectionRatio < share) return;
+          // Browsers report ratios as float32: 0.65 arrives as 0.6499999761….
+          if (entry.intersectionRatio < share - 1e-6) return;
           setPen("drawn");
           stop();
         },
