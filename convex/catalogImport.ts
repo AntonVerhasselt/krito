@@ -34,9 +34,10 @@ async function catalog(ctx: MutationCtx, version: string) {
   if (!result) throw new Error("Begin this version's import first");
   return result;
 }
-function assertDev() {
-  if (process.env.APP_ENV !== "development")
-    throw new Error("Development import only");
+// Only the authenticated CLI (npm run goals:seed) can call these internal functions.
+function assertConfigured() {
+  if (!["development", "production"].includes(process.env.APP_ENV ?? ""))
+    throw new Error("Configure APP_ENV before importing");
 }
 export const begin = internalMutation({
   args: {
@@ -54,7 +55,7 @@ export const begin = internalMutation({
     expected: counts,
   },
   handler: async (ctx, args) => {
-    assertDev();
+    assertConfigured();
     if (
       !args.catalogVersion ||
       !args.expected.items ||
@@ -94,7 +95,7 @@ async function batch(
   rows: unknown[],
   save: (c: Doc<"catalogs">) => Promise<number>,
 ) {
-  assertDev();
+  assertConfigured();
   if (!rows.length || rows.length > 100)
     throw new Error("Batch size must be 1–100");
   const c = await catalog(ctx, version);
@@ -268,7 +269,7 @@ export const verifyBatch = internalMutation({
     rows: v.array(v.any()),
   },
   handler: async (ctx, args) => {
-    assertDev();
+    assertConfigured();
     const c = await catalog(ctx, args.catalogVersion);
     if (c.status !== "staging") throw new Error("Already published");
     const batchHash = await sha(args.rows);
@@ -328,7 +329,7 @@ export const verifyBatch = internalMutation({
 export const publish = internalMutation({
   args: { catalogVersion: v.string(), datasetSha256: v.string() },
   handler: async (ctx, args) => {
-    assertDev();
+    assertConfigured();
     const c = await catalog(ctx, args.catalogVersion);
     if (c.datasetSha256 !== args.datasetSha256)
       throw new Error("Dataset checksum mismatch");

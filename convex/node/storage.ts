@@ -1,11 +1,14 @@
 "use node";
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+/** Each backend only ever touches its own bucket. */
+const BUCKETS: Record<string, string> = {
+  development: "krito-pdfs-dev",
+  production: "krito-pdfs",
+};
 export function storage() {
-  if (
-    process.env.APP_ENV !== "development" ||
-    process.env.R2_BUCKET_NAME !== "krito-pdfs-dev"
-  )
+  const bucket = BUCKETS[process.env.APP_ENV ?? ""];
+  if (!bucket || process.env.R2_BUCKET_NAME !== bucket)
     throw new Error("storage_unavailable");
   return new S3Client({
     region: "auto",

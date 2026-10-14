@@ -1,0 +1,7 @@
+{
+  "bucket": "krito-pdfs",
+  "rules": [
+    { "id": "krito-uploads-one-year", "prefix": "staging/", "expireDays": 365 },
+    { "id": "krito-sealed-one-year", "prefix": "sealed/", "expireDays": 365 }
+  ]
+}

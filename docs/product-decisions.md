@@ -72,3 +72,11 @@ This replaces individual-goal checkbox selection in original step 3 and the sele
 - Store submitted email addresses in an application `users` table, with analyses referencing `userId`. Preserve the exact trimmed address, including plus tags and dots. Migration removes existing stored emails from analyses.
 - These records remain `emailVerified: false` until verified authentication is implemented. An optional `authId` is reserved for the future Better Auth component identity. The current MVP still requires the private capability for every analysis/file operation; an email/profile link is not authorization.
 - Better Auth and OTP are a later feature. The recommended application-table reference is documented by [Convex + Better Auth](https://labs.convex.dev/better-auth/migrations/migrate-to-0-9/migrate-userid/userid-in-app-table); verification requires the real [OTP flow](https://better-auth.com/docs/plugins/email-otp). Future account claiming must verify identity and the existing analysis capability rather than granting access from an unverified submitted address.
+
+## Public launch (2026-10-14)
+
+- Production runs on its own Convex deployment (Ireland), R2 bucket and converter. Data from the development phase is test data and was not migrated.
+- E-mail is live for everyone in production; development stays on the allowlist.
+- Teachers' uploads (as uploaded) and their analysed pdf copies are kept for one year, so they can be reused when the product grows; then R2 deletes them. Uploads that never reach an analysis are deleted after a day.
+- No limit on the number of analyses. OpenAI usage is watched through PostHog and the OpenAI dashboard instead.
+- The privacy page names the controller (YARU DAKE BV), the processors and their regions, the retention periods and how to exercise your rights.

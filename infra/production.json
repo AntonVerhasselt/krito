@@ -1,0 +1,11 @@
+{
+  "convexDeployment": "prod:enduring-duck-0",
+  "convexUrl": "https://enduring-duck-0.eu-west-1.convex.cloud",
+  "convexSiteUrl": "https://enduring-duck-0.eu-west-1.convex.site",
+  "r2Bucket": "krito-pdfs",
+  "converterService": "krito-converter",
+  "publicOrigins": [
+    "https://krito.be",
+    "https://www.krito.be"
+  ]
+}
