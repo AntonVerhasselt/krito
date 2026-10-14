@@ -27,10 +27,8 @@ if (existing.some((entry) => managed.includes(entry.key) && entry.gitBranch)) {
   throw new Error("Branch-scoped backend variables conflict with the shared preview environment.");
 }
 
-// Recreate the managed variables so no entry spans both backends.
-for (const entry of existing.filter((entry) => managed.includes(entry.key))) {
-  cli("npx", ["vercel", "api", `${endpoint}/${entry.id}`, "--method", "DELETE", "--scope", development.vercelScope]);
-}
+// Narrow the existing entries in place (no moment without a variable), then add
+// the production ones.
 const shared = ["development", "preview"];
 const payload = [
   { key: "NEXT_PUBLIC_CONVEX_URL", value: development.convexUrl, type: "plain", target: shared },
@@ -39,8 +37,22 @@ const payload = [
   { key: "KRITO_BACKEND_ENV", value: "production", type: "plain", target: ["production"] },
   { key: "CONVEX_DEPLOY_KEY", value: deployKey, type: "sensitive", target: ["production"] },
 ];
+const write = (path: string, method: string, body: unknown) =>
+  cli("npx", ["vercel", "api", path, "--method", method, "--input", "-", "--scope", development.vercelScope], JSON.stringify(body));
 for (const entry of payload) {
-  cli("npx", ["vercel", "api", `/v10/projects/${projectId}/env`, "--method", "POST", "--input", "-", "--scope", development.vercelScope], JSON.stringify(entry));
+  const isProduction = entry.target.includes("production");
+  const current = existing.filter((e) => e.key === entry.key && e.target.some((t) => entry.target.includes(t)));
+  if (entry.key === "CONVEX_DEPLOY_KEY" && existing.some((e) => e.key === entry.key && e.target.some((t) => t !== "production"))) {
+    throw new Error("CONVEX_DEPLOY_KEY must only exist on Production.");
+  }
+  if (!current.length) write(`/v10/projects/${projectId}/env`, "POST", entry);
+  for (const e of current) {
+    // An entry spanning both backends keeps only this entry's targets.
+    const target = isProduction ? ["production"] : e.target.filter((t) => entry.target.includes(t));
+    if (isProduction && e.target.length > 1) throw new Error(`Run the development entries first: ${entry.key} still spans Production.`);
+    write(`${endpoint}/${e.id}`, "PATCH", { value: entry.value, type: entry.type, target });
+  }
+  existing.splice(0, existing.length, ...list());
 }
 
 const configured = list();
