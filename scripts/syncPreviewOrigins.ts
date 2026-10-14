@@ -1,6 +1,17 @@
 import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
-import { assertDevelopment, cli, development, vercelApi } from "./lib";
+import { assertDevelopment, assertProduction, cli, development, production, vercelApi } from "./lib";
 
+// Production serves only the public domains: apply its checked-in rule as-is.
+if (process.argv.includes("--production")) {
+  assertProduction();
+  const file = "infra/r2-cors.prod.json";
+  const origins = JSON.parse(readFileSync(file, "utf8")).rules?.[0]?.allowed?.origins as string[];
+  if (JSON.stringify([...origins].sort()) !== JSON.stringify([...production.publicOrigins].sort()))
+    throw new Error("Production CORS origins must equal publicOrigins in infra/production.json.");
+  cli("npx", ["wrangler", "r2", "bucket", "cors", "set", production.r2Bucket, "--file", file, "--force"]);
+  console.log(`Applied ${origins.length} public origins to ${production.r2Bucket}.`);
+  process.exit(0);
+}
 assertDevelopment();
 type Deployment = { uid: string; url: string; readyState: string };
 type Detail = {

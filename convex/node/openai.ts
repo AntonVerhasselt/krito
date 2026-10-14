@@ -22,7 +22,7 @@ import { ANALYSIS_PROMPT_V1 } from "../../shared/prompts";
 
 function client() {
   if (
-    process.env.APP_ENV !== "development" ||
+    !["development", "production"].includes(process.env.APP_ENV ?? "") ||
     process.env.AI_PRIMARY_MODEL !== PRIMARY_MODEL ||
     process.env.AI_RECHECK_MODEL !== RECHECK_MODEL
   )

@@ -1,6 +1,8 @@
 # Setup record
 
-Step 1 acceptance checks passed on 2026-10-09. Production backend launch remains deferred.
+Step 1 acceptance checks passed on 2026-10-09. The production backend launched on 2026-10-14;
+see [Production](#production). Sections below that describe the development-only phase are kept
+as a record.
 
 ## Verified identities
 
@@ -12,6 +14,7 @@ Step 1 acceptance checks passed on 2026-10-09. Production backend launch remains
 - Convex: personal team anton-verhasselt (ID 289626), project krito, cloud development
   deployment majestic-sturgeon-687, region Europe (Ireland).
   URL https://majestic-sturgeon-687.eu-west-1.convex.cloud.
+  Production deployment enduring-duck-0 (reference `production`, default), Europe (Ireland).
 - OpenAI: development project key supplied through protected input and installed on Convex only.
   Both exact model IDs passed PDF / strict output / background / retrieval smoke tests.
 
@@ -92,7 +95,7 @@ and six build-isolation tests pass. The Vercel hosted builder uses CLI 62.1.0
 - Setup-only probe and automation capabilities are revoked after testing;
   scheduled fixture cleanup remains available, and all-deployment protection stays on.
 
-PRs #1, #2 and #3 are merged. The development catalog and private analysis workflow are now active. Production backend and bucket remain deferred.
+PRs #1, #2 and #3 are merged. The development catalog and private analysis workflow are now active.
 
 ## Public frontend domain
 
@@ -182,9 +185,9 @@ credential file for repeat deployments; changing the pair is a credential
 rotation and must update Cloud Run and Convex together. No additional frontend
 deployment or Google login is required for normal conversions.
 
-The converter is connected to the existing development backend used by this
-project. A separate production Convex backend and its converter credentials
-remain part of the deferred production release.
+The development converter is connected to the development backend. Production
+has its own service, `krito-converter`, with its own credentials (see
+[Production](#production)).
 
 ### Repeatable converter tests
 
@@ -253,27 +256,29 @@ e-mails, and from e-mails requested in that browser tab.
 
 The sending domain `mail.krito.be` is verified in Resend (EU region,
 `eu-west-1`). The webhook `https://majestic-sturgeon-687.eu-west-1.convex.site/resend-webhook`
-receives sent, delivered, delivery_delayed, bounced, complained, failed,
-suppressed, opened and clicked events (created through the API on 2026-10-12;
-the free plan allows one endpoint). Open and click tracking must be switched on
-in the Resend dashboard (Domains → mail.krito.be → Configuration): the domain
-update API accepted the change but did not apply it.
+received sent, delivered, delivery_delayed, bounced, complained, failed,
+suppressed, opened and clicked events (created through the API on 2026-10-12).
+Since the launch it points at production,
+`https://enduring-duck-0.eu-west-1.convex.site/resend-webhook`, with the same
+signing secret: the free plan allows one endpoint, so development no longer
+receives delivery events. Open and click tracking is on (Domains → mail.krito.be
+→ Configuration; the domain update API did not apply it, the dashboard did).
 
 | Variable | Runtime location | Where the value comes from |
 | --- | --- | --- |
-| `RESEND_API_KEY` | Convex development | Resend → API Keys. Secret; never on Vercel. |
-| `RESEND_WEBHOOK_SECRET` | Convex development | Signing secret (`whsec_…`) of the Resend webhook. |
-| `EMAIL_MODE` | Convex development | `off` sends nothing, `allowlist` only to `EMAIL_ALLOWLIST`, `live` to everyone. |
-| `EMAIL_ALLOWLIST` | Convex development | Comma-separated addresses for `allowlist` mode. |
-| `EMAIL_FROM` | Convex development | `Anton van Krito <anton@mail.krito.be>` |
-| `EMAIL_REPLY_TO` | Convex development | `anton.verhasselt@gmail.com` until a krito.be inbox exists. |
-| `EMAIL_LINK_SECRET` | Convex development | `openssl rand -hex 32`; signs unsubscribe links. Changing it invalidates sent links. |
-| `SITE_URL` | Convex development | `https://www.krito.be`; base of links in e-mails. |
-| `WELCOME_DELAY_SCALE` | Convex development, optional | Testing only, e.g. `0.001`; ignored when `EMAIL_MODE=live`. |
+| `RESEND_API_KEY` | Convex development and production | Resend → API Keys. Secret; never on Vercel. |
+| `RESEND_WEBHOOK_SECRET` | Convex development and production | Signing secret (`whsec_…`) of the Resend webhook. |
+| `EMAIL_MODE` | Convex development and production | `off` sends nothing, `allowlist` only to `EMAIL_ALLOWLIST`, `live` to everyone. |
+| `EMAIL_ALLOWLIST` | Convex development only | Comma-separated addresses for `allowlist` mode. |
+| `EMAIL_FROM` | Convex development and production | `Anton van Krito <anton@mail.krito.be>` |
+| `EMAIL_REPLY_TO` | Convex development and production | `anton.verhasselt@gmail.com` until a krito.be inbox exists. |
+| `EMAIL_LINK_SECRET` | Convex development and production | `openssl rand -hex 32`; signs unsubscribe links. Changing it invalidates sent links. |
+| `SITE_URL` | Convex development and production | `https://www.krito.be`; base of links in e-mails. |
+| `WELCOME_DELAY_SCALE` | Convex development only, optional | Testing only, e.g. `0.001`; ignored when `EMAIL_MODE=live`. |
 
-The live site uses this development deployment, so keep `EMAIL_MODE=allowlist`
-until the copy is approved. Going live is one command:
-`npx convex env set EMAIL_MODE live`.
+The variables are set on both deployments. Production runs `EMAIL_MODE=live` and
+has its own `EMAIL_LINK_SECRET`; development stays on `allowlist`, so tests never
+reach teachers. Both share the Resend API key and sending domain.
 
 The pdf report (`shared/report/`) is rendered on demand with
 `@react-pdf/renderer` and never stored. `convex.json` marks `@react-pdf/renderer`
@@ -292,11 +297,11 @@ npm run report:preview                       # demo and 268-goal pdf in /tmp
 
 ## Daily workflow
 
-Run npm run dev in one terminal. Publish backend changes deliberately with npx convex dev --once; no backend watcher is needed during normal frontend work. This project's
+Run npm run dev in one terminal. Publish backend changes to development deliberately with npx convex dev --once; no backend watcher is needed during normal frontend work. This project's
 explicit selector is dev:majestic-sturgeon-687. Keep one backend writer active;
-frontend builds and branches must be compatible with that shared backend. One-off
-publication: npx convex dev --once. Frontend Git integration is the only automatic
-frontend deployment mechanism; GitHub Actions runs checks only.
+frontend builds and branches must be compatible with that shared backend.
+Merging to `main` is the only way to publish production (see
+[Production](#production)); GitHub Actions runs checks only.
 
 Before preview storage testing, wait for Ready, run npm run infra:cors, and use the
 actual immutable or stable branch origin. Fresh immutable URLs need another sync.
@@ -321,7 +326,71 @@ logging; browser network diagnostics can contain signed URLs and should be omitt
 The user authorized scraping https://opstap.katholiekonderwijs.vlaanderen/ for this
 MVP and requested all groups/ages. Preserve the full source hierarchy and its age
 and route semantics. Replace the earlier multiple-filter selector with flexible
-search that exposes matching results and age tags. Commercial reuse will be
-revisited with the source owner later; no commercial launch is part of this setup.
+search that exposes matching results and age tags. The source owner agreed to
+start testing with a small number of users.
 
-The complete Op.stap 1.3 catalog has now been imported and published in the selected Convex development deployment: 15,290 original records, 7,488 goals, 4,607 topic/group entries. The original records were audited by type against the archive, and the repeat refresh was an exact no-op. Use `npm run goals:update` to refresh development. See [catalog operations](../data/opstap/README.md) and [accepted teacher-flow changes](product-decisions.md): search results show subdomains only and choosing one includes all its goals automatically.
+The complete Op.stap 1.3 catalog has been imported and published in the Convex development deployment, and on 2026-10-14 in production: 15,290 original records, 7,488 goals, 4,607 topic/group entries. The original records were audited by type against the archive, and the repeat refresh was an exact no-op. Use `npm run goals:update` to refresh development and `npm run goals:update -- --production` for production. See [catalog operations](../data/opstap/README.md) and [accepted teacher-flow changes](product-decisions.md): search results show subdomains only and choosing one includes all its goals automatically.
+
+## Production
+
+Launched on 2026-10-14. www.krito.be (Vercel Production) uses its own backend;
+local development and every Preview stay on development. No development data
+was copied: development held test data only.
+
+| Resource | Production | Development |
+| --- | --- | --- |
+| Convex | `enduring-duck-0` (reference `production`, default prod), Europe (Ireland), https://enduring-duck-0.eu-west-1.convex.cloud | `majestic-sturgeon-687` |
+| R2 bucket | `krito-pdfs`, WEUR, no public access | `krito-pdfs-dev` |
+| R2 CORS | `https://krito.be`, `https://www.krito.be` only (`infra/r2-cors.prod.json`) | localhost, previews and the public domains |
+| R2 lifecycle | `staging/` and `sealed/` expire after 365 days (`infra/r2-lifecycle.prod.json`) | `staging/` after one day |
+| Converter | Cloud Run `krito-converter`, `europe-west1`, own basic-auth credentials | `krito-converter-dev` |
+| E-mail | `EMAIL_MODE=live`, own `EMAIL_LINK_SECRET`; the Resend webhook points here | `allowlist` |
+| Catalog | Op.stap 1.3, imported from the archived `data/opstap/1.3/goals.json` | the same |
+
+Convex created a US production deployment (`focused-horse-66`) with the project.
+It was never used; it is renamed `unused-us`, no longer the default and can be
+deleted in the Convex dashboard. Production is in the EU, like development.
+
+Secrets: `.secrets/production.env` (owner-only) holds the backend input. The
+OpenAI key, R2 keys (account-wide, so they reach both buckets), Resend API key
+and webhook secret are the same as development's; `EMAIL_LINK_SECRET` and the
+converter credentials are production's own. `.secrets/convex-production.env`
+holds the deploy key `vercel-production`, which lives on Vercel Production only
+(sensitive). `npm run env:frontend` sets Vercel: `NEXT_PUBLIC_CONVEX_URL` and
+`KRITO_BACKEND_ENV=development` for Development and Preview; the production URL,
+`KRITO_BACKEND_ENV=production` and `CONVEX_DEPLOY_KEY` for Production.
+
+### Publishing
+
+Merging to `main` builds Vercel Production. `scripts/buildVercel.ts` checks that
+the deploy key belongs to `prod:enduring-duck-0`, then runs
+`npx convex deploy --cmd 'npm run build'`: the frontend is built against the URL
+Convex returns, and the backend is published after a successful build. A failed
+build leaves the previous production deployment live. Previews, CI and local
+builds only build the frontend against development and refuse a deploy key.
+
+Keep backend changes compatible: a frontend rollback does not roll back the
+Convex schema or data. Publish to development first (`npx convex dev --once`)
+and run the usual checks before merging.
+
+### Repeating the setup
+
+All commands default to development; `-- --production` selects production.
+
+```bash
+npm run env:backend -- --production      # backend variables from .secrets/production.env
+npm run infra:converter -- --production  # deploy krito-converter, set its variables on Convex
+npm run infra:cors -- --production       # apply infra/r2-cors.prod.json
+npm run infra:lifecycle -- --production  # apply infra/r2-lifecycle.prod.json
+npm run goals:seed -- --env prod --file data/opstap/1.3/goals.json
+npm run env:check -- --production        # presence only, never values
+npm run env:frontend                     # Vercel variables for all three targets
+```
+
+### Rollback
+
+Use Vercel's Instant Rollback to serve an earlier production deployment. Builds
+from before the launch (up to 3f3790a) use the development backend, so rolling
+back that far moves teachers back to development: then also move the Resend
+webhook back to development and set its `EMAIL_MODE`. Rolling back never
+changes Convex; republish an earlier backend by deploying that commit.

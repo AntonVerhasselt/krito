@@ -1,15 +1,17 @@
 import { parseArgs } from "node:util";
-import { assertDevelopment, cli, development } from "./lib";
+import { assertDevelopment, assertProduction, cli, development, production } from "./lib";
 import { validateCatalog } from "./catalog/validate";
 import { digest } from "../shared/catalog";
 const { values } = parseArgs({
   options: { env: { type: "string" }, file: { type: "string" } },
 });
-if (values.env !== "dev" || !values.file)
+if ((values.env !== "dev" && values.env !== "prod") || !values.file)
   throw new Error(
-    "Usage: npm run goals:seed -- --env dev --file data/opstap/<version>/goals.json",
+    "Usage: npm run goals:seed -- --env dev|prod --file data/opstap/<version>/goals.json",
   );
-assertDevelopment();
+if (values.env === "prod") assertProduction();
+else assertDevelopment();
+const deployment = (values.env === "prod" ? production : development).convexDeployment;
 const { dataset, source } = await validateCatalog(values.file);
 const { goals, goalSets, ...metadata } = dataset;
 const expected = {
@@ -25,7 +27,7 @@ function run(name: string, args: unknown): { status?: string } {
       `catalogImport:${name}`,
       JSON.stringify(args),
       "--deployment",
-      development.convexDeployment.slice(4),
+      deployment.split(":")[1],
       "--codegen",
       "disable",
       "--typecheck",
@@ -70,7 +72,7 @@ for (const [kind, rows] of [
   }
   if (current.length) batches.push(current);
   console.log(
-    `Importing ${rows.length} ${kind} into ${development.convexDeployment} (${batches.length} batches).`,
+    `Importing ${rows.length} ${kind} into ${deployment} (${batches.length} batches).`,
   );
   for (let i = 0; i < batches.length; i++) {
     const args = { catalogVersion: dataset.catalogVersion, rows: batches[i] };

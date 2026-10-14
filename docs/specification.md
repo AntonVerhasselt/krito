@@ -211,7 +211,7 @@ Document exact repository URL, Vercel scope/project, Convex team/project/develop
 
 ### Move to production when ready
 
-This is a deferred release checklist, not part of initial setup. After steps 2–10 work and the user declares readiness, configure the Convex production deployment, separate production R2 bucket/credentials, production backend variables, and published goal dataset. Do not copy test teacher files, emails, analyses, or temporary jobs into production.
+Done on 2026-10-14; see [Production in setup.md](setup.md#production). This was a deferred release checklist, not part of initial setup. After steps 2–10 work and the user declares readiness, configure the Convex production deployment, separate production R2 bucket/credentials, production backend variables, and published goal dataset. Do not copy test teacher files, emails, analyses, or temporary jobs into production.
 
 Keep local development and Vercel Preview on development. Change only Vercel Production to the production backend. Store the production deploy key only in the Production target. Then extend the build script so a validated production target publishes Convex and builds the frontend using its returned URL:
 

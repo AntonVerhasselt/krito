@@ -17,6 +17,7 @@
     "assets:build": "tsx scripts/buildAssets.ts",
     "env:check": "tsx scripts/checkEnvironment.ts",
     "env:backend": "tsx scripts/setBackendEnvironment.ts",
+    "env:frontend": "tsx scripts/setFrontendEnvironment.ts",
     "env:posthog": "tsx scripts/configurePosthog.ts",
     "ai:smoke": "tsx scripts/aiSmoke.ts",
     "infra:vercel": "tsx scripts/configureVercel.ts",

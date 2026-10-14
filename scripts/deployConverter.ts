@@ -2,19 +2,20 @@ import { randomBytes } from "node:crypto";
 import { appendFileSync, existsSync, mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
-import { assertDevelopment, cli, development, readEnv } from "./lib";
+import { cli, development, readEnv, selectTarget } from "./lib";
 
 // Deploys the document converter (Gotenberg with LibreOffice) to Cloud Run in
-// the EU and points the Convex development backend at it. Teacher files only
-// pass through this service; it stores nothing.
-assertDevelopment();
+// the EU and points the Convex backend at it: development by default,
+// production with `-- --production` (its own service and credentials).
+// Teacher files only pass through this service; it stores nothing.
+const target = selectTarget();
 const { gcpProject: project, gcpRegion: region } = development;
 if (!project) throw new Error("Set gcpProject in infra/development.json first.");
-const service = "krito-converter-dev";
+const service = target.converterService;
 // gcloud on PATH, or the user-level install in ~/.local/google-cloud-sdk.
 const local = join(homedir(), ".local/google-cloud-sdk/bin/gcloud");
 const gcloud = process.env.GCLOUD ?? (existsSync(local) ? local : "gcloud");
-const secrets = ".secrets/development.env";
+const secrets = target.secretsFile;
 if ((statSync(secrets).mode & 0o077) !== 0)
   throw new Error("Credential file must have owner-only permissions (chmod 600).");
 
@@ -73,7 +74,7 @@ const url = cli(gcloud, [
 if (!url.startsWith("https://")) throw new Error("Cloud Run did not report a service URL.");
 cli(
   "npx",
-  ["convex", "env", "set", "--force", "--deployment", development.convexDeployment.slice(4)],
+  ["convex", "env", "set", "--force", "--deployment", target.deployment],
   Object.entries({
     CONVERTER_URL: url,
     CONVERTER_USERNAME: values.CONVERTER_USERNAME,
@@ -82,4 +83,4 @@ cli(
     .map(([name, value]) => `${name}=${JSON.stringify(value)}`)
     .join("\n"),
 );
-console.log(`Converter deployed to ${region} and connected to the development backend; credentials withheld.`);
+console.log(`Converter ${service} deployed to ${region} and connected to the ${target.appEnv} backend; credentials withheld.`);

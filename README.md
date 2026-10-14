@@ -38,13 +38,12 @@ npm test
 npm run build
 ```
 
-After cloud setup, run `npx convex dev` separately. Keep one backend writer active:
-local, hosted main, and previews share the selected development deployment.
-Frontend builds must never publish Convex during this phase. Backend secrets belong
-in Convex development, never Vercel or Git.
-
-Production backend configuration remains deferred until the MVP is ready and the
-user explicitly declares readiness.
+Local work and previews share the Convex development deployment; publish backend
+changes there with `npx convex dev --once`. Production (www.krito.be) has its own
+Convex deployment, R2 bucket and converter. Merging to `main` publishes the
+production backend and frontend together; nothing else deploys to production.
+Backend secrets belong on Convex, never Vercel (except the production deploy key)
+or Git. See [production](docs/setup.md#production).
 
 ## Infrastructure commands
 
@@ -52,9 +51,14 @@ user explicitly declares readiness.
 npm run env:backend    # Read protected .secrets/development.env; never print values
 npm run ai:smoke       # Verify the exact requested models before configuring them
 npm run env:check      # Report presence only, never raw provider environment output
+npm run env:frontend   # Vercel backend variables: development/preview vs production
 npm run infra:vercel   # Reconcile and read back settings after vercel link
 npm run infra:cors     # Run after each Ready preview, before browser PDF checks
 ```
+
+These target development. Add `-- --production` to `env:backend`, `env:check`,
+`infra:cors`, `infra:lifecycle`, `infra:converter` and `goals:update` for the
+production backend.
 
 CLI preview: `npx vercel`. Reproduce a branch build with
 `npx vercel pull --environment=preview --git-branch=feat/setup-preview-check`,
@@ -66,6 +70,7 @@ All source records are imported into Convex. The versioned local archives suppor
 
 ```bash
 npm run goals:update      # Fetch latest official snapshot, validate, import and publish in dev
+npm run goals:update -- --production   # The same for production
 npm run goals:validate    # Compare normalized data with its archived source
 ```
 
